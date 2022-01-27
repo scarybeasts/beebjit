@@ -348,7 +348,7 @@ video_test_6845_corner_cases() {
   /* Tests corner cases, expecting Hitachi 6845 behavior. */
   int64_t countdown = timing_get_countdown(g_p_timing);
 
-  /* Interlace off to keep it simpler. */
+  /* Interlace off and no skew to keep it simpler. */
   video_crtc_write(g_p_video, 0, 8);
   video_crtc_write(g_p_video, 1, 0);
   video_crtc_write(g_p_video, 0, 9);
@@ -417,7 +417,10 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
-  test_expect_u32(1, g_p_video->display_enable_horiz);
+  test_expect_u32(1, g_p_video->display_enable_vert);
+  test_expect_u32(0, g_p_video->display_enable_horiz);
+  test_expect_u32(3, g_p_video->per_character_checks);
+  test_expect_u32(0, g_p_video->start_skew_counter);
   test_expect_u32(0, g_p_video->address_counter);
   countdown = timing_advance_time(g_p_timing, (countdown - 100));
   video_advance_crtc_timing(g_p_video);

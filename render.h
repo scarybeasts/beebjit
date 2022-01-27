@@ -56,12 +56,17 @@ void render_set_cursor_segments(struct render_struct* p_render,
                                 int s1,
                                 int s2,
                                 int s3);
+void render_set_DISPEN(struct render_struct* p_render, int is_enabled);
 void render_set_RA(struct render_struct* p_render, uint32_t row_address);
 
-void (*render_get_render_data_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t, uint16_t, uint64_t);
-void (*render_get_render_blank_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t, uint16_t, uint64_t);
+/* Call render_prepare() before a sequence of render_render() to ensure that
+ * all pending pixel table rebuilds are taken care of.
+ */
+void render_prepare(struct render_struct* p_render);
+void render_render(struct render_struct* p_render,
+                   uint8_t data,
+                   uint16_t addr,
+                   uint64_t ticks);
 
 void render_clear_buffer(struct render_struct* p_render);
 void render_process_full_buffer(struct render_struct* p_render);

@@ -47,7 +47,11 @@ static uint8_t s_teletext_generated_glyphs[96 * 16 * 20];
 static uint8_t s_teletext_generated_gfx[96 * 16 * 20];
 static uint8_t s_teletext_generated_sep_gfx[96 * 16 * 20];
 
+static struct render_character_1MHz s_render_character_1MHz_black;
+
 struct teletext_struct {
+  uint8_t data_pipeline[3];
+  uint8_t dispen_pipeline[2];
   uint32_t palette[8];
   uint32_t flash_count;
   int flash_visible_this_frame;
@@ -65,7 +69,8 @@ struct teletext_struct {
   uint8_t* p_held_character;
   int crtc_ra0;
   int is_isv;
-  int last_dispen;
+  int curr_dispen;
+  int incoming_dispen;
   uint8_t* p_render_character;
   uint32_t render_fg_color;
 };
@@ -235,6 +240,10 @@ teletext_generate(void) {
     teletext_double_up_pixels(&doubled_gfx_glyph[0], &sep_gfx_buf[0]);
     teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],
                               &doubled_gfx_glyph[0]);
+  }
+
+  for (i = 0; i < 16; ++i) {
+    s_render_character_1MHz_black.host_pixels[i] = 0xff000000;
   }
 }
 
@@ -406,8 +415,8 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   teletext_set_active_characters(p_teletext);
 }
 
-void
-teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
+static inline void
+teletext_do_data_byte(struct teletext_struct* p_teletext, uint8_t data) {
   /* Foreground color and active characters are set-after so load them before
    * potentially processing a control code.
    */
@@ -456,6 +465,46 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
 }
 
 void
+teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
+  /* This function handles the pipelining of incoming signals, which is to say
+   * that in real hardware, incoming signals have their visible effect some
+   * number of cycles after initial receipt.
+   * There are two components potentially involved in the pipelining: the
+   * IC15 latch (between the 6845 and SAA5050) and the SAA5050 chip itself.
+   * In addition to the pipelining, the beeb teletext mode also uses 6845
+   * "skew", which delays the 6845 DISPEN signal by 1 clock.
+   * All together, the data bytes appear to hit the screen 3 clocks after the
+   * 6845 selects them, and the display enable triggers after 1 clock of 6845
+   * skew and 2 clocks of pipeline latency.
+   */
+  uint8_t queue_data = p_teletext->data_pipeline[0];
+  int is_dispen = p_teletext->dispen_pipeline[0];
+
+  /* A logic gate in IC37 and IC36 is used to set bit 6 in the data if DISPEN
+   * is low. This has the effect of avoiding control codes.
+   * We can get the same effect, a bit faster, by only sending data along if
+   * display is enabled.
+   */
+  if (is_dispen) {
+    teletext_do_data_byte(p_teletext, queue_data);
+  }
+  p_teletext->data_pipeline[0] = p_teletext->data_pipeline[1];
+  p_teletext->data_pipeline[1] = p_teletext->data_pipeline[2];
+  p_teletext->data_pipeline[2] = data;
+
+  /* The chip increments its scanline counter on the falling edge of display
+   * enable from the 6845.
+   */
+  if ((is_dispen == 0) && (p_teletext->curr_dispen == 1)) {
+    teletext_scanline_ended(p_teletext);
+  }
+  p_teletext->curr_dispen = is_dispen;
+
+  p_teletext->dispen_pipeline[0] = p_teletext->dispen_pipeline[1];
+  p_teletext->dispen_pipeline[1] = p_teletext->incoming_dispen;
+}
+
+void
 teletext_render(struct teletext_struct* p_teletext,
                 struct render_character_1MHz* p_out,
                 struct render_character_1MHz* p_next_out) {
@@ -465,6 +514,14 @@ teletext_render(struct teletext_struct* p_teletext,
   uint8_t* p_src_data = p_teletext->p_render_character;
   uint32_t render_fg_color = p_teletext->render_fg_color;
   uint32_t bg_color = p_teletext->bg_color;
+
+  if (!p_teletext->curr_dispen) {
+    *p_out = s_render_character_1MHz_black;
+    if (p_next_out) {
+      *p_next_out = s_render_character_1MHz_black;
+    }
+    return;
+  }
 
   if ((p_teletext->flash_active && !p_teletext->flash_visible_this_frame) ||
       (p_teletext->second_character_row_of_double &&
@@ -549,13 +606,11 @@ teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
 
 void
 teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value) {
-  /* The chip increments its scanline counter on the falling edge of display
-   * enable from the 6845.
+  /* The DISPEN signal is pipelined, just like the data bytes are pipelined.
+   * The affects of a changing DISPEN are committed in teletext_data() as they
+   * hit the head of the pipeline.
    */
-  if ((value == 0) && (p_teletext->last_dispen == 1)) {
-    teletext_scanline_ended(p_teletext);
-  }
-  p_teletext->last_dispen = value;
+  p_teletext->incoming_dispen = value;
 }
 
 void
