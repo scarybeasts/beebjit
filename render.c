@@ -349,41 +349,34 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
                                       uint8_t data,
                                       uint16_t address,
                                       uint64_t ticks) {
-  uint32_t num_pixels = 16;
   uint32_t* p_render_pos = p_render->p_render_pos;
   struct teletext_struct* p_teletext = p_render->p_teletext;
-  int is_1MHz;
 
-  if (p_render->is_clock_2MHz) {
-    num_pixels = 8;
+  /* The SAA5050 is clocked at 1MHz. */
+  if (ticks & 1) {
+    return;
   }
 
   /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
   if (!(address & 0x2000)) {
     data = 0;
   }
-  /* The SAA5050 is clocked at 1MHz. */
-  is_1MHz = !(ticks & 1);
 
-  if (is_1MHz) {
-    /* Need to send along the data even for off-screen bytes so that the
-     * SAA5050 state is correctly maintained.
-     * e.g. the super-wide MODE7 in the Firetrack loader.
-     */
-    teletext_data(p_teletext, data);
-  }
+  /* Need to send along the data even for off-screen bytes so that the
+   * SAA5050 state is correctly maintained.
+   * e.g. the super-wide MODE7 in the Firetrack loader.
+   */
+  teletext_data(p_teletext, data);
 
-  p_render->horiz_beam_pos += num_pixels;
+  p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    if (is_1MHz) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      teletext_render(p_teletext,
-                      (struct render_character_1MHz*) p_render_pos,
-                      (struct render_character_1MHz*) p_next_render_pos);
-      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
-    }
-    p_render->p_render_pos += num_pixels;
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    teletext_render(p_teletext,
+                    (struct render_character_1MHz*) p_render_pos,
+                    (struct render_character_1MHz*) p_next_render_pos);
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    p_render->p_render_pos += 16;
   } else {
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
@@ -397,48 +390,41 @@ render_function_teletext_interlaced(struct render_struct* p_render,
                                     uint8_t data,
                                     uint16_t address,
                                     uint64_t ticks) {
-  uint32_t num_pixels = 16;
   uint32_t* p_render_pos = p_render->p_render_pos;
   struct teletext_struct* p_teletext = p_render->p_teletext;
-  int is_1MHz;
 
-  if (p_render->is_clock_2MHz) {
-    num_pixels = 8;
+  /* The SAA5050 is clocked at 1MHz. */
+  if (ticks & 1) {
+    return;
   }
 
   /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
   if (!(address & 0x2000)) {
     data = 0;
   }
-  /* The SAA5050 is clocked at 1MHz. */
-  is_1MHz = !(ticks & 1);
 
-  if (is_1MHz) {
-    /* Need to send along the data even for off-screen bytes so that the
-     * SAA5050 state is correctly maintained.
-     * e.g. the super-wide MODE7 in the Firetrack loader.
-     */
-    teletext_data(p_teletext, data);
-  }
+  /* Need to send along the data even for off-screen bytes so that the
+   * SAA5050 state is correctly maintained.
+   * e.g. the super-wide MODE7 in the Firetrack loader.
+   */
+  teletext_data(p_teletext, data);
 
-  p_render->horiz_beam_pos += num_pixels;
+  p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    if (is_1MHz) {
-      if (p_render->vert_beam_pos & 1) {
-        uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-        teletext_render(p_render->p_teletext,
-                        (struct render_character_1MHz*) p_next_render_pos,
-                        NULL);
-        render_check_cursor(p_render, p_next_render_pos, NULL, 16);
-      } else {
-        teletext_render(p_render->p_teletext,
-                        (struct render_character_1MHz*) p_render_pos,
-                        NULL);
-        render_check_cursor(p_render, p_render_pos, NULL, 16);
-      }
+    if (p_render->vert_beam_pos & 1) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      teletext_render(p_render->p_teletext,
+                      (struct render_character_1MHz*) p_next_render_pos,
+                      NULL);
+      render_check_cursor(p_render, p_next_render_pos, NULL, 16);
+    } else {
+      teletext_render(p_render->p_teletext,
+                      (struct render_character_1MHz*) p_render_pos,
+                      NULL);
+      render_check_cursor(p_render, p_render_pos, NULL, 16);
     }
-    p_render->p_render_pos += num_pixels;
+    p_render->p_render_pos += 16;
   } else {
     teletext_render(p_teletext, NULL, NULL);
     if ((p_render->horiz_beam_pos & ~15) ==
