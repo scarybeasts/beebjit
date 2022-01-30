@@ -599,13 +599,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (r1_hit) {
       p_video->address_counter_next_row = p_video->address_counter;
-      if (p_video->skew) {
-        p_video->per_character_checks |= 4;
-        p_video->stop_skew_counter = p_video->skew;
-      } else {
-        p_video->display_enable_horiz = 0;
-        video_lower_DISPEN(p_video);
-      }
+      p_video->per_character_checks |= 4;
+      p_video->stop_skew_counter = p_video->skew;
     }
 
     if (p_video->per_character_checks) {
