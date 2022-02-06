@@ -76,6 +76,12 @@ enum {
   k_video_timer_expect_vsync_lower = 4,
 };
 
+enum {
+  k_video_check_line_start = 1,
+  k_video_check_skew_enable_horiz = 2,
+  k_video_check_skew_disable_horiz = 4,
+};
+
 struct video_struct {
   uint8_t* p_bbc_mem;
   uint8_t* p_shadow_mem;
@@ -179,8 +185,8 @@ struct video_struct {
   int64_t last_vsync_raise_ticks;
   int64_t last_vsync_lower_ticks;
   int32_t cursor_skew_counter;
-  uint32_t start_skew_counter;
-  uint32_t stop_skew_counter;
+  uint32_t skew_enable_horiz_shift_register;
+  uint32_t skew_disable_horiz_shift_register;
 };
 
 static inline uint8_t
@@ -270,9 +276,10 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->per_character_checks |= (1 | 2);
+  p_video->per_character_checks |=
+      (k_video_check_line_start | k_video_check_skew_enable_horiz);
   p_video->start_of_line_state_checks |= 1;
-  p_video->start_skew_counter = p_video->skew;
+  p_video->skew_enable_horiz_shift_register |= (1 << p_video->skew);
   p_video->is_first_frame_scanline = 1;
 
   p_video->display_enable_vert = 1;
@@ -599,8 +606,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (r1_hit) {
       p_video->address_counter_next_row = p_video->address_counter;
-      p_video->per_character_checks |= 4;
-      p_video->stop_skew_counter = p_video->skew;
+    }
+    if (r1_hit || r0_hit) {
+      p_video->per_character_checks |= k_video_check_skew_disable_horiz;
+      p_video->skew_disable_horiz_shift_register |= (1 << p_video->skew);
     }
 
     if (p_video->per_character_checks) {
@@ -616,7 +625,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           }
           p_video->start_of_line_state_checks &= ~8;
           if (!p_video->start_of_line_state_checks) {
-            p_video->per_character_checks &= ~1;
+            p_video->per_character_checks &= ~k_video_check_line_start;
           }
         }
         if (p_video->start_of_line_state_checks & 4) {
@@ -648,21 +657,23 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           p_video->start_of_line_state_checks |= 2;
         }
       }
-      if (p_video->per_character_checks & 2) {
-        if (p_video->start_skew_counter == 0) {
-          p_video->per_character_checks &= ~2;
+      if (p_video->per_character_checks & k_video_check_skew_enable_horiz) {
+        if (p_video->skew_enable_horiz_shift_register & 1) {
           video_set_display_enable_horiz(p_video);
-        } else {
-          p_video->start_skew_counter--;
+        }
+        p_video->skew_enable_horiz_shift_register >>= 1;
+        if (p_video->skew_enable_horiz_shift_register == 0) {
+          p_video->per_character_checks &= ~k_video_check_skew_enable_horiz;
         }
       }
-      if (p_video->per_character_checks & 4) {
-        if (p_video->stop_skew_counter == 0) {
-          p_video->per_character_checks &= ~4;
+      if (p_video->per_character_checks & k_video_check_skew_disable_horiz) {
+        if (p_video->skew_disable_horiz_shift_register & 1) {
           p_video->display_enable_horiz = 0;
           video_lower_DISPEN(p_video);
-        } else {
-          p_video->stop_skew_counter--;
+        }
+        p_video->skew_disable_horiz_shift_register >>= 1;
+        if (p_video->skew_disable_horiz_shift_register == 0) {
+          p_video->per_character_checks &= ~k_video_check_skew_disable_horiz;
         }
       }
     }
@@ -723,33 +734,22 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         }
       }
 
-      if (!r0_hit) {
-        data = video_read_data_byte(p_video,
-                                    ticks,
-                                    address_counter,
-                                    p_video->scanline_counter,
-                                    p_video->screen_wrap_add);
-        render_render(p_render, data, address_counter, ticks);
-      }
+      data = video_read_data_byte(p_video,
+                                  ticks,
+                                  address_counter,
+                                  p_video->scanline_counter,
+                                  p_video->screen_wrap_add);
+      render_render(p_render, data, address_counter, ticks);
     }
 
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
+    ticks += ticks_inc;
 
     if (!r0_hit) {
-      ticks += ticks_inc;
       continue;
     }
 
-    /* End of horizontal line.
-     * There's no display output for this last character. It's unclear what the
-     * mechanism for this is. Currently we force a zero data byte, whereas
-     * previously we forced black.
-     */
-    if (p_video->is_rendering_active) {
-      render_render(p_render, 0, 0, ticks);
-    }
-    ticks += ticks_inc;
-
+    /* End of horizontal line. */
     p_video->horiz_counter = 0;
     /* display_enable_horiz is raised as part of the state checks at the
      * beginning of a new line.
@@ -810,9 +810,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Start the new line state check chain.
      * display_enable_horiz will be set as part of these checks.
      */
-    p_video->per_character_checks |= (1 | 2);
+    p_video->per_character_checks |=
+        (k_video_check_line_start | k_video_check_skew_enable_horiz);
     p_video->start_of_line_state_checks |= 1;
-    p_video->start_skew_counter = p_video->skew;
+    p_video->skew_enable_horiz_shift_register |= (1 << p_video->skew);
 
     if (p_video->is_in_vert_adjust) {
       p_video->vert_adjust_counter++;
@@ -1593,14 +1594,15 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->per_character_checks = (1 | 2);
+  p_video->per_character_checks =
+      (k_video_check_line_start | k_video_check_skew_enable_horiz);
   p_video->start_of_line_state_checks = 1;
   p_video->is_first_frame_scanline = 1;
   p_video->last_vsync_raise_ticks = -1;
   p_video->last_vsync_lower_ticks = -1;
   p_video->cursor_skew_counter = -1;
-  p_video->start_skew_counter = 1;
-  p_video->stop_skew_counter = 0;
+  p_video->skew_enable_horiz_shift_register = (1 << 1);
+  p_video->skew_disable_horiz_shift_register = 0;
 }
 
 void

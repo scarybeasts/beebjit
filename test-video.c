@@ -420,7 +420,7 @@ video_test_6845_corner_cases() {
   test_expect_u32(1, g_p_video->display_enable_vert);
   test_expect_u32(0, g_p_video->display_enable_horiz);
   test_expect_u32(3, g_p_video->per_character_checks);
-  test_expect_u32(0, g_p_video->start_skew_counter);
+  test_expect_u32(1, g_p_video->skew_enable_horiz_shift_register);
   test_expect_u32(0, g_p_video->address_counter);
   countdown = timing_advance_time(g_p_timing, (countdown - 100));
   video_advance_crtc_timing(g_p_video);
