@@ -162,8 +162,7 @@ struct video_struct {
   uint8_t vsync_scanline_counter;
   uint8_t hsync_tick_counter;
   uint32_t address_counter;
-  uint32_t address_counter_this_row;
-  uint32_t address_counter_next_row;
+  uint32_t address_counter_saved;
   int is_vert_adjust_pending;
   int is_in_vert_adjust;
   int in_vsync;
@@ -258,11 +257,7 @@ video_start_new_frame(struct video_struct* p_video) {
   address_counter = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
   address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
   p_video->address_counter = address_counter;
-  p_video->address_counter_this_row = address_counter;
-  /* NOTE: it's untested what happens if you start a new frame, then start a
-   * new character row without ever having hit R1 (horizontal displayed).
-   */
-  p_video->address_counter_next_row = address_counter;
+  p_video->address_counter_saved = address_counter;
 
   if (p_video->opt_do_show_frame_boundaries) {
     render_horiz_line(p_video->p_render, 0xffff0000);
@@ -572,8 +567,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     r0_hit = (p_video->horiz_counter == r0);
     r1_hit = (p_video->horiz_counter == r1);
 
-    if (r1_hit) {
-      p_video->address_counter_next_row = p_video->address_counter;
+    if (r1_hit && r9_hit) {
+      p_video->address_counter_saved = p_video->address_counter;
     }
 
     if (p_video->start_of_line_state_checks) {
@@ -736,16 +731,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    r9_hit = (p_video->scanline_counter == effective_r9);
-    if (r9_hit) {
-      /* End of character row. */
-      p_video->address_counter = p_video->address_counter_next_row;
-      p_video->address_counter_this_row = p_video->address_counter_next_row;
-    }
-
     p_video->scanline_counter += p_video->scanline_stride;
     p_video->scanline_counter &= p_video->scanline_mask;
-    p_video->address_counter = p_video->address_counter_this_row;
+    /* The saved counter will have been advanced at r1 hit if r9 was hit. */
+    p_video->address_counter = p_video->address_counter_saved;
 
     if (r9_hit && !p_video->is_in_vert_adjust) {
       p_video->has_hit_cursor_line_start = 0;
@@ -1533,8 +1522,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->vsync_scanline_counter = 0;
   p_video->hsync_tick_counter = 0;
   p_video->address_counter = 0;
-  p_video->address_counter_this_row = 0;
-  p_video->address_counter_next_row = 0;
+  p_video->address_counter_saved = 0;
   p_video->is_vert_adjust_pending = 0;
   p_video->is_in_vert_adjust = 0;
   p_video->in_vsync = 0;
