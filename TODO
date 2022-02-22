@@ -24,7 +24,6 @@ Fix later
 =========
 Bugs and issues not serious enough to warrant fixing before the next release.
 
-- 6845 skew not account vertical enable in skew shifting.
 - Update BCD for 65c12.
 - "back in time" support in the debugger via fast replay.
 - JIT block timing code improvements. Currently, there's a non-trivial

@@ -77,9 +77,9 @@ enum {
 };
 
 enum {
-  k_video_check_line_start = 1,
-  k_video_check_skew_enable_horiz = 2,
-  k_video_check_skew_disable_horiz = 4,
+  k_video_display_enable_horiz = 1,
+  k_video_display_enable_vert = 2,
+  k_video_display_enable_all = 3,
 };
 
 struct video_struct {
@@ -137,7 +137,6 @@ struct video_struct {
   uint8_t crtc_registers[k_video_crtc_num_registers];
   int is_interlace;
   int is_interlace_sync_and_video;
-  int is_master_display_enable;
   uint32_t scanline_stride;
   uint32_t scanline_mask;
   uint8_t hsync_pulse_width;
@@ -149,7 +148,7 @@ struct video_struct {
   uint8_t cursor_start_line;
   int has_sane_framing_parameters;
   int32_t frame_crtc_ticks;
-  uint8_t skew;
+  uint32_t skew_dispen_index;
   uint8_t cursor_skew;
 
   /* 6845 state. */
@@ -172,21 +171,18 @@ struct video_struct {
   int in_dummy_raster;
   int had_vsync_this_row;
   int do_dummy_raster;
-  int display_enable_horiz;
-  int display_enable_vert;
+  uint32_t display_enable_bits;
   int has_hit_cursor_line_start;
   int has_hit_cursor_line_end;
   int is_end_of_main_latched;
   int is_end_of_vert_adjust_latched;
   int is_end_of_frame_latched;
-  uint32_t per_character_checks;
   uint32_t start_of_line_state_checks;
   int is_first_frame_scanline;
   int64_t last_vsync_raise_ticks;
   int64_t last_vsync_lower_ticks;
   int32_t cursor_skew_counter;
-  uint32_t skew_enable_horiz_shift_register;
-  uint32_t skew_disable_horiz_shift_register;
+  int dispen_shifts[4];
 };
 
 static inline uint8_t
@@ -231,37 +227,17 @@ video_read_data_byte(struct video_struct* p_video,
   }
 }
 
-static inline int
-video_is_display_enabled(struct video_struct* p_video) {
-  int enabled = p_video->is_master_display_enable;
-  enabled &= p_video->display_enable_horiz;
-  enabled &= p_video->display_enable_vert;
-
-  return enabled;
-}
-
-static inline void
-video_lower_DISPEN(struct video_struct* p_video) {
-  render_set_DISPEN(p_video->p_render, 0);
-  teletext_DISPEN_changed(p_video->p_teletext, 0);
-}
-
-static inline void
-video_update_DISPEN(struct video_struct* p_video) {
-  int dispen = video_is_display_enabled(p_video);
-  render_set_DISPEN(p_video->p_render, dispen);
-  /* The IC15 latch only lets DISPEN through if teletext linear addressing is
-   * in effect.
-   */
-  dispen &= !!(p_video->address_counter & 0x2000);
-  teletext_DISPEN_changed(p_video->p_teletext, dispen);
-}
-
 static inline void
 video_start_new_frame(struct video_struct* p_video) {
   uint32_t address_counter;
 
-  p_video->horiz_counter = 0;
+  /* video_start_new_frame() is always called as an addendum to starting a new
+   * line, so no need to redo that work.
+   */
+  assert(p_video->horiz_counter == 0);
+  assert(p_video->start_of_line_state_checks & 1);
+  assert(p_video->display_enable_bits & k_video_display_enable_horiz);
+
   p_video->scanline_counter = 0;
   p_video->vert_counter = 0;
   p_video->vert_adjust_counter = 0;
@@ -276,13 +252,9 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->per_character_checks |=
-      (k_video_check_line_start | k_video_check_skew_enable_horiz);
-  p_video->start_of_line_state_checks |= 1;
-  p_video->skew_enable_horiz_shift_register |= (1 << p_video->skew);
   p_video->is_first_frame_scanline = 1;
 
-  p_video->display_enable_vert = 1;
+  p_video->display_enable_bits |= k_video_display_enable_vert;
   address_counter = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
   address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
   p_video->address_counter = address_counter;
@@ -516,12 +488,6 @@ video_update_odd_even_frame(struct video_struct* p_video) {
                                      (p_video->crtc_frames & 1));
 }
 
-static inline void
-video_set_display_enable_horiz(struct video_struct* p_video) {
-  p_video->display_enable_horiz = 1;
-  video_update_DISPEN(p_video);
-}
-
 void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t data;
@@ -557,6 +523,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t cursor_addr =
       ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
        p_video->crtc_registers[k_crtc_reg_cursor_low]);
+  int last_external_dispen = -1;
+  int this_external_dispen;
 
   if (p_video->externally_clocked) {
     return;
@@ -607,74 +575,46 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (r1_hit) {
       p_video->address_counter_next_row = p_video->address_counter;
     }
-    if (r1_hit || r0_hit) {
-      p_video->per_character_checks |= k_video_check_skew_disable_horiz;
-      p_video->skew_disable_horiz_shift_register |= (1 << p_video->skew);
-    }
 
-    if (p_video->per_character_checks) {
-      if (p_video->start_of_line_state_checks) {
-        if (p_video->start_of_line_state_checks & 8) {
-          /* It's unclear what exactly goes on here. Currently it's just here to
-           * delay end of frame so that end of frame can only fire in a single
-           * scanline if R0>=3 (4 clocks). This matches testing against a real
-           * Hitachi 6845 in a beeb.
-           */
-          if (p_video->is_end_of_vert_adjust_latched) {
-            p_video->is_end_of_frame_latched = 1;
-          }
-          p_video->start_of_line_state_checks &= ~8;
-          if (!p_video->start_of_line_state_checks) {
-            p_video->per_character_checks &= ~k_video_check_line_start;
-          }
+    if (p_video->start_of_line_state_checks) {
+      if (p_video->start_of_line_state_checks & 8) {
+        /* It's unclear what exactly goes on here. Currently it's just here to
+         * delay end of frame so that end of frame can only fire in a single
+         * scanline if R0>=3 (4 clocks). This matches testing against a real
+         * Hitachi 6845 in a beeb.
+         */
+        if (p_video->is_end_of_vert_adjust_latched) {
+          p_video->is_end_of_frame_latched = 1;
         }
-        if (p_video->start_of_line_state_checks & 4) {
-          /* One tick after the end-of-main check is the end-of-vert-adjust
-           * check.
-           */
-          if (p_video->is_end_of_main_latched) {
-            if (r5_hit) {
-              p_video->is_end_of_vert_adjust_latched = 1;
-            } else if (!p_video->is_in_vert_adjust) {
-              p_video->is_vert_adjust_pending = 1;
-            }
-          }
-          p_video->start_of_line_state_checks &= ~4;
-          p_video->start_of_line_state_checks |= 8;
-        }
-        if (p_video->start_of_line_state_checks & 2) {
-          /* One tick after the new line (typically C0=1), end-of-main is
-           * checked and latched.
-           */
-          if (r4_hit && r9_hit) {
-            p_video->is_end_of_main_latched = 1;
-          }
-          p_video->start_of_line_state_checks &= ~2;
-          p_video->start_of_line_state_checks |= 4;
-        }
-        if (p_video->start_of_line_state_checks & 1) {
-          p_video->start_of_line_state_checks &= ~1;
-          p_video->start_of_line_state_checks |= 2;
-        }
+        p_video->start_of_line_state_checks &= ~8;
       }
-      if (p_video->per_character_checks & k_video_check_skew_enable_horiz) {
-        if (p_video->skew_enable_horiz_shift_register & 1) {
-          video_set_display_enable_horiz(p_video);
+      if (p_video->start_of_line_state_checks & 4) {
+        /* One tick after the end-of-main check is the end-of-vert-adjust
+         * check.
+         */
+        if (p_video->is_end_of_main_latched) {
+          if (r5_hit) {
+            p_video->is_end_of_vert_adjust_latched = 1;
+          } else if (!p_video->is_in_vert_adjust) {
+            p_video->is_vert_adjust_pending = 1;
+          }
         }
-        p_video->skew_enable_horiz_shift_register >>= 1;
-        if (p_video->skew_enable_horiz_shift_register == 0) {
-          p_video->per_character_checks &= ~k_video_check_skew_enable_horiz;
-        }
+        p_video->start_of_line_state_checks &= ~4;
+        p_video->start_of_line_state_checks |= 8;
       }
-      if (p_video->per_character_checks & k_video_check_skew_disable_horiz) {
-        if (p_video->skew_disable_horiz_shift_register & 1) {
-          p_video->display_enable_horiz = 0;
-          video_lower_DISPEN(p_video);
+      if (p_video->start_of_line_state_checks & 2) {
+        /* One tick after the new line (typically C0=1), end-of-main is
+         * checked and latched.
+         */
+        if (r4_hit && r9_hit) {
+          p_video->is_end_of_main_latched = 1;
         }
-        p_video->skew_disable_horiz_shift_register >>= 1;
-        if (p_video->skew_disable_horiz_shift_register == 0) {
-          p_video->per_character_checks &= ~k_video_check_skew_disable_horiz;
-        }
+        p_video->start_of_line_state_checks &= ~2;
+        p_video->start_of_line_state_checks |= 4;
+      }
+      if (p_video->start_of_line_state_checks & 1) {
+        p_video->start_of_line_state_checks &= ~1;
+        p_video->start_of_line_state_checks |= 2;
       }
     }
 
@@ -693,15 +633,20 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->is_rendering_active) {
       uint16_t address_counter = p_video->address_counter;
-      /* This ugly -1 here is just a code ordering issue related to an
-       * optimization; we already incremented horiz_counter above.
-       */
+
+      if (r1_hit || r0_hit) {
+        p_video->display_enable_bits &= ~k_video_display_enable_horiz;
+      }
+
       if (p_video->in_hsync) {
         p_video->hsync_tick_counter--;
         if (p_video->hsync_tick_counter == 0) {
           p_video->in_hsync = 0;
         }
       } else {
+        /* This ugly -1 here is just a code ordering issue related to an
+         * optimization; we already incremented horiz_counter above.
+         */
         r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
           render_hsync(p_render, (p_video->hsync_pulse_width *
@@ -727,11 +672,30 @@ video_advance_crtc_timing(struct video_struct* p_video) {
              * the skew counter expires and not the time we trigger the cursor
              * address match.
              */
-            if (p_video->display_enable_horiz && p_video->display_enable_vert) {
+            if (p_video->display_enable_bits == k_video_display_enable_all) {
               render_cursor(p_render);
             }
           }
         }
+      }
+
+      /* Handle maintaining the DISPEN history for skew. */
+      p_video->dispen_shifts[2] = p_video->dispen_shifts[1];
+      p_video->dispen_shifts[1] = p_video->dispen_shifts[0];
+      p_video->dispen_shifts[0] =
+          (p_video->display_enable_bits == k_video_display_enable_all);
+      /* The DISPEN signal could be based on the current display bits, or
+       * previous display bits if there's skew, or a hard-wired 0
+       * (dispen_shifts[3]) if the skew register indicates display off.
+       */
+      this_external_dispen = p_video->dispen_shifts[p_video->skew_dispen_index];
+      if (this_external_dispen != last_external_dispen) {
+        render_set_DISPEN(p_video->p_render, this_external_dispen);
+        /* The IC15 latch only lets DISPEN through if teletext linear addressing
+         * is in effect.
+         */
+        this_external_dispen &= !!(address_counter & 0x2000);
+        teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
       }
 
       data = video_read_data_byte(p_video,
@@ -751,9 +715,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     /* End of horizontal line. */
     p_video->horiz_counter = 0;
-    /* display_enable_horiz is raised as part of the state checks at the
-     * beginning of a new line.
-     */
+    p_video->display_enable_bits |= k_video_display_enable_horiz;
+    /* Start the new line state check chain. */
+    p_video->start_of_line_state_checks |= 1;
+
     p_video->is_first_frame_scanline = 0;
     if (p_video->scanline_counter ==
         p_video->crtc_registers[k_crtc_reg_cursor_end]) {
@@ -807,14 +772,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    /* Start the new line state check chain.
-     * display_enable_horiz will be set as part of these checks.
-     */
-    p_video->per_character_checks |=
-        (k_video_check_line_start | k_video_check_skew_enable_horiz);
-    p_video->start_of_line_state_checks |= 1;
-    p_video->skew_enable_horiz_shift_register |= (1 << p_video->skew);
-
     if (p_video->is_in_vert_adjust) {
       p_video->vert_adjust_counter++;
       p_video->vert_adjust_counter &= 0x1F;
@@ -823,10 +780,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 check_r6:
     r6_hit = (p_video->vert_counter == r6);
     if (r6_hit &&
-        p_video->display_enable_vert &&
+        (p_video->display_enable_bits & k_video_display_enable_vert) &&
         !p_video->is_first_frame_scanline) {
-      p_video->display_enable_vert = 0;
-      video_lower_DISPEN(p_video);
+      p_video->display_enable_bits &= ~k_video_display_enable_vert;
       /* On the Hitachi 6845, frame counting is done on R6 hit. */
       p_video->crtc_frames++;
       video_update_odd_even_frame(p_video);
@@ -1551,7 +1507,6 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   /* Set correctly as per above register values. */
   p_video->is_interlace = 1;
   p_video->is_interlace_sync_and_video = 1;
-  p_video->is_master_display_enable = 1;
   p_video->scanline_stride = 2;
   p_video->scanline_mask = 0x1E;
   p_video->hsync_pulse_width = 4;
@@ -1561,7 +1516,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->cursor_flashing = 1;
   p_video->cursor_flash_mask = 0x10;
   p_video->cursor_start_line = 18;
-  p_video->skew = 1;
+  p_video->skew_dispen_index = 1;
   p_video->cursor_skew = 2;
 
   video_recalculate_framing_sanity(p_video);
@@ -1587,22 +1542,20 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->in_dummy_raster = 0;
   p_video->had_vsync_this_row = 0;
   p_video->do_dummy_raster = 0;
-  p_video->display_enable_horiz = 0;
-  p_video->display_enable_vert = 1;
+  p_video->display_enable_bits = k_video_display_enable_vert;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->per_character_checks =
-      (k_video_check_line_start | k_video_check_skew_enable_horiz);
   p_video->start_of_line_state_checks = 1;
   p_video->is_first_frame_scanline = 1;
   p_video->last_vsync_raise_ticks = -1;
   p_video->last_vsync_lower_ticks = -1;
   p_video->cursor_skew_counter = -1;
-  p_video->skew_enable_horiz_shift_register = (1 << 1);
-  p_video->skew_disable_horiz_shift_register = 0;
+  p_video->dispen_shifts[0] = 0;
+  p_video->dispen_shifts[1] = 0;
+  p_video->dispen_shifts[2] = 0;
 }
 
 void
@@ -2090,8 +2043,10 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   case k_crtc_reg_interlace:
     p_video->is_interlace = (val & 0x1);
     p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
-    p_video->is_master_display_enable = ((val & 0x30) != 0x30);
-    p_video->skew = ((val & 0x30) >> 4);
+    /* "master display off", selected by skew bitfield of 0x30, is handled by
+     * indexing into dispen_shifts[] to a DISPEN value that is always 0.
+     */
+    p_video->skew_dispen_index = ((val & 0x30) >> 4);
     p_video->cursor_skew = ((val & 0xC0) >> 6);
     if (p_video->is_interlace_sync_and_video) {
       p_video->scanline_stride = 2;
@@ -2102,7 +2057,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     }
     video_update_odd_even_frame(p_video);
     video_update_cursor_disabled(p_video);
-    video_update_DISPEN(p_video);
     break;
   case k_crtc_reg_cursor_start:
     p_video->cursor_flashing = !!(val & 0x40);

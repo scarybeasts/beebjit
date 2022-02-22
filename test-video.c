@@ -417,15 +417,12 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
-  test_expect_u32(1, g_p_video->display_enable_vert);
-  test_expect_u32(0, g_p_video->display_enable_horiz);
-  test_expect_u32(3, g_p_video->per_character_checks);
-  test_expect_u32(1, g_p_video->skew_enable_horiz_shift_register);
+  test_expect_u32(k_video_display_enable_all, g_p_video->display_enable_bits);
   test_expect_u32(0, g_p_video->address_counter);
   countdown = timing_advance_time(g_p_timing, (countdown - 100));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(50, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->display_enable_horiz);
+  test_expect_u32(k_video_display_enable_vert, g_p_video->display_enable_bits);
   test_expect_u32(50, g_p_video->address_counter);
 
   /* Last line of vertical adjust should latch end of frame. */
@@ -513,15 +510,15 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   /* Quirk: first scanline of new frame should still have display enabled. */
-  test_expect_u32(1, g_p_video->display_enable_vert);
+  test_expect_u32(k_video_display_enable_all, g_p_video->display_enable_bits);
   countdown = timing_advance_time(g_p_timing, (countdown - 64));
   video_advance_crtc_timing(g_p_video);
-  test_expect_u32(1, g_p_video->display_enable_vert);
+  test_expect_u32(k_video_display_enable_all, g_p_video->display_enable_bits);
   countdown = timing_advance_time(g_p_timing, (countdown - 64));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(1, g_p_video->scanline_counter);
-  test_expect_u32(0, g_p_video->display_enable_vert);
+  test_expect_u32(k_video_display_enable_horiz, g_p_video->display_enable_bits);
   test_expect_u32(5, g_p_video->crtc_frames);
 
   /* Test that R6 and R7 can hit in the middle of a scanline. */
@@ -546,7 +543,7 @@ video_test_6845_corner_cases() {
   test_expect_u32(50, g_p_video->horiz_counter);
   test_expect_u32(5, g_p_video->scanline_counter);
   test_expect_u32(1, g_p_video->vert_counter);
-  test_expect_u32(1, g_p_video->display_enable_vert);
+  test_expect_u32(k_video_display_enable_vert, g_p_video->display_enable_bits);
   test_expect_u32(0, g_p_video->in_vsync);
 
   video_crtc_write(g_p_video, 0, 6);
@@ -555,7 +552,7 @@ video_test_6845_corner_cases() {
   countdown = timing_advance_time(g_p_timing, (countdown - 2));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(51, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->display_enable_vert);
+  test_expect_u32(0, g_p_video->display_enable_bits);
 
   countdown = timing_advance_time(g_p_timing, (countdown - (10 * 128)));
   video_advance_crtc_timing(g_p_video);
