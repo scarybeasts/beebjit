@@ -919,7 +919,7 @@ jit_test_compile_binary(void) {
   /* Note that we can only eliminate the overflow and not the carry because of
    * how the ARM64 backend handles carry.
    */
-  /* tbnz  w5, #3, 0x6190070
+  /* tbnz  w5, #3, 0x300190068
    * mov   x20, #0x1000000
    * add   x20, x20, x6
    * lsl   x0, x0, #24
@@ -929,7 +929,7 @@ jit_test_compile_binary(void) {
    * cset  x6, cs
    * ldrb  w20, [x27, 0x41]
    */
-  p_expect = "\x45\x03\x18\x37" "\x14\x20\xa0\xd2" "\x94\x02\x06\x8b"
+  p_expect = "\x05\x03\x18\x37" "\x14\x20\xa0\xd2" "\x94\x02\x06\x8b"
              "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x14\x2b"
              "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x74\x0b\x41\x39";
   expect_len = 36;
@@ -968,18 +968,18 @@ jit_test_compile_binary(void) {
    * orr   x22, x22, x4, lsl #8
    * add   x21, x22, x2
    * add   x4, x21, #0x400
-   * tbnz  w4, #16, 0x6198070
+   * tbnz  w4, #16, 0x300198068
    * ldrb  w20, [x27, x21]
    * eor   x0, x0, x20
    * add   x21, x22, x2
    * add   x4, x21, #0x400
-   * tbnz  w4, #16, 0x6198068
+   * tbnz  w4, #16, 0x30019805c
    * strb  w0, [x28, x21]
    */
   p_expect = "\x76\xc3\x41\x39" "\x64\xc7\x41\x39" "\xd6\x22\x04\xaa"
-             "\xd5\x02\x02\x8b" "\xa4\x02\x10\x91" "\xa4\x02\x80\x37"
+             "\xd5\x02\x02\x8b" "\xa4\x02\x10\x91" "\x64\x02\x80\x37"
              "\x74\x6b\x75\x38" "\x00\x00\x14\xca" "\xd5\x02\x02\x8b"
-             "\xa4\x02\x10\x91" "\xc4\x01\x80\x37" "\x80\x6b\x35\x38";
+             "\xa4\x02\x10\x91" "\x64\x01\x80\x37" "\x80\x6b\x35\x38";
   expect_len = 48;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -1026,19 +1026,19 @@ jit_test_compile_binary(void) {
    * orr   x22, x22, x4, lsl #8
    * add   x21, x22, #0x4
    * add   x4, x21, #0x400
-   * tbnz  w4, #16, 0x61a0070
+   * tbnz  w4, #16, 0x3001a0068
    * ldrb  w0, [x27, x21]
    * strb  w0, [x28, #65]
    * add   x21, x22, #0x3
    * add   x4, x21, #0x400
-   * tbnz  w4, #16, 0x61a0068
+   * tbnz  w4, #16, 0x3001a005c
    * ldrb  w0, [x27, x21]
    * strb  w0, [x28, #64]
    */
   p_expect = "\x76\x2f\x41\x39" "\x64\x33\x41\x39" "\xd6\x22\x04\xaa"
-             "\xd5\x12\x00\x91" "\xa4\x02\x10\x91" "\xa4\x02\x80\x37"
+             "\xd5\x12\x00\x91" "\xa4\x02\x10\x91" "\x64\x02\x80\x37"
              "\x60\x6b\x75\x38" "\x80\x07\x01\x39" "\xd5\x0e\x00\x91"
-             "\xa4\x02\x10\x91" "\xc4\x01\x80\x37" "\x60\x6b\x75\x38"
+             "\xa4\x02\x10\x91" "\x64\x01\x80\x37" "\x60\x6b\x75\x38"
              "\x80\x03\x01\x39";
   expect_len = 52;
 #endif
@@ -1080,12 +1080,12 @@ jit_test_compile_binary(void) {
    * orr   x21, x21, x4, lsl #8
    * add   x21, x21, x1
    * add   x4, x21, #0x400
-   * tbnz  w4, #16, 0x61a8070
+   * tbnz  w4, #16, 0x3001a8068
    * ldrb  w0, [x27, x21]
    */
   p_expect = "\x35\xa0\x86\xd2" "\x75\x6b\x75\x38" "\x44\xa0\x86\xd2"
              "\x64\x6b\x64\x38" "\xb5\x22\x04\xaa" "\xb5\x02\x01\x8b"
-             "\xa4\x02\x10\x91" "\x64\x02\x80\x37" "\x60\x6b\x75\x38";
+             "\xa4\x02\x10\x91" "\x24\x02\x80\x37" "\x60\x6b\x75\x38";
   expect_len = 36;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -1167,7 +1167,7 @@ jit_test_compile_binary(void) {
              "\x12\x45\xc2";
   expect_len = 17;
 #elif defined(__aarch64__)
-  /* tbnz  w5, #3, 0x61b8070
+  /* tbnz  w5, #3, 0x3001b8068
    * ldrb  w20, [x27, #64]
    * lsl   x0, x0, #24
    * subs  w0, w0, w20, lsl #24
@@ -1176,7 +1176,7 @@ jit_test_compile_binary(void) {
    * ldrb  w20, [x27, #65]
    * [...]
    */
-  p_expect = "\x45\x03\x18\x37" "\x74\x03\x41\x39" "\x00\x9c\x68\xd3"
+  p_expect = "\x05\x03\x18\x37" "\x74\x03\x41\x39" "\x00\x9c\x68\xd3"
              "\x00\x60\x14\x6b" "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a"
              "\x74\x07\x41\x39";
   expect_len = 28;
