@@ -123,11 +123,19 @@ cocoa_build_keycode_lookup(void) {
 
 void
 os_window_main_thread_start(void (*p_beebjit_main)(void)) {
-  sig_t sig_ret;
-
   cocoa_check_is_main_thread();
 
   cocoa_build_keycode_lookup();
+
+  /* This magic call enables lldb to continue past the SIGBUS memory access
+   * faults that occur as a matter of course in the JIT.
+   * From: https://stackoverflow.com/questions/26829119/how-to-make-lldb-ignore-exc-bad-access-exception
+   */
+  (void) task_set_exception_ports(mach_task_self(),
+                                  EXC_MASK_BAD_ACCESS,
+                                  MACH_PORT_NULL,
+                                  EXCEPTION_DEFAULT,
+                                  0);
 
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   NSApp = [NSApplication sharedApplication];
@@ -141,7 +149,7 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
    * Unininstall them so beebjit doesn't get upset when it tries to take over
    * fault handling.
    */
-  sig_ret = signal(SIGSEGV, SIG_DFL);
+  sig_t sig_ret = signal(SIGSEGV, SIG_DFL);
   if (sig_ret == SIG_ERR) {
     util_bail("signal failed");
   }
