@@ -1063,8 +1063,8 @@ ASM_SYM(asm_jit_LSR_END):
 .globl ASM_SYM(asm_jit_LSR_ACC_ubfm_shift)
 .globl ASM_SYM(asm_jit_LSR_ACC_ubfm_shift_END)
 ASM_SYM(asm_jit_LSR_ACC_ubfm_carry):
-  # aka. ubfx REG_6502_CF, REG_6502_A, #0, #1
-  ubfm REG_6502_CF, REG_6502_A, #0, #0
+  # Extract one carry bit.
+  ubfm REG_6502_CF, REG_6502_A, #0, #1
 ASM_SYM(asm_jit_LSR_ACC_ubfm_carry_END):
 ASM_SYM(asm_jit_LSR_ACC_ubfm_shift):
   # Shift lower 8 bits right one.

@@ -185,10 +185,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 1);
   emit_CMP(p_buf, k_imm, 0x22);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xC200);
+  emit_LDA(p_buf, k_imm, 0x2E);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x0B);
+  emit_JMP(p_buf, k_abs, 0xC210);
 
   /* Test indexed zero page addressing. */
-  set_new_index(p_buf, 0x0200);
+  set_new_index(p_buf, 0x0210);
   emit_LDX(p_buf, k_imm, 0xFD);
   emit_LDY(p_buf, k_imm, 0x03);
   emit_STX(p_buf, k_zpy, 0x04);
@@ -213,10 +220,10 @@ main(int argc, const char* argv[]) {
   emit_LDY(p_buf, k_zpx, 0x37);   /* Zero page wrap. */ /* Addr: $08 */
   emit_CPY(p_buf, k_imm, 0xFE);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xC240);
+  emit_JMP(p_buf, k_abs, 0xC250);
 
   /* Test indirect indexed zero page addressing. */
-  set_new_index(p_buf, 0x0240);
+  set_new_index(p_buf, 0x0250);
   emit_LDA(p_buf, k_imm, 0xFD);
   emit_STA(p_buf, k_zpg, 0x07);
   emit_LDA(p_buf, k_imm, 0xFF);

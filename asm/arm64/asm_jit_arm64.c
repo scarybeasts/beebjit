@@ -856,7 +856,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LDY_zero_and_flags: ASM(LDY_zero_and_flags); break;
   case k_opcode_LSR_acc:
     immr = (value1 - 1);
-    imms = 0;
+    imms = 1;
     ASM_IMMR_IMMS_RAW(LSR_ACC_ubfm_carry);
     immr = value1;
     imms = 7;
