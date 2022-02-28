@@ -2397,8 +2397,19 @@ main(int argc, const char* argv[]) {
   /* This executes ISC $1000,X, across the 64k bounary. */
   emit_JMP(p_buf, k_abs, 0xFFFF);
 
-  /* End of test. */
+  /* More testing for ASL / LSR multiple bit shifting. */
   set_new_index(p_buf, 0x2240);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_REQUIRE_EQ(p_buf, 0x03);
+  emit_JMP(p_buf, k_abs, 0xE280);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2280);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

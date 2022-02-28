@@ -715,8 +715,8 @@ ASM_SYM(asm_jit_ASL_END):
 .globl ASM_SYM(asm_jit_ASL_ACC_ubfm_shift_END)
 .globl ASM_SYM(asm_jit_ASL_ACC_END)
 ASM_SYM(asm_jit_ASL_ACC_ubfm_carry):
-  # aka. ubfx REG_6502_CF, REG_6502_A, #7, #1
-  ubfm REG_6502_CF, REG_6502_A, #7, #7
+  # aka. ubfm REG_6502_CF, REG_6502_A, #7, #(7 + 1 - 1)
+  ubfx REG_6502_CF, REG_6502_A, #7, #1
 ASM_SYM(asm_jit_ASL_ACC_ubfm_carry_END):
 ASM_SYM(asm_jit_ASL_ACC_ubfm_shift):
   # Shift the lower 7 bits left.
@@ -1064,11 +1064,13 @@ ASM_SYM(asm_jit_LSR_END):
 .globl ASM_SYM(asm_jit_LSR_ACC_ubfm_shift_END)
 ASM_SYM(asm_jit_LSR_ACC_ubfm_carry):
   # Extract one carry bit.
-  ubfm REG_6502_CF, REG_6502_A, #0, #1
+  # aka. ubfm REG_6502_CF, REG_6502_A, #0, #(0 + 1 - 1)
+  ubfx REG_6502_CF, REG_6502_A, #0, #1
 ASM_SYM(asm_jit_LSR_ACC_ubfm_carry_END):
 ASM_SYM(asm_jit_LSR_ACC_ubfm_shift):
   # Shift lower 8 bits right one.
-  ubfm REG_6502_A, REG_6502_A, #1, #7
+  # aka. ubfm REG_6502_A, REG_6502_A, #1, #63
+  lsr REG_6502_A, REG_6502_A, #1
 ASM_SYM(asm_jit_LSR_ACC_ubfm_shift_END):
   ret
 

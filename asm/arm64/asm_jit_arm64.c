@@ -817,7 +817,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_AND: ASM(AND); break;
   case k_opcode_ASL_acc:
     immr = (8 - value1);
-    imms = (8 - value1);
+    imms = immr;
     ASM_IMMR_IMMS_RAW(ASL_ACC_ubfm_carry);
     immr = (64 - value1);
     imms = (7 - value1);
@@ -856,10 +856,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LDY_zero_and_flags: ASM(LDY_zero_and_flags); break;
   case k_opcode_LSR_acc:
     immr = (value1 - 1);
-    imms = 1;
+    imms = immr;
     ASM_IMMR_IMMS_RAW(LSR_ACC_ubfm_carry);
     immr = value1;
-    imms = 7;
+    imms = 63;
     ASM_IMMR_IMMS_RAW(LSR_ACC_ubfm_shift);
     break;
   case k_opcode_LSR_value: ASM(LSR); break;

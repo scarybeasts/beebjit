@@ -8,7 +8,6 @@ The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
 - ARM64 failure in test.rom due to optimzation vs. metadata maintenance.
-- ARM64 optimizer bug (Mr. Ee, Meteors, ...)
 
 
 JIT improvements
