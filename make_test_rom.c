@@ -2408,8 +2408,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x03);
   emit_JMP(p_buf, k_abs, 0xE280);
 
-  /* End of test. */
+  /* Test pending IRQ bail-out after an optimized out opcode. */
   set_new_index(p_buf, 0x2280);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE44);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45);
+  emit_LDA(p_buf, k_abs, 0xFE4D);
+  emit_AND(p_buf, k_imm, 0x40);
+  emit_BEQ(p_buf, -7);
+  emit_JMP(p_buf, k_abs, 0xE29A);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_CLI(p_buf);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_SEI(p_buf);
+  emit_JMP(p_buf, k_abs, 0xE2C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x22C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

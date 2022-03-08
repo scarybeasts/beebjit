@@ -747,6 +747,7 @@ jit_test_compile_metadata(void) {
   struct util_buffer* p_buf;
   int32_t cycles;
   int32_t a;
+  int32_t x;
 
   /* Test a trivial case. */
   p_buf = util_buffer_create();
@@ -808,19 +809,33 @@ jit_test_compile_metadata(void) {
   /* Test a forward elimination, at the block start. */
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, (s_p_mem + 0x2100), 0x100);
-  emit_CLC(p_buf);
-  emit_ADC(p_buf, k_imm, 0x01);
+  emit_LDX(p_buf, k_imm, 0x41);
+  emit_JMP(p_buf, k_abs, 0x2105);
+  emit_LDX(p_buf, k_imm, 0x42);
+  emit_LDX(p_buf, k_imm, 0x43);
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
   state_6502_set_pc(s_p_state_6502, 0x2100);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  test_expect_eq(s_p_jit->jit_ptrs[0x2100], s_p_jit->jit_ptrs[0x2101]);
-  test_expect_eq(s_p_jit->jit_ptrs[0x2101], s_p_jit->jit_ptrs[0x2102]);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2100);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2105], s_p_jit->jit_ptrs[0x2106]);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2105], s_p_jit->jit_ptrs[0x2107]);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2105);
   test_expect_u32(12, cycles);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2103);
-  test_expect_u32(8, cycles);
+  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2105);
+  test_expect_u32(-1, x);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2106);
+  test_expect_u32(-1, cycles);
+  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2106);
+  test_expect_u32(-1, x);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2107);
+  test_expect_u32(10, cycles);
+  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2107);
+  test_expect_u32(0x42, x);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2108);
+  test_expect_u32(-1, cycles);
+  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2108);
+  test_expect_u32(-1, x);
   util_buffer_destroy(p_buf);
 }
 

@@ -7,8 +7,6 @@ Ideally, important items get fixed before the next release.
 The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
-- ARM64 failure in test.rom due to optimzation vs. metadata maintenance.
-
 
 JIT improvements
 ================

@@ -1518,10 +1518,8 @@ static void
 jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   uint16_t addr_6502;
-  int is_new_jit_ptr;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
   uint32_t cycles = 0;
-  uint32_t prev_jit_ptr = 0;
   uint32_t jit_ptr = 0;
 
   for (p_details = &p_compiler->opcode_details[0];
@@ -1531,6 +1529,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
     void* p_host_address_prefix_end = p_details->p_host_address_prefix_end;
     void* p_host_address_start = p_details->p_host_address_start;
     uint32_t num_bytes_6502 = p_details->num_bytes_6502;
+    int needs_bail_metadata = 0;
 
     assert(num_bytes_6502 > 0);
 
@@ -1543,12 +1542,12 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
      */
     if (p_host_address_prefix_end != NULL) {
       jit_ptr = (uint32_t) (uintptr_t) p_host_address_prefix_end;
+      needs_bail_metadata = 1;
     }
     if (p_host_address_start != NULL) {
       jit_ptr = (uint32_t) (uintptr_t) p_host_address_start;
+      needs_bail_metadata = 1;
     }
-    is_new_jit_ptr = (jit_ptr != prev_jit_ptr);
-    prev_jit_ptr = jit_ptr;
 
     addr_6502 = p_details->addr_6502;
     for (i = 0; i < num_bytes_6502; ++i) {
@@ -1574,9 +1573,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
           p_compiler->p_jit_ptrs[addr_6502] =
               (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
         }
-      } else if (!is_new_jit_ptr) {
-        /* No metadata here. */
-      } else {
+      } else if (needs_bail_metadata) {
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
           p_compiler->p_jit_ptrs[addr_6502] =
@@ -1918,4 +1915,10 @@ int32_t
 jit_compiler_testing_get_a_fixup(struct jit_compiler* p_compiler,
                                  uint16_t addr) {
   return p_compiler->addr_a_fixup[addr];
+}
+
+int32_t
+jit_compiler_testing_get_x_fixup(struct jit_compiler* p_compiler,
+                                 uint16_t addr) {
+  return p_compiler->addr_x_fixup[addr];
 }
