@@ -66,6 +66,7 @@ struct jit_struct {
   int did_interp_invalidate_memory;
 
   int log_compile;
+  int log_fault;
 
   uint64_t counter_num_compiles;
   uint64_t counter_num_interps;
@@ -761,6 +762,19 @@ jit_handle_fault(uintptr_t* p_host_pc,
     fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
+  if (p_jit->log_fault) {
+    /* Not the cleverest thing to do in a fault context, but it should be ok
+     * because it's a fault in JIT code; it's also a debug option that needs to
+     * be turned on.
+     */
+    log_do_log(k_log_jit,
+               k_log_info,
+               "JIT faulting at 6502 $%.4X pc %p fault addr %p",
+               addr_6502,
+               p_fault_pc,
+               p_fault_addr);
+  }
+
   if ((p_jit->counter_num_faults % 10000) == 0) {
     /* We shouldn't call logging in the fault context (re-entrancy etc.) so set
      * a flag to take care of it later.
@@ -791,6 +805,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   struct inturbo_struct* p_inturbo = NULL;
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
+  p_jit->log_fault = util_has_option(p_options->p_log_flags, "jit:fault");
   p_funcs->get_opcode_maps(p_cpu_driver,
                            &p_jit->p_opcode_types,
                            &p_jit->p_opcode_modes,
