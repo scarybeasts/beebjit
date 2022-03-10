@@ -1141,9 +1141,11 @@ ASM_SYM(asm_jit_ROL_ACC_END):
 .globl ASM_SYM(asm_jit_ROR)
 .globl ASM_SYM(asm_jit_ROR_END)
 ASM_SYM(asm_jit_ROR):
-  orr REG_JIT_SCRATCH, REG_VALUE, REG_6502_CF, lsl #8
-  ubfx REG_6502_CF, REG_VALUE, #0, #1
-  lsr REG_VALUE, REG_JIT_SCRATCH, #1
+  ubfx REG_JIT_SCRATCH, REG_VALUE, #0, #1
+  lsr REG_VALUE, REG_VALUE, #1
+  lsl REG_6502_CF, REG_6502_CF, #7
+  orr REG_VALUE, REG_VALUE, REG_6502_CF
+  mov REG_6502_CF, REG_JIT_SCRATCH
 
 ASM_SYM(asm_jit_ROR_END):
   ret
@@ -1152,9 +1154,11 @@ ASM_SYM(asm_jit_ROR_END):
 .globl ASM_SYM(asm_jit_ROR_ACC)
 .globl ASM_SYM(asm_jit_ROR_ACC_END)
 ASM_SYM(asm_jit_ROR_ACC):
-  orr REG_6502_A, REG_6502_A, REG_6502_CF, lsl #8
-  ubfx REG_6502_CF, REG_6502_A, #0, #1
+  ubfx REG_JIT_SCRATCH, REG_6502_A, #0, #1
   lsr REG_6502_A, REG_6502_A, #1
+  lsl REG_6502_CF, REG_6502_CF, #7
+  orr REG_6502_A, REG_6502_A, REG_6502_CF
+  mov REG_6502_CF, REG_JIT_SCRATCH
 
 ASM_SYM(asm_jit_ROR_ACC_END):
   ret
