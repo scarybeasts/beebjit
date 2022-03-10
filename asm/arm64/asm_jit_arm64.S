@@ -1119,7 +1119,8 @@ ASM_SYM(asm_jit_ROL):
   mov REG_JIT_SCRATCH, REG_6502_CF
   ubfx REG_6502_CF, REG_VALUE, #7, #1
   # NOTE: spills outside bounds of 8-bit.
-  add REG_VALUE, REG_JIT_SCRATCH, REG_VALUE, lsl #1
+  lsl REG_VALUE, REG_VALUE, #1
+  orr REG_VALUE, REG_VALUE, REG_JIT_SCRATCH
 
 ASM_SYM(asm_jit_ROL_END):
   ret
