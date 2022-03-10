@@ -2427,8 +2427,21 @@ main(int argc, const char* argv[]) {
   emit_SEI(p_buf);
   emit_JMP(p_buf, k_abs, 0xE2C0);
 
-  /* End of test. */
+  /* Test ROL zpg carry flag. */
   set_new_index(p_buf, 0x22C0);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_CLC(p_buf);
+  emit_ROL(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_ROL(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xE300);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2300);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

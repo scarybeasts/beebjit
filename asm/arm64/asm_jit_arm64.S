@@ -1116,9 +1116,10 @@ ASM_SYM(asm_jit_pull_16bit_END):
 .globl ASM_SYM(asm_jit_ROL)
 .globl ASM_SYM(asm_jit_ROL_END)
 ASM_SYM(asm_jit_ROL):
+  mov REG_JIT_SCRATCH, REG_6502_CF
+  ubfx REG_6502_CF, REG_VALUE, #7, #1
   # NOTE: spills outside bounds of 8-bit.
-  add REG_VALUE, REG_6502_CF, REG_VALUE, lsl #1
-  ubfx REG_6502_CF, REG_VALUE, #8, #1
+  add REG_VALUE, REG_JIT_SCRATCH, REG_VALUE, lsl #1
 
 ASM_SYM(asm_jit_ROL_END):
   ret
@@ -1127,8 +1128,9 @@ ASM_SYM(asm_jit_ROL_END):
 .globl ASM_SYM(asm_jit_ROL_ACC)
 .globl ASM_SYM(asm_jit_ROL_ACC_END)
 ASM_SYM(asm_jit_ROL_ACC):
-  orr REG_6502_A, REG_6502_CF, REG_6502_A, lsl #1
-  ubfx REG_6502_CF, REG_6502_A, #8, #1
+  mov REG_JIT_SCRATCH, REG_6502_CF
+  ubfx REG_6502_CF, REG_6502_A, #7, #1
+  orr REG_6502_A, REG_JIT_SCRATCH, REG_6502_A, lsl #1
   and REG_6502_A, REG_6502_A, #0xFF
 
 ASM_SYM(asm_jit_ROL_ACC_END):
