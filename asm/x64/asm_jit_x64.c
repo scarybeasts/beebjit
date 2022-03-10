@@ -402,8 +402,12 @@ asm_jit_get_private(struct asm_jit_struct* p_asm) {
 }
 
 void
-asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
+asm_jit_start_code_updates(struct asm_jit_struct* p_asm,
+                           void* p_start,
+                           uint32_t length) {
   (void) p_asm;
+  (void) p_start;
+  (void) length;
 }
 
 void

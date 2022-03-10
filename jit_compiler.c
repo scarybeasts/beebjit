@@ -35,7 +35,7 @@ struct jit_compile_history {
 };
 
 enum {
-  k_max_addr_space_per_compile = 512,
+  k_max_addr_space_per_compile = 256,
 };
 
 struct jit_compiler {
@@ -1550,6 +1550,10 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
     }
 
     addr_6502 = p_details->addr_6502;
+    /* Handle address space wraps. */
+    if ((addr_6502 + num_bytes_6502) > k_6502_addr_space_size) {
+      num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
+    }
     for (i = 0; i < num_bytes_6502; ++i) {
       p_compiler->p_jit_ptrs[addr_6502] = (uint32_t) jit_ptr;
       p_compiler->p_code_blocks[addr_6502] = p_compiler->start_addr_6502;

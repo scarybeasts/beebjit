@@ -161,7 +161,8 @@ jit_interp_instruction_callback(void* p,
   if ((opmem & k_opmem_write_flag) &&
       jit_is_6502_pc_in_code_block(p_jit, done_addr)) {
     if (!p_jit->did_interp_invalidate_memory) {
-      asm_jit_start_code_updates(p_jit->p_asm);
+      /* TODO: Invalidate with a bit more precision. */
+      asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
       p_jit->did_interp_invalidate_memory = 1;
     }
     jit_invalidate_code_at_address(p_jit, done_addr);
@@ -390,7 +391,8 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
 
   assert(addr_end >= addr);
 
-  asm_jit_start_code_updates(p_jit->p_asm);
+  /* TODO: only invalidate the relevant subsection of the JIT region. */
+  asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
 
   for (i = addr; i < addr_end; ++i) {
     jit_invalidate_code_at_address(p_jit, i);
@@ -513,6 +515,8 @@ jit_compile(struct jit_struct* p_jit,
   uint16_t addr_6502;
   uint16_t addr_6502_next;
   uint16_t clear_ptrs_addr_6502;
+  void* p_jit_block;
+  void* p_jit_block_end;
 
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
@@ -524,10 +528,12 @@ jit_compile(struct jit_struct* p_jit,
 
   jit_get_6502_details_from_host_ip(p_jit, &details, p_host_cpu_ip);
 
-  asm_jit_start_code_updates(p_jit->p_asm);
-
   if (details.p_invalidation_code_block) {
+    asm_jit_start_code_updates(p_jit->p_asm,
+                               details.p_invalidation_code_block,
+                               4);
     asm_jit_invalidate_code_at(details.p_invalidation_code_block);
+    asm_jit_finish_code_updates(p_jit->p_asm);
   }
 
   if (details.pc_6502 != -1) {
@@ -562,10 +568,6 @@ jit_compile(struct jit_struct* p_jit,
     jit_memory_range_invalidate(&p_jit->driver,
                                 0,
                                 (k_6502_addr_space_size - 1));
-    /* Invalidating a range finishes code updates, so start them again so we
-     * can still write to our code mapping.
-     */
-    asm_jit_start_code_updates(p_jit->p_asm);
 
     jit_compiler_set_compiling_for_code_in_zero_page(p_compiler, 1);
   } else if ((addr_6502 >= 0x100) && (addr_6502 <= 0x1FF)) {
@@ -583,6 +585,18 @@ jit_compile(struct jit_struct* p_jit,
     is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
                                                                addr_6502);
   }
+
+  p_jit_block = jit_get_jit_block_host_address(p_jit, addr_6502);
+  p_jit_block_end = (p_jit_block + (256 * K_JIT_BYTES_PER_BYTE));
+  if (p_jit_block_end > (void*) K_JIT_ADDR_END) {
+    p_jit_block_end = (void*) K_JIT_ADDR_END;
+  }
+  /* TODO: this 256 constant must match k_max_addr_space_per_compile in
+   * jit_compiler.c.
+   */
+  asm_jit_start_code_updates(p_jit->p_asm,
+                             p_jit_block,
+                             (p_jit_block_end - p_jit_block));
 
   bytes_6502_compiled = jit_compiler_compile_block(p_compiler,
                                                    is_invalidation,

@@ -10,6 +10,7 @@
 #include "asm_helper_arm64.h"
 
 #include <assert.h>
+#include <unistd.h>
 
 enum {
   k_opcode_arm64_addr_load_byte = 0x1000,
@@ -123,6 +124,14 @@ enum {
                              ((immr << 6) | imms));                            \
 }
 
+struct asm_jit_struct {
+  int is_updating_code;
+  void* p_start;
+  uint32_t length;
+  void* p_pages_start;
+  uint32_t pages_length;
+};
+
 int
 asm_jit_is_enabled(void) {
   return 1;
@@ -157,19 +166,22 @@ struct asm_jit_struct*
 asm_jit_create(void* p_jit_base,
                int (*is_memory_always_ram)(void* p, uint16_t addr),
                void* p_memory_object) {
+  struct asm_jit_struct* p_asm = util_mallocz(sizeof(struct asm_jit_struct));
+
   (void) p_jit_base;
   (void) is_memory_always_ram;
   (void) p_memory_object;
 
   /* Leave the JIT code pages in a read-only state. */
-  asm_jit_finish_code_updates(NULL);
+  p_asm->is_updating_code = 1;
+  asm_jit_finish_code_updates(p_asm);
 
-  return NULL;
+  return p_asm;
 }
 
 void
 asm_jit_destroy(struct asm_jit_struct* p_asm) {
-  (void) p_asm;
+  util_free(p_asm);
 }
 
 void*
@@ -179,20 +191,57 @@ asm_jit_get_private(struct asm_jit_struct* p_asm) {
 }
 
 void
-asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
-  (void) p_asm;
-  os_alloc_make_mapping_read_write((void*) K_JIT_ADDR, K_JIT_SIZE);
+asm_jit_start_code_updates(struct asm_jit_struct* p_asm,
+                           void* p_start,
+                           uint32_t length) {
+  void* p_end;
+  void* p_pages_start;
+  void* p_pages_end;
+  uint32_t pages_length;
+  uint32_t end_index;
+  uint32_t page_size = getpagesize();
+  uintptr_t page_index_mask = (page_size - 1);
+  uintptr_t page_mask = ~page_index_mask;
+
+  assert(!p_asm->is_updating_code);
+  p_asm->is_updating_code = 1;
+
+  if (p_start == NULL) {
+    p_start = (void*) K_JIT_ADDR;
+    length = K_JIT_SIZE;
+  }
+  p_asm->p_start = p_start;
+  p_asm->length = length;
+  p_end = (p_start + length);
+
+  assert(p_end <= (void*) K_JIT_ADDR_END);
+
+  p_pages_start = (void*) ((uintptr_t) p_start & page_mask);
+  p_pages_end = (void*) ((uintptr_t) p_end & page_mask);
+  end_index = ((uintptr_t) p_end & page_index_mask);
+
+  pages_length = (p_pages_end - p_pages_start);
+  if (end_index > 0) {
+    pages_length += page_size;
+  }
+
+  p_asm->p_pages_start = p_pages_start;
+  p_asm->pages_length = pages_length;
+
+  os_alloc_make_mapping_read_write(p_pages_start, pages_length);
 }
 
 void
 asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
-  (void) p_asm;
 
-  os_alloc_make_mapping_read_exec((void*) K_JIT_ADDR, K_JIT_SIZE);
+  assert(p_asm->is_updating_code);
+  p_asm->is_updating_code = 0;
+
+  os_alloc_make_mapping_read_exec(p_asm->p_pages_start, p_asm->pages_length);
   /* mprotect(), as far as I can discern, does not guarantee to clear icache
    * for PROT_EXEC mappings.
    */
-  __builtin___clear_cache((void*) K_JIT_ADDR, (void*) K_JIT_ADDR_END);
+  __builtin___clear_cache(p_asm->p_start, (p_asm->p_start + p_asm->length));
 }
 
 int
@@ -223,7 +272,7 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
    * likely want to twiddle just the affected page. Currently, we twiddle the
    * whole mapping.
    */
-  asm_jit_start_code_updates(p_asm);
+  asm_jit_start_code_updates(p_asm, p_fault_addr, 4);
   asm_jit_invalidate_code_at(p_fault_addr);
   asm_jit_finish_code_updates(p_asm);
 

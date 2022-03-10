@@ -22,7 +22,9 @@ void asm_jit_destroy(struct asm_jit_struct* p_asm);
 /* This is stored as the first structure member of the runtime context. */
 void* asm_jit_get_private(struct asm_jit_struct* p_asm);
 
-void asm_jit_start_code_updates(struct asm_jit_struct* p_asm);
+void asm_jit_start_code_updates(struct asm_jit_struct* p_asm,
+                                void* p_start,
+                                uint32_t length);
 void asm_jit_finish_code_updates(struct asm_jit_struct* p_asm);
 int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                          uintptr_t* p_pc,

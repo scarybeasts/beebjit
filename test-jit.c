@@ -15,7 +15,7 @@ static struct timing_struct* s_p_timing = NULL;
 
 static void
 jit_test_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr) {
-  asm_jit_start_code_updates(p_jit->p_asm);
+  asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
   jit_invalidate_code_at_address(p_jit, addr);
   asm_jit_finish_code_updates(p_jit->p_asm);
 }
