@@ -139,8 +139,17 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
 
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   NSApp = [NSApplication sharedApplication];
+
   /* Application cannot gain focus (e.g. to get key presses) without this. */
   [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+
+  /* Activate the application. This makes a difference when running as a
+   * command-line tool. By starting activated, the command-line process won't
+   * be throttled on to efficiency M1 cores. It will start to use efficiency
+   * cores if deactivated (focus given somewhere else, including the parent
+   * terminal window).
+   */
+  [NSApp activateIgnoringOtherApps:YES];
 
   /* If the macOS defaults key NSGlobalDomain NSExceptionHandlingMask is set,
    * e.g. to 63 as observed on one machine, the Cocoa framework may have
