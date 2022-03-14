@@ -448,8 +448,7 @@ jit_check_code_block(struct jit_struct* p_jit, uint16_t block_addr_6502) {
 
   addr_6502 = block_addr_6502;
   while (code_block == block_addr_6502) {
-    uint32_t jit_ptr = p_jit->jit_ptrs[addr_6502];
-    void* p_jit_ptr = (void*) (uintptr_t) jit_ptr;
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
     assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
     if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
       /* No action. */
