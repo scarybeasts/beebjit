@@ -39,6 +39,11 @@ cpu_driver_get_custom_counters_dummy(struct cpu_driver* p_cpu_driver,
 }
 
 static void
+cpu_driver_housekeeping_tick_dummy(struct cpu_driver* p_cpu_driver) {
+  (void) p_cpu_driver;
+}
+
+static void
 cpu_driver_set_reset_callback_default(
     struct cpu_driver* p_cpu_driver,
     void (*do_reset_callback)(void* p, uint32_t flags),
@@ -196,6 +201,7 @@ cpu_driver_alloc(int mode,
   } else {
     p_funcs->get_opcode_maps = cpu_driver_get_6502_opcode_maps;
   }
+  p_funcs->housekeeping_tick = cpu_driver_housekeeping_tick_dummy;
 
   return p_cpu_driver;
 }

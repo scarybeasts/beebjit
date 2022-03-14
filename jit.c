@@ -64,6 +64,7 @@ struct jit_struct {
   uint8_t* p_opcode_cycles;
   uint32_t counter_stay_in_interp;
   int did_interp_invalidate_memory;
+  uint64_t last_housekeeping_cycles;
 
   int log_compile;
   int log_fault;
@@ -429,6 +430,107 @@ jit_get_custom_counters(struct cpu_driver* p_cpu_driver,
 
   *p_c1 = p_jit->counter_num_compiles;
   *p_c2 = p_jit->counter_num_interps;
+}
+
+static void
+jit_check_code_block(struct jit_struct* p_jit, uint16_t block_addr_6502) {
+  int32_t code_block = p_jit->code_blocks[block_addr_6502];
+  int has_invalidations = 0;
+  uint16_t addr_6502;
+  void* p_block_ptr;
+
+  assert(code_block == block_addr_6502);
+  /* TODO: can't assert this, because the current block split code does not
+   * clear code_blocks[] for the old block.
+   * assert(!asm_jit_is_invalidated_code_at(
+   *    jit_get_jit_block_host_address(p_jit, block_addr_6502)));
+   */
+
+  addr_6502 = block_addr_6502;
+  while (code_block == block_addr_6502) {
+    uint32_t jit_ptr = p_jit->jit_ptrs[addr_6502];
+    void* p_jit_ptr = (void*) (uintptr_t) jit_ptr;
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
+      /* No action. */
+    } else if (asm_jit_is_invalidated_code_at(p_jit_ptr)) {
+      has_invalidations = 1;
+      break;
+    }
+    addr_6502++;
+    code_block = p_jit->code_blocks[addr_6502];
+  }
+
+  if (!has_invalidations) {
+    return;
+  }
+
+  if (p_jit->log_compile) {
+    log_do_log(k_log_jit,
+               k_log_info,
+               "stale code block at $%.4X",
+               block_addr_6502);
+  }
+
+  /* Clear out jit pointers and the code block metadata. */
+  addr_6502 = block_addr_6502;
+  code_block = p_jit->code_blocks[addr_6502];
+  while (code_block == block_addr_6502) {
+    p_jit->jit_ptrs[addr_6502] =
+        (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
+    p_jit->code_blocks[addr_6502] = -1;
+    /* TODO: clear compiler metadata? */
+    addr_6502++;
+    code_block = p_jit->code_blocks[addr_6502];
+  }
+
+  /* Disable the code block itself. */
+  p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
+  asm_jit_start_code_updates(p_jit->p_asm, p_block_ptr, 4);
+  asm_jit_invalidate_code_at(p_block_ptr);
+  asm_jit_finish_code_updates(p_jit->p_asm);
+}
+
+static void
+jit_cleanup_stale_code(struct jit_struct* p_jit) {
+  uint32_t i;
+  int32_t curr_code_block = -1;
+
+  if (p_jit->log_compile) {
+    log_do_log(k_log_jit, k_log_info, "starting stale code sweep");
+  }
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    int32_t next_code_block = p_jit->code_blocks[i];
+    if (next_code_block == curr_code_block) {
+      continue;
+    }
+    if (next_code_block != -1) {
+      jit_check_code_block(p_jit, i);
+    }
+    curr_code_block = next_code_block;
+  }
+}
+
+static void
+jit_housekeeping_tick(struct cpu_driver* p_cpu_driver) {
+  static const uint64_t k_cycles_threshold = (2000000 * 60 * 5);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  uint64_t cycles = state_6502_get_cycles(p_state_6502);
+
+  /* Some time after 6502 reset (currently 5 minutes of virtual time), sweep
+   * the JIT code space and clear out any code blocks containing invalidations.
+   * Such code blocks are likely no longer active, but contribute an overhead,
+   * especially on ARM64, where writing a code invalidation pointer faults.
+   */
+  if (p_jit->last_housekeeping_cycles < k_cycles_threshold) {
+    if (cycles >= k_cycles_threshold) {
+      jit_cleanup_stale_code(p_jit);
+    }
+  }
+
+  p_jit->last_housekeeping_cycles = cycles;
 }
 
 struct jit_host_ip_details {
@@ -837,6 +939,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
   p_funcs->get_custom_counters = jit_get_custom_counters;
+  p_funcs->housekeeping_tick = jit_housekeeping_tick;
 
   p_jit->p_compile_callback = jit_compile;
   p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;

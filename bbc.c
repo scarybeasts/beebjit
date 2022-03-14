@@ -2225,6 +2225,7 @@ bbc_cycles_timer_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint64_t last_time_us = p_bbc->last_time_us;
 
   /* Pull physical key events from system thread, always.
@@ -2309,6 +2310,8 @@ bbc_cycles_timer_callback(void* p) {
   if (p_bbc->log_speed) {
     bbc_do_log_speed(p_bbc, curr_time_us);
   }
+
+  p_cpu_driver->p_funcs->housekeeping_tick(p_cpu_driver);
 }
 
 static void

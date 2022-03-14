@@ -291,6 +291,14 @@ jit_test_invalidation(void) {
   jit_test_expect_block_invalidated(1, 0xD04);
   jit_test_expect_block_invalidated(1, 0xD05);
 
+  /* Check our invalidated code cleanup function works. */
+  jit_test_invalidate_code_at_address(s_p_jit, 0xD04);
+  jit_test_expect_code_invalidated(1, 0xD04);
+  jit_cleanup_stale_code(s_p_jit);
+  jit_test_expect_block_invalidated(1, 0xD03);
+  test_expect_eq((uint32_t) (uintptr_t) s_p_jit->p_jit_ptr_no_code,
+                 s_p_jit->jit_ptrs[0xD04]);
+
   util_buffer_destroy(p_buf);
 }
 
@@ -1312,6 +1320,9 @@ void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
 
+  /* Test this with a blank JIT space. */
+  jit_cleanup_stale_code(s_p_jit);
+
   jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
   jit_test_details_from_host_ip();
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
@@ -1348,4 +1359,7 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_test_compile_metadata();
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+
+  /* Test this with a JIT space that's been used by all the above tests. */
+  jit_cleanup_stale_code(s_p_jit);
 }

@@ -53,6 +53,7 @@ struct cpu_driver_funcs {
                           uint8_t** p_out_opmodes,
                           uint8_t** p_out_opmem,
                           uint8_t** p_out_opcycles);
+  void (*housekeeping_tick)(struct cpu_driver* p_cpu_driver);
 };
 
 struct cpu_driver_extra {
