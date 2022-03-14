@@ -1142,22 +1142,27 @@ jit_test_compile_binary(void) {
              "\xfe\xcb";
   expect_len = 15;
 #elif defined(__aarch64__)
-  /* ldrb  w20, [x27, #50]
-   * add   x20, x6, x20, lsl #1
-   * ubfx  x6, x20, #8, #1
-   * strb  w20, [x28, #50]
-   * ldrb  w20, [x27, #49]
-   * add   x20, x6, x20, lsl #1
-   * ubfx  x6, x20, #8, #1
-   * strb  w20, [x28, #49]
+  /* ldrb  w20, [x27, #0x32]
+   * mov   x4, x6
+   * ubfx  x6, x20, #7, #1
+   * lsl   x20, x20, #1
+   * orr   x20, x20, x4
+   * strb  w20, [x28, #0x32]
+   * ldrb  w20, [x27, #0x31]
+   * mov   x4, x6
+   * ubfx  x6, x20, #7, #1
+   * lsl   x20, x20, #1
+   * orr   x20, x20, x4
+   * strb  w20, [x28, #0x31]
    * sub   x1, x1, #0x1
    * and   x1, x1, #0xff
    */
-  p_expect = "\x74\xcb\x40\x39" "\xd4\x04\x14\x8b" "\x86\x22\x48\xd3"
-             "\x94\xcb\x00\x39" "\x74\xc7\x40\x39" "\xd4\x04\x14\x8b"
-             "\x86\x22\x48\xd3" "\x94\xc7\x00\x39" "\x21\x04\x00\xd1"
-             "\x21\x1c\x40\x92";
-  expect_len = 40;
+  p_expect = "\x74\xcb\x40\x39" "\xe4\x03\x06\xaa" "\x86\x1e\x47\xd3"
+             "\x94\xfa\x7f\xd3" "\x94\x02\x04\xaa" "\x94\xcb\x00\x39"
+             "\x74\xc7\x40\x39" "\xe4\x03\x06\xaa" "\x86\x1e\x47\xd3"
+             "\x94\xfa\x7f\xd3" "\x94\x02\x04\xaa" "\x94\xc7\x00\x39"
+             "\x21\x04\x00\xd1" "\x21\x1c\x40\x92";
+  expect_len = 56;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
