@@ -342,16 +342,22 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 
     if ((p_opcode->opmode_6502 == k_idy) &&
         (p_opcode->reg_y != k_value_unknown)) {
+      uint8_t reg_y = p_opcode->reg_y;
       p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_add_base_y);
       assert(p_uop != NULL);
       p_uop->uopcode = k_opcode_addr_add_base_constant;
-      p_uop->value1 = p_opcode->reg_y;
+      p_uop->value1 = reg_y;
       p_uop = jit_opcode_find_uop(p_opcode,
                                   &index,
                                   k_opcode_check_page_crossing_y);
       if (p_uop != NULL) {
         p_uop->uopcode = k_opcode_check_page_crossing_n;
-        p_uop->value1 = p_opcode->reg_y;
+        p_uop->value1 = reg_y;
+        if (reg_y == 0) {
+          /* Y is known to be zero, so skip the page crossing check entirely. */
+          p_uop->is_eliminated = 1;
+          p_opcode->max_cycles = 5;
+        }
       }
     }
 
