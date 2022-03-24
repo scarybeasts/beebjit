@@ -23,6 +23,7 @@
 #include "asm/asm_jit_defs.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -736,11 +737,12 @@ jit_compile(struct jit_struct* p_jit,
     }
     log_do_log(k_log_jit,
                k_log_info,
-               "compile @$%.4X-$%.4X [pc @%p], %s",
+               "compile @$%.4X-$%.4X [pc @%p], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
                p_host_cpu_ip,
-               p_text);
+               p_text,
+               timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));
   }
 
   return countdown;
