@@ -4,6 +4,8 @@
 
 #include "bbc.h"
 #include "emit_6502.h"
+/* For jit_has_invalidated_code(). */
+#include "jit_compiler.h"
 
 static struct cpu_driver* s_p_cpu_driver = NULL;
 static struct jit_struct* s_p_jit = NULL;
@@ -532,12 +534,16 @@ jit_test_dynamic_opcode(void) {
   test_expect_u32(0xA9, s_p_mem[0x50]);
   test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
   test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1902));
+  /* Dynamic operands always show as invalidated. */
+  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
 
   /* Replace DEX with INX, should not invalidate the dynamic opcode. We check
    * by making sure it doesn't incur a recompile.
    */
   s_p_mem[0x1902] = 0xE8;
   jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
+  /* Dynamic operands always show as invalidated. */
+  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
 
   num_compiles = s_p_jit->counter_num_compiles;
   state_6502_set_pc(s_p_state_6502, 0x1900);
@@ -546,6 +552,16 @@ jit_test_dynamic_opcode(void) {
 
   test_expect_u32(0xAB, s_p_mem[0x50]);
   test_expect_u32(num_compiles, s_p_jit->counter_num_compiles);
+
+  /* Replace INX with DEX again, but using JIT'ed code. */
+  util_buffer_setup(p_buf, (s_p_mem + 0x1980), 0x80);
+  emit_LDA(p_buf, k_imm, 0xCA);
+  emit_STA(p_buf, k_abs, 0x1902);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x1980);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
 
   /* Replace INX with an opcode that needs to cause a self-modified
    * invalidation: STX abs.

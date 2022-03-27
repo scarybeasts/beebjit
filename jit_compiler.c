@@ -107,7 +107,7 @@ jit_compiler_get_current_opcode(struct jit_compiler* p_compiler,
   return p_compiler->history[addr_6502].opcode;
 }
 
-static int
+int
 jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   void* p_host_ptr =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
@@ -130,6 +130,13 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
 
   if (p_jit_ptr == p_compiler->p_jit_ptr_no_code) {
     return 0;
+  }
+  /* Need to explicitly handle dynamic opcodes. The expectation is that they
+   * always show as self-modified. We can't rely on the JIT code bytes in memory
+   * on ARM64, because of the way the invalidation write works.
+   */
+  if (p_jit_ptr == p_compiler->p_jit_ptr_dynamic_operand) {
+    return 1;
   }
 
   assert(p_compiler->p_code_blocks[addr_6502] != -1);
@@ -915,7 +922,9 @@ jit_compiler_get_dynamic_history(struct jit_compiler* p_compiler,
       break;
     }
     /* Stop counting if the events are over a second old. */
-    if ((ticks - p_history->times[index]) > 200000000) {
+    /* TODO: the comment says a second but the constant is 100 seconds. */
+    assert(p_history->times[index] <= ticks);
+    if ((ticks - p_history->times[index]) > (100 * 2000000)) {
       break;
     }
     /* Switch from dynamic operand to dynamic opcode counting if the opcode
