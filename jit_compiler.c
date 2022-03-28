@@ -1877,6 +1877,22 @@ jit_compiler_set_compiling_for_code_in_zero_page(
 }
 
 void
+jit_compiler_tag_address_as_dynamic(struct jit_compiler* p_compiler,
+                                    uint16_t addr_6502) {
+  uint32_t i;
+  uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
+  struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
+
+  p_history->ring_buffer_index = 0;
+
+  for (i = 0; i < k_opcode_history_length; ++i) {
+    p_history->times[i] = ticks;
+    p_history->opcodes[i] = i;
+    p_history->was_self_modified[i] = 1;
+  }
+}
+
+void
 jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
                                     int optimizing) {
   p_compiler->option_no_optimize = !optimizing;

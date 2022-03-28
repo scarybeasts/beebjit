@@ -471,6 +471,22 @@ jit_check_code_block(struct jit_struct* p_jit, uint16_t block_addr_6502) {
   addr_6502 = block_addr_6502;
   code_block = p_jit->code_blocks[addr_6502];
   while (code_block == block_addr_6502) {
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
+      /* No action. */
+    } else if (asm_jit_is_invalidated_code_at(p_jit_ptr)) {
+      /* This stopgap measure attempts to prevent write invalidation faults on
+       * ARM64. If we get here, and there's an invalidated code address, it's
+       * probably because that code isn't ever being executed. If it was
+       * being executed, it would typically get compiled to a dynamic operand
+       * or dynamic opcode.
+       * We tag the address so that a dynamic opcode will be compiled, and this
+       * will prevent write invalidation faults.
+       * Examples: Thurst, Galaforce.
+       */
+      jit_compiler_tag_address_as_dynamic(p_jit->p_compiler, addr_6502);
+    }
     p_jit->jit_ptrs[addr_6502] =
         (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
     p_jit->code_blocks[addr_6502] = -1;
