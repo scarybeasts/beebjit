@@ -64,7 +64,6 @@ struct jit_struct {
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
   uint32_t counter_stay_in_interp;
-  int did_interp_invalidate_memory;
   uint64_t last_housekeeping_cycles;
 
   int log_compile;
@@ -162,12 +161,13 @@ jit_interp_instruction_callback(void* p,
    */
   if ((opmem & k_opmem_write_flag) &&
       jit_is_6502_pc_in_code_block(p_jit, done_addr)) {
-    if (!p_jit->did_interp_invalidate_memory) {
-      /* TODO: Invalidate with a bit more precision. */
-      asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
-      p_jit->did_interp_invalidate_memory = 1;
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, done_addr);
+    if ((p_jit_ptr != p_jit->p_jit_ptr_no_code) &&
+        (p_jit_ptr != p_jit->p_jit_ptr_dynamic_operand)) {
+      asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
+      asm_jit_invalidate_code_at(p_jit_ptr);
+      asm_jit_finish_code_updates(p_jit->p_asm);
     }
-    jit_invalidate_code_at_address(p_jit, done_addr);
   }
 
   if (p_jit->counter_stay_in_interp > 0) {
@@ -244,16 +244,11 @@ jit_enter_interp(struct jit_struct* p_jit,
                                        host_flags);
 
   p_jit->counter_stay_in_interp = 0;
-  p_jit->did_interp_invalidate_memory = 0;
 
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
                                         jit_interp_instruction_callback,
                                         p_jit);
-
-  if (p_jit->did_interp_invalidate_memory) {
-    asm_jit_finish_code_updates(p_jit->p_asm);
-  }
 
   cpu_driver_flags = p_jit_cpu_driver->p_funcs->get_flags(p_jit_cpu_driver);
   p_ret->countdown = countdown;
