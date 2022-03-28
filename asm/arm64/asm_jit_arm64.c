@@ -268,10 +268,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
     return 0;
   }
 
-  /* TODO: if we keep this model of faulting for self-modification, we'll
-   * likely want to twiddle just the affected page. Currently, we twiddle the
-   * whole mapping.
-   */
   asm_jit_start_code_updates(p_asm, p_fault_addr, 4);
   asm_jit_invalidate_code_at(p_fault_addr);
   asm_jit_finish_code_updates(p_asm);
