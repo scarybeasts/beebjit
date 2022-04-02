@@ -25,22 +25,26 @@ enum {
 
 struct state_6502 {
   /* Fields in the asm ABI. */
-  uint32_t reg_a;
-  uint32_t reg_x;
-  uint32_t reg_y;
-  uint32_t reg_s;
-  uint32_t reg_pc;
-  uint32_t reg_flags;
-  uint32_t irq_fire;
-  uint32_t reg_host_pc;
-  uint32_t reg_host_flags;
-  uint32_t reg_host_value;
+  struct {
+    uint32_t reg_a;
+    uint32_t reg_x;
+    uint32_t reg_y;
+    uint32_t reg_s;
+    uint32_t reg_pc;
+    uint32_t reg_flags;
+    uint32_t irq_fire;
+    uint32_t reg_host_pc;
+    uint32_t reg_host_flags;
+    uint32_t reg_host_value;
+  } abi_state;
 
   /* Fields not in the asm ABI. */
-  uint32_t irq_high;
-  uint8_t* p_mem_read;
   struct timing_struct* p_timing;
-  uint64_t ticks_baseline;
+  uint8_t* p_mem_read;
+  struct {
+    uint32_t irq_high;
+    uint64_t ticks_baseline;
+  } state;
 };
 
 struct state_6502* state_6502_create(struct timing_struct* p_timing,

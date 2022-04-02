@@ -660,7 +660,7 @@ jit_compile(struct jit_struct* p_jit,
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
-  p_state_6502->reg_pc = addr_6502;
+  p_state_6502->abi_state.reg_pc = addr_6502;
   if (is_invalidation) {
     countdown = jit_compiler_fixup_state(p_compiler,
                                          p_state_6502,

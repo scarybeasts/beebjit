@@ -1736,7 +1736,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          struct state_6502* p_state_6502,
                          int64_t countdown,
                          uint64_t host_flags) {
-  uint16_t pc_6502 = p_state_6502->reg_pc;
+  uint16_t pc_6502 = p_state_6502->abi_state.reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   int32_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
   int32_t v_fixup = p_compiler->addr_v_fixup[pc_6502];
@@ -1767,16 +1767,16 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     uint8_t flags_new;
     switch (nz_fixup) {
     case -k_opcode_flags_nz_a:
-      nz_val = p_state_6502->reg_a;
+      nz_val = p_state_6502->abi_state.reg_a;
       break;
     case -k_opcode_flags_nz_x:
-      nz_val = p_state_6502->reg_x;
+      nz_val = p_state_6502->abi_state.reg_x;
       break;
     case -k_opcode_flags_nz_y:
-      nz_val = p_state_6502->reg_y;
+      nz_val = p_state_6502->abi_state.reg_y;
       break;
     case -k_opcode_flags_nz_value:
-      nz_val = p_state_6502->reg_host_value;
+      nz_val = p_state_6502->abi_state.reg_host_value;
       break;
     default:
       assert(nz_fixup >= 0);
@@ -1790,14 +1790,16 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     flags_new = 0;
     flags_new |= (flag_n << k_flag_negative);
     flags_new |= (flag_z << k_flag_zero);
-    p_state_6502->reg_flags &= ~((1 << k_flag_negative) | (1 << k_flag_zero));
-    p_state_6502->reg_flags |= flags_new;
+    p_state_6502->abi_state.reg_flags &=
+        ~((1 << k_flag_negative) | (1 << k_flag_zero));
+    p_state_6502->abi_state.reg_flags |= flags_new;
   }
   if (v_fixup) {
     int host_overflow_flag = os_fault_is_overflow_flag_set(host_flags);
     assert(v_fixup == k_opcode_save_overflow);
-    p_state_6502->reg_flags &= ~(1 << k_flag_overflow);
-    p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
+    p_state_6502->abi_state.reg_flags &= ~(1 << k_flag_overflow);
+    p_state_6502->abi_state.reg_flags |=
+        (host_overflow_flag << k_flag_overflow);
   }
   if (c_fixup) {
     int new_carry = 0;
@@ -1818,8 +1820,8 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
       assert(0);
       break;
     }
-    p_state_6502->reg_flags &= ~(1 << k_flag_carry);
-    p_state_6502->reg_flags |= (new_carry << k_flag_carry);
+    p_state_6502->abi_state.reg_flags &= ~(1 << k_flag_carry);
+    p_state_6502->abi_state.reg_flags |= (new_carry << k_flag_carry);
   }
 
   return countdown;

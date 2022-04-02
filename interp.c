@@ -81,7 +81,7 @@ static inline void
 interp_poll_irq_now(int* p_do_irq,
                     struct state_6502* p_state_6502,
                     uint8_t intf) {
-  if (!p_state_6502->irq_fire) {
+  if (!p_state_6502->abi_state.irq_fire) {
     return;
   }
 
@@ -2857,7 +2857,7 @@ check_irq:
        * (including at the instruction boundary). If an IRQ is asserted,
        * make sure to check the next poll point to see if it needs to fire.
        */
-      if (p_state_6502->irq_fire &&
+      if (p_state_6502->abi_state.irq_fire &&
           (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
            !intf)) {
         special_checks |= k_interp_special_poll_irq;

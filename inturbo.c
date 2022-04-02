@@ -748,7 +748,7 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   /* The inturbo uses the 6502 PC host register as a direct pointer, so mix
    * in the memory base address.
    */
-  p_state_6502->reg_pc += K_BBC_MEM_READ_FULL_ADDR;
+  p_state_6502->abi_state.reg_pc += K_BBC_MEM_READ_FULL_ADDR;
 
   exited = asm_inturbo_enter(p_cpu_driver,
                              p_start_address,
