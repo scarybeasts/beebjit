@@ -1568,6 +1568,12 @@ video_power_on_reset(struct video_struct* p_video) {
   video_mode_updated(p_video);
   /* This takes care of timer_fire_mode. */
   video_update_timer(p_video);
+
+  /* This is checking for bad state, particularly if power-on resetting for
+   * rewind purposes.
+   */
+  assert(timing_get_timer_value(p_video->p_timing, p_video->timer_id) == 35840);
+  assert(p_video->frame_crtc_ticks == 20000);
 }
 
 uint64_t
