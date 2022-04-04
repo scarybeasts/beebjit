@@ -29,7 +29,7 @@ will do worse.
 In the "better" category, we have:
 - Speed.
 The JIT in beebjit does indeed refer to the compilation method known as "Just
-In Time". beebjit will compile 6502 code blocks into host (currently Intel x64)
+In Time". beebjit will compile 6502 code blocks into host (Intel x64 or ARM64)
 code blocks as it encounters them. beebjit also has various tricks to handle
 self-modifying code without losing much speed. On top of this, attempts are made
 to implement system peripherals such as audio, video, timers etc. in a way that
@@ -71,17 +71,20 @@ seconds by whacking Alt+Z. This will use beebjit's speed to replay the
 capture file (minus a few seconds), restarting from a power on reset. You
 can use this to fake being really good at Arcadians.
 
+- Accuracy.
+beebjit is believe to be quite accurate.
+You should expect it to run any game you throw at it, including well-known
+classics (Exile, Elite, Revs etc.) You can run tricky-to-emulate titles such as
+the original Nightshade tape, and Tricky's Frogger / Scramble.
+beebjit will run hardware-bending Bitshifters demos, including some
+proof-of-concept prototypes being worked on at the time of writing (April 2022).
+
 
 In the "ok" category:
-- Accuracy.
-beebjit is towards the upper end of BBC emulator accuracy. You should expect it
-to run pretty much any game you throw at it, including well-known classics
-(Exile, Elite, Revs etc.) and tricky-to-emulate titles such as the original
-Nightshade tape, and Tricky's Frogger / Scramble.
-
 - 6502 debugger.
 The built-in 6502 debugger is reasonably capable and could very quickly be
-extended if there is demand.
+extended if there is demand. One of the highlights is the ability to craft
+fairly arbitrary breakpoint expressions.
 
 - Model support.
 beebjit supports the BBC model B, Master 128 or Master Compact. There is some
