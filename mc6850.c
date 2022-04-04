@@ -306,8 +306,8 @@ mc6850_transmit(struct mc6850_struct* p_serial) {
   return p_serial->acia_transmit;
 }
 
-void
-mc6850_power_on_reset(struct mc6850_struct* p_serial) {
+static void
+mc6850_reset(struct mc6850_struct* p_serial) {
   int is_CTS = !!(p_serial->acia_status & k_serial_acia_status_CTS);
 
   p_serial->acia_receive = 0;
@@ -327,6 +327,13 @@ mc6850_power_on_reset(struct mc6850_struct* p_serial) {
    */
   mc6850_set_DCD(p_serial, p_serial->is_DCD);
   mc6850_set_CTS(p_serial, is_CTS);
+}
+
+void
+mc6850_power_on_reset(struct mc6850_struct* p_serial) {
+  p_serial->is_DCD = 0;
+  p_serial->acia_status = 0;
+  mc6850_reset(p_serial);
 }
 
 uint8_t
@@ -407,7 +414,7 @@ mc6850_write(struct mc6850_struct* p_serial, uint8_t reg, uint8_t val) {
         log_do_log(k_log_serial, k_log_info, "reset");
       }
 
-      mc6850_power_on_reset(p_serial);
+      mc6850_reset(p_serial);
     } else {
       p_serial->acia_control = val;
     }
