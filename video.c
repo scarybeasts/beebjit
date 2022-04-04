@@ -111,7 +111,6 @@ struct video_struct {
   /* Options. */
   uint32_t frames_skip;
   uint32_t frame_skip_counter;
-  uint32_t render_every_ticks;
   int is_opt_always_clear_frame_buffer;
 
   /* Timing. */
@@ -1001,7 +1000,6 @@ static void
 video_update_timer(struct video_struct* p_video) {
   int clock_speed;
   uint64_t timer_value;
-  uint32_t render_every_ticks;
 
   if (p_video->externally_clocked) {
     return;
@@ -1020,21 +1018,6 @@ video_update_timer(struct video_struct* p_video) {
                p_video->vert_counter);
   }
   assert(timer_value < (4 * 1024 * 1024));
-
-  /* beebjit does not synchronize the video RAM read with the CPU RAM writes.
-   * This leads to juddery display in same games where screen RAM updates are
-   * carefully arranged at some useful point relative to vsync.
-   * Fortess is a good example.
-   * This option here renders after every so many CRTC ticks, leading to a more
-   * accurate display at the cost of some performance.
-   */
-  render_every_ticks = p_video->render_every_ticks;
-  if (render_every_ticks) {
-    render_every_ticks *= p_video->clock_tick_multiplier;
-    if (timer_value > render_every_ticks) {
-      timer_value = render_every_ticks;
-    }
-  }
 
   (void) timing_set_timer_value(p_video->p_timing,
                                 p_video->timer_id,
@@ -1341,10 +1324,6 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u32_option(&p_video->frames_skip,
                              p_options->p_opt_flags,
                              "video:frames-skip=");
-  p_video->render_every_ticks = 0;
-  (void) util_get_u32_option(&p_video->render_every_ticks,
-                             p_options->p_opt_flags,
-                             "video:render-every-ticks=");
   p_video->paint_start_cycles = 0;
   (void) util_get_u64_option(&p_video->paint_start_cycles,
                              p_options->p_opt_flags,
