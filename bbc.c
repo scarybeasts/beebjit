@@ -1837,6 +1837,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   disc_drive_power_on_reset(p_bbc->p_drive_1);
   keyboard_power_on_reset(p_keyboard);
   video_power_on_reset(p_bbc->p_video);
+  adc_power_on_reset(p_bbc->p_adc);
 
   /* Not reset: teletext, render. They don't affect execution (only display) and
    * will resync to the new display output pretty immediately.
@@ -1931,6 +1932,11 @@ bbc_get_drive_0(struct bbc_struct* p_bbc) {
 struct disc_drive_struct*
 bbc_get_drive_1(struct bbc_struct* p_bbc) {
   return p_bbc->p_drive_1;
+}
+
+struct adc_struct*
+bbc_get_adc(struct bbc_struct* p_bbc) {
+  return p_bbc->p_adc;
 }
 
 uint8_t

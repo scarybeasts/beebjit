@@ -6,6 +6,7 @@
 #include "via.h"
 
 #include <assert.h>
+#include <string.h>
 
 enum {
   k_adc_num_channels = 4,
@@ -15,38 +16,41 @@ struct adc_struct {
   int is_externally_clocked;
   struct timing_struct* p_timing;
   struct via_struct* p_system_via;
-  uint32_t current_channel;
-  uint16_t channel_value[k_adc_num_channels];
   uint32_t timer_id;
-  uint64_t wall_time;
-  uint64_t wall_time_wakeup;
-  int is_input_flag;
-  int is_12bit_mode;
-  int is_busy;
-  int is_result_ready;
+
+  struct {
+    uint32_t current_channel;
+    uint16_t channel_value[k_adc_num_channels];
+    uint64_t wall_time;
+    uint64_t wall_time_wakeup;
+    int is_input_flag;
+    int is_12bit_mode;
+    int is_busy;
+    int is_result_ready;
+  } state;
 };
 
 static void
 adc_stop_if_busy(struct adc_struct* p_adc) {
-  if (!p_adc->is_busy) {
+  if (!p_adc->state.is_busy) {
     return;
   }
   if (!p_adc->is_externally_clocked) {
     (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
   } else {
-    p_adc->wall_time_wakeup = 0;
+    p_adc->state.wall_time_wakeup = 0;
   }
-  p_adc->is_busy = 0;
+  p_adc->state.is_busy = 0;
 }
 
 static void
 adc_indicate_result_ready(struct adc_struct* p_adc) {
-  assert(p_adc->is_busy);
-  assert(!p_adc->is_result_ready);
+  assert(p_adc->state.is_busy);
+  assert(!p_adc->state.is_result_ready);
 
   adc_stop_if_busy(p_adc);
 
-  p_adc->is_result_ready = 1;
+  p_adc->state.is_result_ready = 1;
   via_set_CB1(p_adc->p_system_via, 0);
 }
 
@@ -55,7 +59,7 @@ adc_timer_callback(void* p) {
   struct adc_struct* p_adc = (struct adc_struct*) p;
 
   assert(!p_adc->is_externally_clocked);
-  assert(p_adc->is_busy);
+  assert(p_adc->state.is_busy);
 
   adc_indicate_result_ready(p_adc);
 }
@@ -64,7 +68,6 @@ struct adc_struct*
 adc_create(int is_externally_clocked,
            struct timing_struct* p_timing,
            struct via_struct* p_system_via) {
-  uint32_t i;
   struct adc_struct* p_adc = util_mallocz(sizeof(struct adc_struct));
 
   p_adc->is_externally_clocked = is_externally_clocked;
@@ -73,29 +76,37 @@ adc_create(int is_externally_clocked,
 
   p_adc->timer_id = timing_register_timer(p_timing, adc_timer_callback, p_adc);
 
+  return p_adc;
+}
+
+void
+adc_power_on_reset(struct adc_struct* p_adc) {
+  uint32_t i;
+
+  adc_stop_if_busy(p_adc);
+
+  (void) memset(&p_adc->state, '\0', sizeof(p_adc->state));
   for (i = 0; i < k_adc_num_channels; ++i) {
     /* Default to return of 0x8000 across high and low, which is "central
      * position" for the joystick.
      */
-    p_adc->channel_value[i] = 0x8000;
+    p_adc->state.channel_value[i] = 0x8000;
   }
-
-  return p_adc;
 }
 
 static void
 adc_start(struct adc_struct* p_adc, uint32_t ms) {
-  assert(!p_adc->is_busy);
+  assert(!p_adc->state.is_busy);
   if (!p_adc->is_externally_clocked) {
     (void) timing_start_timer_with_value(p_adc->p_timing,
                                          p_adc->timer_id,
                                          (ms * 2000));
   } else {
-    p_adc->wall_time_wakeup = p_adc->wall_time;
-    p_adc->wall_time_wakeup += (ms * 1000);
+    p_adc->state.wall_time_wakeup = p_adc->state.wall_time;
+    p_adc->state.wall_time_wakeup += (ms * 1000);
   }
-  p_adc->is_busy = 1;
-  p_adc->is_result_ready = 0;
+  p_adc->state.is_busy = 1;
+  p_adc->state.is_result_ready = 0;
   via_set_CB1(p_adc->p_system_via, 1);
 }
 
@@ -111,15 +122,15 @@ adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta) {
     return;
   }
 
-  p_adc->wall_time += delta;
+  p_adc->state.wall_time += delta;
 
-  if (!p_adc->is_busy) {
+  if (!p_adc->state.is_busy) {
     return;
   }
 
-  assert(p_adc->wall_time_wakeup > 0);
+  assert(p_adc->state.wall_time_wakeup > 0);
 
-  if (p_adc->wall_time >= p_adc->wall_time_wakeup) {
+  if (p_adc->state.wall_time >= p_adc->state.wall_time_wakeup) {
     adc_indicate_result_ready(p_adc);
   }
 }
@@ -127,26 +138,26 @@ adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta) {
 uint8_t
 adc_read(struct adc_struct* p_adc, uint8_t addr) {
   uint8_t ret = 0;
-  uint16_t adc_val = p_adc->channel_value[p_adc->current_channel];
+  uint16_t adc_val = p_adc->state.channel_value[p_adc->state.current_channel];
 
   assert(addr <= 3);
 
   switch (addr) {
   case 0: /* Status. */
-    ret = p_adc->current_channel;
-    if (p_adc->is_input_flag) {
+    ret = p_adc->state.current_channel;
+    if (p_adc->state.is_input_flag) {
       ret |= 0x04;
     }
-    if (p_adc->is_12bit_mode) {
+    if (p_adc->state.is_12bit_mode) {
       ret |= 0x08;
     }
     /* AUG states bit 4 is 2nd MSB and bit 5 MSB of conversion. */
     ret |= ((!!(adc_val & 0x8000)) * 0x20);
     ret |= ((!!(adc_val & 0x4000)) * 0x10);
-    if (!p_adc->is_busy) {
+    if (!p_adc->state.is_busy) {
       ret |= 0x40;
     }
-    if (!p_adc->is_result_ready) {
+    if (!p_adc->state.is_result_ready) {
       ret |= 0x80;
     }
     break;
@@ -188,11 +199,11 @@ adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
   switch (addr) {
   case 0:
     adc_stop_if_busy(p_adc);
-    p_adc->current_channel = (val & 3);
-    p_adc->is_input_flag = !!(val & 0x04);
-    p_adc->is_12bit_mode = !!(val & 0x08);
+    p_adc->state.current_channel = (val & 3);
+    p_adc->state.is_input_flag = !!(val & 0x04);
+    p_adc->state.is_12bit_mode = !!(val & 0x08);
     /* 10ms or 4ms conversion time depending on resolution. */
-    if (p_adc->is_12bit_mode) {
+    if (p_adc->state.is_12bit_mode) {
       ms = 10;
     } else {
       ms = 4;
@@ -210,5 +221,5 @@ adc_set_channel_value(struct adc_struct* p_adc,
                       uint32_t channel,
                       uint16_t value) {
   assert(channel < k_adc_num_channels);
-  p_adc->channel_value[channel] = value;
+  p_adc->state.channel_value[channel] = value;
 }

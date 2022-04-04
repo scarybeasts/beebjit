@@ -2,6 +2,8 @@
 
 #include "test.h"
 
+#include "adc.h"
+#include "mc6850.h"
 #include "state_6502.h"
 
 static void
@@ -10,6 +12,7 @@ bbc_test_power_on_reset(struct bbc_struct* p_bbc) {
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct mc6850_struct* p_serial = bbc_get_serial(p_bbc);
+  struct adc_struct* p_adc = bbc_get_adc(p_bbc);
 
   bbc_power_on_reset(p_bbc);
 
@@ -38,6 +41,17 @@ bbc_test_power_on_reset(struct bbc_struct* p_bbc) {
   bbc_power_on_reset(p_bbc);
   val = mc6850_read(p_serial, 0);
   test_expect_u32(0x02, val);
+
+  /* 3) A test for ADC reset. */
+  val = adc_read(p_adc, 0);
+  test_expect_u32(0xE0, val);
+  adc_write(p_adc, 0, 0);
+  val = adc_read(p_adc, 0);
+  test_expect_u32(0xA0, val);
+
+  bbc_power_on_reset(p_bbc);
+  val = adc_read(p_adc, 0);
+  test_expect_u32(0xE0, val);
 }
 
 void

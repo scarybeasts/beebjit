@@ -13,6 +13,7 @@ struct adc_struct* adc_create(int is_externally_clocked,
                               struct via_struct* p_system_via);
 void adc_destroy(struct adc_struct* p_adc);
 
+void adc_power_on_reset(struct adc_struct* p_adc);
 void adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta);
 
 uint8_t adc_read(struct adc_struct* p_adc, uint8_t addr);
