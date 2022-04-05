@@ -171,6 +171,28 @@ performance and stability test cases.
 [ITRP] 25E4: STA ($02),Y
 [ITRP] 25E6: STA ($02),Y
 
+- Changes LDA constants:
+This is an interesting challenge for the optimizer and dynamic operand detector
+because the modified LDA's are typically eliminated in the x64 backend.
+[ITRP] 2CB5: STA $2C39
+[ITRP] 2CB8: STX $04
+[ITRP] 2CBA: STX $2C35
+...
+[ITRP] 2C2A: LDA #$23
+[ITRP] 2C2C: STA $2688
+[ITRP] 2C2F: LDA #$00
+[ITRP] 2C31: STA $26BC
+[ITRP] 2C34: LDA #$03
+[ITRP] 2C36: STA $04
+[ITRP] 2C38: LDA #$38
+[ITRP] 2C3A: STA $268C
+[ITRP] 2C3D: STA $2692
+[ITRP] 2C40: LDA #$06
+[ITRP] 2C42: STA $268D
+[ITRP] 2C45: STA $2693
+[ITRP] 2C48: LDA $27
+[ITRP] 2C4A: STA $00
+
 
 10) Exile
 - Has it all. See disassembly at:
