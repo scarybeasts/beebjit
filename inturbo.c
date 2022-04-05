@@ -2,8 +2,10 @@
 
 #include "bbc_options.h"
 #include "cpu_driver.h"
+#include "debug.h"
 #include "defs_6502.h"
 #include "interp.h"
+#include "log.h"
 #include "memory_access.h"
 #include "os_alloc.h"
 #include "state_6502.h"
@@ -16,14 +18,10 @@
 #include "asm/asm_inturbo_defs.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
-#include <stdio.h>
-
-static const size_t k_inturbo_bytes_per_opcode = (1 << K_INTURBO_OPCODES_SHIFT);
-static void* k_inturbo_opcodes_addr = (void*) K_INTURBO_OPCODES;
 
 struct inturbo_struct {
   struct cpu_driver driver;
@@ -59,8 +57,6 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_inturbo_enter_debug(p_buf);
   }
 
-  asm_emit_inturbo_save_countdown(p_buf);
-
   /* Preflight checks. Some opcodes or situations are tricky enough we want to
    * go straight to the interpreter.
    */
@@ -84,6 +80,7 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     this_callback_from = write_callback_from;
   }
 
+  /* Address calculation. */
   switch (opmode) {
   case k_nil:
   case k_acc:
@@ -102,23 +99,12 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
       break;
     }
     asm_emit_inturbo_mode_abs(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
     break;
   case k_abx:
     asm_emit_inturbo_mode_abx(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem & k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
-    }
     break;
   case k_aby:
     asm_emit_inturbo_mode_aby(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem & k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
-    }
     break;
   case k_zpx:
     asm_emit_inturbo_mode_zpx(p_buf);
@@ -128,15 +114,9 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     break;
   case k_idx:
     asm_emit_inturbo_mode_idx(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
     break;
   case k_idy:
     asm_emit_inturbo_mode_idy(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem == k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
-    }
     break;
   case k_ind:
     asm_emit_inturbo_mode_ind(p_buf);
@@ -144,6 +124,45 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
   default:
     assert(0);
     break;
+  }
+
+  /* Check the address for special access (hardware register etc.). */
+  switch (opmode) {
+  case k_abs:
+    if (optype == k_jsr) {
+      break;
+    }
+    /* FALL THROUGH */
+  case k_abx:
+  case k_aby:
+  case k_idx:
+  case k_idy:
+    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
+    break;
+  default:
+    break;
+  }
+
+  /* Calculate the countdown baseline. Must be done before anything that might
+   * affect countdown, such as page crossing calculations.
+   */
+  asm_emit_inturbo_start_countdown(p_buf, opcycles);
+
+  /* If applicable, calculate non-branch page crossings. */
+  if ((opmem == k_opmem_read_flag) && is_accurate) {
+    switch (opmode) {
+    case k_abx:
+      asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
+      break;
+    case k_aby:
+      asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
+      break;
+    case k_idy:
+      asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
+      break;
+    default:
+      break;
+    }
   }
 
   /* For branches, calculate taken vs. not taken early. This is so that any
@@ -212,7 +231,7 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
   }
 
   /* Check for countdown expiry. */
-  asm_emit_inturbo_check_countdown(p_buf, opcycles);
+  asm_emit_inturbo_check_and_commit_countdown(p_buf);
 
   switch (optype) {
   case k_adc:
@@ -293,10 +312,10 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_instruction_DEC_scratch_interp(p_buf);
     break;
   case k_dex:
-    asm_emit_instruction_DEX(p_buf);
+    asm_emit_inturbo_DEX(p_buf);
     break;
   case k_dey:
-    asm_emit_instruction_DEY(p_buf);
+    asm_emit_inturbo_DEY(p_buf);
     break;
   case k_eor:
     if (opmode == k_imm) {
@@ -309,10 +328,10 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_instruction_INC_scratch_interp(p_buf);
     break;
   case k_inx:
-    asm_emit_instruction_INX(p_buf);
+    asm_emit_inturbo_INX(p_buf);
     break;
   case k_iny:
-    asm_emit_instruction_INY(p_buf);
+    asm_emit_inturbo_INY(p_buf);
     break;
   case k_jmp:
     asm_emit_instruction_JMP_scratch_interp(p_buf);
@@ -524,16 +543,17 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint8_t* p_opcode_cycles;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
-  uint8_t epilog_buf[256];
   uint32_t epilog_len;
+  uint8_t buf[256];
 
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
 
-  struct bbc_options* p_options = p_inturbo->driver.p_options;
+  struct bbc_options* p_options = p_inturbo->driver.p_extra->p_options;
   int is_accurate = p_options->accurate;
   int is_debug = p_inturbo->debug_subsystem_active;
-  struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
+  struct memory_access* p_memory_access =
+      p_inturbo->driver.p_extra->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
   read_callback_from = p_memory_access->memory_read_needs_callback_from(
@@ -547,16 +567,18 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                                              &p_opcode_mem,
                                              &p_opcode_cycles);
 
-  util_buffer_setup(p_buf, &epilog_buf[0], 256);
+  /* Get epilog length. */
+  util_buffer_setup(p_buf, &buf[0], 256);
+  util_buffer_set_base_address(p_buf, p_inturbo_base);
   asm_emit_inturbo_epilog(p_buf);
   epilog_len = util_buffer_get_pos(p_buf);
 
   for (i = 0; i < 256; ++i) {
-    uint8_t buf[256];
+    uint32_t opcode_len;
     int use_interp;
 
     uint8_t* p_inturbo_opcodes_ptr =
-        (p_inturbo_base + (i * k_inturbo_bytes_per_opcode));
+        (p_inturbo_base + (i * K_INTURBO_OPCODE_SIZE));
 
     /* Render the opcode implementation into a "large" 256 byte buffer.
      * Later, we stuff it into a smaller buffer for compact L1 icache usage
@@ -579,9 +601,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                             read_callback_from,
                             write_callback_from);
 
-
-    if ((util_buffer_get_pos(p_buf) + epilog_len) >
-        k_inturbo_bytes_per_opcode) {
+    opcode_len = (util_buffer_get_pos(p_buf) + epilog_len);
+    if (opcode_len > K_INTURBO_OPCODE_SIZE) {
+      log_do_log(k_log_perf,
+                 k_log_info,
+                 "inturbo opcode $%.02X excessive len %"PRIu32,
+                 i,
+                 opcode_len);
       use_interp = 1;
     }
 
@@ -591,13 +617,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       if (is_debug) {
         asm_emit_inturbo_enter_debug(p_buf);
       }
-      asm_emit_inturbo_save_countdown(p_buf);
       asm_emit_inturbo_call_interp(p_buf);
     } else {
       /* Re-write the opcode because writing to a potentially smaller buffer
        * might change some offsets.
        */
-      util_buffer_setup(p_buf, &buf[0], k_inturbo_bytes_per_opcode);
+      util_buffer_setup(p_buf, &buf[0], K_INTURBO_OPCODE_SIZE);
       util_buffer_set_base_address(p_buf, p_inturbo_opcodes_ptr);
       inturbo_generate_opcode(p_inturbo,
                               &use_interp,
@@ -612,15 +637,15 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                               write_callback_from);
     }
 
-    /* int3 on Intel; currently undefined on ARM64? */
-    util_buffer_fill_to_end(p_buf, '\xcc');
+    asm_fill_with_trap(p_buf);
 
-    (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], k_inturbo_bytes_per_opcode);
+    (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], K_INTURBO_OPCODE_SIZE);
     if (!use_interp) {
-      (void) memcpy(
-          (p_inturbo_opcodes_ptr + k_inturbo_bytes_per_opcode - epilog_len),
-          &epilog_buf[0],
-          epilog_len);
+      void* p_epilog = (p_inturbo_opcodes_ptr +
+                        K_INTURBO_OPCODE_SIZE -
+                        epilog_len);
+      util_buffer_setup(p_buf, p_epilog, epilog_len);
+      asm_emit_inturbo_epilog(p_buf);
     }
   }
 
@@ -696,6 +721,7 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   }
 
   os_alloc_free_mapping(p_inturbo->p_mapping_base);
+  asm_inturbo_destroy();
   util_free(p_inturbo);
 }
 
@@ -706,12 +732,12 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
-  uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  uint8_t* p_mem_read = p_cpu_driver->p_extra->p_memory_access->p_mem_read;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
-  uint32_t p_start_address =
-      (uint32_t) (size_t) (k_inturbo_opcodes_addr +
-                           (opcode * k_inturbo_bytes_per_opcode));
+  void* p_start_address =
+      (void*) (uintptr_t) (K_INTURBO_ADDR +
+                           (opcode * K_INTURBO_OPCODE_SIZE));
 
   countdown = timing_get_countdown(p_timing);
 
@@ -719,8 +745,15 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
    * tricks work.
    */
   assert((K_BBC_MEM_READ_FULL_ADDR & 0xff) == 0);
+  /* The inturbo uses the 6502 PC host register as a direct pointer, so mix
+   * in the memory base address.
+   */
+  p_state_6502->abi_state.reg_pc += K_BBC_MEM_READ_FULL_ADDR;
 
-  exited = asm_enter(p_cpu_driver, p_start_address, countdown, p_mem_read);
+  exited = asm_inturbo_enter(p_cpu_driver,
+                             p_start_address,
+                             countdown,
+                             p_mem_read);
   assert(exited == 1);
 
   return exited;
@@ -797,16 +830,15 @@ inturbo_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
 static void
 inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
-  int debug_subsystem_active;
-  size_t mapping_size;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
-  struct bbc_options* p_options = p_cpu_driver->p_options;
-  struct debug_struct* p_debug_object = p_options->p_debug_object;
+  struct memory_access* p_memory_access =
+      p_cpu_driver->p_extra->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
+  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
+  struct debug_struct* p_debug = p_options->p_debug_object;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_funcs->destroy = inturbo_destroy;
@@ -819,9 +851,10 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->set_exit_value = inturbo_set_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;
 
-  debug_subsystem_active = p_options->debug_active_at_addr(
-      p_debug_object, 0xFFFF);
-  p_inturbo->debug_subsystem_active = debug_subsystem_active;
+  p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
+  p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline;
+
+  p_inturbo->debug_subsystem_active = debug_subsystem_active(p_debug);
 
   /* The inturbo mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.
@@ -844,15 +877,16 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
-  mapping_size = (256 * k_inturbo_bytes_per_opcode);
-  p_inturbo->p_mapping_base = os_alloc_get_mapping(k_inturbo_opcodes_addr,
-                                                   mapping_size);
+  p_inturbo->p_mapping_base = os_alloc_get_mapping((void*) K_INTURBO_ADDR,
+                                                   K_INTURBO_SIZE);
   p_inturbo->p_inturbo_base =
       os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
-  os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
-                                        mapping_size);
+
+  asm_inturbo_init();
 
   inturbo_fill_tables(p_inturbo);
+
+  os_alloc_make_mapping_read_exec(p_inturbo->p_inturbo_base, K_INTURBO_SIZE);
 }
 
 struct cpu_driver*

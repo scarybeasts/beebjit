@@ -39,6 +39,11 @@ cpu_driver_get_custom_counters_dummy(struct cpu_driver* p_cpu_driver,
 }
 
 static void
+cpu_driver_housekeeping_tick_dummy(struct cpu_driver* p_cpu_driver) {
+  (void) p_cpu_driver;
+}
+
+static void
 cpu_driver_set_reset_callback_default(
     struct cpu_driver* p_cpu_driver,
     void (*do_reset_callback)(void* p, uint32_t flags),
@@ -135,6 +140,8 @@ cpu_driver_alloc(int mode,
   struct cpu_driver* p_cpu_driver = NULL;
   struct cpu_driver_funcs* p_funcs =
       util_mallocz(sizeof(struct cpu_driver_funcs));
+  struct cpu_driver_extra* p_extra = 
+      util_mallocz(sizeof(struct cpu_driver_extra));
 
   switch (mode) {
   case k_cpu_mode_interp:
@@ -166,14 +173,17 @@ cpu_driver_alloc(int mode,
     if (p_cpu_driver == NULL) {
       util_bail("interp_create() failed");
     }
+    mode = k_cpu_mode_interp;
   }
 
   asm_abi_init(&p_cpu_driver->abi, p_memory_access, p_options, p_state_6502);
   defs_6502_init();
 
-  p_cpu_driver->p_memory_access = p_memory_access;
-  p_cpu_driver->p_timing = p_timing;
-  p_cpu_driver->p_options = p_options;
+  p_cpu_driver->p_extra = p_extra;
+  p_extra->type = mode;
+  p_extra->p_memory_access = p_memory_access;
+  p_extra->p_timing = p_timing;
+  p_extra->p_options = p_options;
   p_cpu_driver->p_funcs = p_funcs;
 
   p_funcs->set_reset_callback = cpu_driver_set_reset_callback_default;
@@ -191,6 +201,7 @@ cpu_driver_alloc(int mode,
   } else {
     p_funcs->get_opcode_maps = cpu_driver_get_6502_opcode_maps;
   }
+  p_funcs->housekeeping_tick = cpu_driver_housekeeping_tick_dummy;
 
   return p_cpu_driver;
 }

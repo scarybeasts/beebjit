@@ -17,6 +17,11 @@ asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
 }
 
 void
+asm_fill_with_trap(struct util_buffer* p_buf) {
+  util_buffer_fill_to_end(p_buf, '\xcc');
+}
+
+void
 asm_patch_byte(struct util_buffer* p_buf,
                size_t offset,
                void* p_start,
@@ -105,11 +110,6 @@ asm_copy_patch_u32(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_instruction_CRASH(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_instruction_CRASH, asm_instruction_CRASH_END);
-}
-
-void
 asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_instruction_REAL_NOP, asm_instruction_REAL_NOP_END);
 }
@@ -125,8 +125,8 @@ asm_emit_instruction_ILLEGAL(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_instruction_BIT_common(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_instruction_BIT_common, asm_instruction_BIT_common_END);
+asm_emit_instruction_BIT_value(struct util_buffer* p_buf) {
+  asm_copy(p_buf, asm_instruction_BIT_value, asm_instruction_BIT_value_END);
 }
 
 void

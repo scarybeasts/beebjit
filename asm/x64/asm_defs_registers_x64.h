@@ -24,12 +24,18 @@
 #define REG_6502_ID_F_32   r13d
 #define REG_6502_ID_F_64   r13
 #define REG_COUNTDOWN      r15
+/* REG_ADDR is currently shared with REG_SCRATCH1. */
+#define REG_ADDR           rdx
+#define REG_ADDR_8         dl
+#define REG_ADDR_8_HI      dh
+#define REG_ADDR_32        edx
 
 #define REG_CONTEXT        rdi
 #define REG_MEM            rbp
 #define REG_MEM_32         ebp
 #define REG_MEM_OFFSET     0x80
 
+/* REG_SCRATCH1 is currently shared with REG_ADDR. */
 #define REG_SCRATCH1       rdx
 #define REG_SCRATCH1_8     dl
 #define REG_SCRATCH1_8_HI  dh
@@ -43,8 +49,6 @@
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_16    r9w
 #define REG_SCRATCH3_32    r9d
-#define REG_SCRATCH4       r11
-#define REG_SCRATCH4_8     r11b
-#define REG_SCRATCH4_32    r11d
+/* NOTE: r11 is unassigned. */
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_X64_H */

@@ -174,6 +174,11 @@ emit_CYCLES(struct util_buffer* p_buf) {
 void
 emit_CYCLES_RESET(struct util_buffer* p_buf) {
   emit_STA(p_buf, k_abs, 0xFEE1);
+  /* These two NOPs ensure that execution bounces back into JIT after the
+   * $FEE1 hardware register read above.
+   */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
 }
 
 void

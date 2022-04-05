@@ -2,6 +2,7 @@
 
 #include "util.h"
 
+#include <assert.h>
 #include <windows.h>
 
 struct os_alloc_mapping {
@@ -149,6 +150,15 @@ os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
                             &old_protection);
   if (ret == 0) {
     util_bail("VirtualProtect PAGE_EXECUTE_READWRITE failed");
+  }
+}
+
+void
+os_alloc_make_mapping_read_exec(void* p_addr, size_t size) {
+  DWORD old_protection;
+  BOOL ret = VirtualProtect(p_addr, size, PAGE_EXECUTE_READ, &old_protection);
+  if (ret == 0) {
+    util_bail("VirtualProtect PAGE_EXECUTE_READ failed");
   }
 }
 

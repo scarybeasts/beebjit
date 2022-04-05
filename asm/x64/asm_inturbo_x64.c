@@ -38,10 +38,11 @@ asm_inturbo_is_enabled(void) {
 }
 
 void
-asm_emit_inturbo_save_countdown(struct util_buffer* p_buf) {
-  void asm_inturbo_save_countdown(void);
-  void asm_inturbo_save_countdown_END(void);
-  asm_copy(p_buf, asm_inturbo_save_countdown, asm_inturbo_save_countdown_END);
+asm_inturbo_init(void) {
+}
+
+void
+asm_inturbo_destroy(void) {
 }
 
 void
@@ -74,19 +75,34 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+asm_emit_inturbo_start_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+  void asm_inturbo_start_countdown(void);
+  void asm_inturbo_start_countdown_END(void);
+  void asm_inturbo_start_countdown_lea_patch(void);
   size_t offset = util_buffer_get_pos(p_buf);
 
-  asm_copy(p_buf, asm_inturbo_check_countdown, asm_inturbo_check_countdown_END);
+  asm_copy(p_buf, asm_inturbo_start_countdown, asm_inturbo_start_countdown_END);
   asm_patch_byte(p_buf,
                  offset,
-                 asm_inturbo_check_countdown,
-                 asm_inturbo_check_countdown_lea_patch,
+                 asm_inturbo_start_countdown,
+                 asm_inturbo_start_countdown_lea_patch,
                  (0x100 - opcycles));
+}
+
+void
+asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf) {
+  void asm_inturbo_check_and_commit_countdown(void);
+  void asm_inturbo_check_and_commit_countdown_END(void);
+  void asm_inturbo_check_and_commit_countdown_jb_patch(void);
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_copy(p_buf,
+           asm_inturbo_check_and_commit_countdown,
+           asm_inturbo_check_and_commit_countdown_END);
   asm_patch_jump(p_buf,
                  offset,
-                 asm_inturbo_check_countdown,
-                 asm_inturbo_check_countdown_jb_patch,
+                 asm_inturbo_check_and_commit_countdown,
+                 asm_inturbo_check_and_commit_countdown_jb_patch,
                  asm_inturbo_call_interp);
 }
 
@@ -171,11 +187,15 @@ void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
   size_t offset = util_buffer_get_pos(p_buf);
 
+  void asm_inturbo_enter_debug(void);
+  void asm_inturbo_enter_debug_END(void);
+  void asm_inturbo_enter_debug_call_patch(void);
+
   asm_copy(p_buf, asm_inturbo_enter_debug, asm_inturbo_enter_debug_END);
   asm_patch_jump(p_buf,
                  offset,
                  asm_inturbo_enter_debug,
-                 asm_inturbo_enter_debug_END,
+                 asm_inturbo_enter_debug_call_patch,
                  asm_debug);
 }
 
@@ -334,7 +354,7 @@ asm_emit_instruction_BEQ_interp_accurate(struct util_buffer* p_buf) {
 void
 asm_emit_instruction_BIT_interp(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_instruction_BIT_interp, asm_instruction_BIT_interp_END);
-  asm_copy(p_buf, asm_instruction_BIT_common, asm_instruction_BIT_common_END);
+  asm_copy(p_buf, asm_instruction_BIT_value, asm_instruction_BIT_value_END);
 }
 
 void
@@ -520,6 +540,16 @@ asm_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_DEX(struct util_buffer* p_buf) {
+  asm_emit_instruction_DEX(p_buf);
+}
+
+void
+asm_emit_inturbo_DEY(struct util_buffer* p_buf) {
+  asm_emit_instruction_DEY(p_buf);
+}
+
+void
 asm_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf) {
   asm_copy(p_buf,
            asm_instruction_EOR_imm_interp,
@@ -538,6 +568,16 @@ asm_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf) {
   asm_copy(p_buf,
            asm_instruction_INC_scratch_interp,
            asm_instruction_INC_scratch_interp_END);
+}
+
+void
+asm_emit_inturbo_INX(struct util_buffer* p_buf) {
+  asm_emit_instruction_INX(p_buf);
+}
+
+void
+asm_emit_inturbo_INY(struct util_buffer* p_buf) {
+  asm_emit_instruction_INY(p_buf);
 }
 
 void

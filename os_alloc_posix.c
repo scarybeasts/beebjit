@@ -90,10 +90,15 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
   struct os_alloc_mapping* p_ret =
       util_mallocz(sizeof(struct os_alloc_mapping));
 
+  (void) try_huge;
+
+/* macOS lacks MAP_HUGETLB. */
+#ifdef MAP_HUGETLB
   if ((size % (2 * 1024 * 1024)) == 0) {
     try_huge = 1;
     map_flags |= MAP_HUGETLB;
   }
+#endif
 
   if (handle == -1) {
     map_flags |= (MAP_PRIVATE | MAP_ANONYMOUS);
@@ -102,6 +107,8 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
   }
 
   p_map = mmap(p_addr, size, map_prot, map_flags, handle, offset);
+/* macOS lacks MAP_HUGETLB. */
+#ifdef MAP_HUGETLB
   if (try_huge) {
     if (p_map == MAP_FAILED) {
       map_flags &= ~MAP_HUGETLB;
@@ -110,12 +117,18 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
       log_do_log(k_log_misc, k_log_info, "used MAP_HUGETLB");
     }
   }
+#endif
   if (p_map == MAP_FAILED) {
     util_bail("mmap failed");
   }
 
   if ((p_addr != NULL) && (p_map != p_addr)) {
-    util_bail("mmap in wrong location");
+    util_bail("mmap in wrong location (expected %p, got %p)"
+              ", heap %p binary %p",
+              p_addr,
+              p_map,
+              p_ret,
+              os_alloc_get_mapping_from_handle);
   }
 
   p_ret->p_addr = p_map;
@@ -148,7 +161,7 @@ void
 os_alloc_make_mapping_read_only(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_READ);
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect R failed @%p", p_addr);
   }
 }
 
@@ -156,7 +169,7 @@ void
 os_alloc_make_mapping_read_write(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect RW failed @%p", p_addr);
   }
 }
 
@@ -164,7 +177,15 @@ void
 os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE | PROT_EXEC));
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect RWX failed @%p", p_addr);
+  }
+}
+
+void
+os_alloc_make_mapping_read_exec(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, (PROT_READ | PROT_EXEC));
+  if (ret != 0) {
+    util_bail("mprotect RX failed @%p", p_addr);
   }
 }
 
@@ -172,6 +193,6 @@ void
 os_alloc_make_mapping_none(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect N failed @%p", p_addr);
   }
 }

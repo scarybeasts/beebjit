@@ -7,6 +7,23 @@
 #include <assert.h>
 #include <string.h>
 
+enum {
+  k_render_mode0 = 0,
+  k_render_mode1 = 1,
+  k_render_mode2 = 2,
+  k_render_mode4 = 3,
+  k_render_mode5 = 4,
+  k_render_mode7 = 5,
+  k_render_mode8 = 6,
+  k_render_num_modes = 7,
+};
+
+struct render_struct;
+typedef void (*render_func_t)(struct render_struct* p_render,
+                              uint8_t data,
+                              uint16_t addr,
+                              uint64_t ticks);
+
 struct render_struct {
   void (*p_flyback_callback)(void*);
   void* p_flyback_callback_object;
@@ -38,9 +55,13 @@ struct render_struct {
   struct render_table_2MHz* p_render_table_2MHz;
 
   int render_mode;
+  int is_dispen;
+  uint32_t row_address;
+  render_func_t p_render_func;
+  render_func_t p_render_blank_func;
+  render_func_t p_selected_render_func;
   int is_clock_2MHz;
-  int is_rendering_black;
-  uint32_t pixels_size;
+  int chars_per_line;
   int32_t horiz_beam_pos;
   int32_t vert_beam_pos;
   int32_t horiz_beam_window_start_pos;
@@ -144,8 +165,6 @@ render_create(struct teletext_struct* p_teletext,
 
   p_render->render_mode = k_render_mode0;
   p_render->is_clock_2MHz = 1;
-  p_render->pixels_size = 8;
-  p_render->is_rendering_black = 0;
 
   p_render->cursor_segment_index = -1;
 
@@ -218,6 +237,7 @@ render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;
   uint32_t window_vert_pos;
   int32_t vert_beam_pos;
+  uint32_t pixels_size;
 
   p_render->p_render_pos = (p_render->p_buffer_end + 1);
   p_render->p_render_pos_row = (p_render->p_buffer_end + 1);
@@ -254,11 +274,16 @@ render_reset_render_pos(struct render_struct* p_render) {
   window_horiz_pos = (p_render->horiz_beam_pos -
                       p_render->horiz_beam_window_start_pos);
 
+  if (!p_render->is_clock_2MHz || (p_render->render_mode == k_render_mode7)) {
+    pixels_size = 16;
+  } else {
+    pixels_size = 8;
+  }
+
   p_render->p_render_pos = p_render->p_render_pos_row;
   p_render->p_render_pos += window_horiz_pos;
-  p_render->p_render_pos_row_max = (p_render->p_render_pos_row +
-                                    p_render->width -
-                                    p_render->pixels_size);
+  p_render->p_render_pos_row_max =
+      (p_render->p_render_pos_row + p_render->width - pixels_size);
 }
 
 static void
@@ -303,16 +328,6 @@ render_check_cursor(struct render_struct* p_render,
     return;
   }
 
-  /* NOTE: the -16 here is a dodgy hack to shift the cursor to the left
-   * while we don't support 6845 skew.
-   */
-  if (p_render->render_mode == k_render_mode7) {
-    p_render_pos -= 16;
-    if (p_next_render_pos != NULL) {
-      p_next_render_pos -= 16;
-    }
-  }
-
   if (p_render->cursor_segments[p_render->cursor_segment_index] &&
       (p_render_pos >= p_render->p_render_pos_row)) {
     uint32_t i;
@@ -331,25 +346,38 @@ render_check_cursor(struct render_struct* p_render,
 
 static void
 render_function_teletext_deinterlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address,
+                                      uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct teletext_struct* p_teletext = p_render->p_teletext;
+
+  /* The SAA5050 is clocked at 1MHz. */
+  if (ticks & 1) {
+    return;
+  }
+
+  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
+  if (!(address & 0x2000)) {
+    data = 0;
+  }
+
+  /* Need to send along the data even for off-screen bytes so that the
+   * SAA5050 state is correctly maintained.
+   * e.g. the super-wide MODE7 in the Firetrack loader.
+   */
+  teletext_data(p_teletext, data);
 
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    teletext_render_data(p_render->p_teletext,
-                         1,
-                         (struct render_character_1MHz*) p_render_pos,
-                         (struct render_character_1MHz*) p_next_render_pos,
-                         data);
+    teletext_render(p_teletext,
+                    (struct render_character_1MHz*) p_render_pos,
+                    (struct render_character_1MHz*) p_next_render_pos);
     render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
     p_render->p_render_pos += 16;
   } else {
-    /* In teletext mode, we still need to tell the SAA5050 chip about data
-     * bytes that are off-screen, so that it can maintain state.
-     */
-    teletext_render_data(p_render->p_teletext, 0, NULL, NULL, data);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
@@ -359,34 +387,46 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_teletext_interlaced(struct render_struct* p_render,
-                                    uint8_t data) {
+                                    uint8_t data,
+                                    uint16_t address,
+                                    uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct teletext_struct* p_teletext = p_render->p_teletext;
+
+  /* The SAA5050 is clocked at 1MHz. */
+  if (ticks & 1) {
+    return;
+  }
+
+  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
+  if (!(address & 0x2000)) {
+    data = 0;
+  }
+
+  /* Need to send along the data even for off-screen bytes so that the
+   * SAA5050 state is correctly maintained.
+   * e.g. the super-wide MODE7 in the Firetrack loader.
+   */
+  teletext_data(p_teletext, data);
 
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     if (p_render->vert_beam_pos & 1) {
       uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      teletext_render_data(p_render->p_teletext,
-                           0,
-                           (struct render_character_1MHz*) p_next_render_pos,
-                           NULL,
-                           data);
+      teletext_render(p_render->p_teletext,
+                      (struct render_character_1MHz*) p_next_render_pos,
+                      NULL);
       render_check_cursor(p_render, p_next_render_pos, NULL, 16);
     } else {
-      teletext_render_data(p_render->p_teletext,
-                           0,
-                           (struct render_character_1MHz*) p_render_pos,
-                           NULL,
-                           data);
+      teletext_render(p_render->p_teletext,
+                      (struct render_character_1MHz*) p_render_pos,
+                      NULL);
       render_check_cursor(p_render, p_render_pos, NULL, 16);
     }
     p_render->p_render_pos += 16;
   } else {
-    /* In teletext mode, we still need to tell the SAA5050 chip about data
-     * bytes that are off-screen, so that it can maintain state.
-     */
-    teletext_render_data(p_render->p_teletext, 0, NULL, NULL, data);
+    teletext_render(p_teletext, NULL, NULL);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
@@ -396,8 +436,13 @@ render_function_teletext_interlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
-                                       uint8_t data) {
+                                       uint8_t data,
+                                       uint16_t address,
+                                       uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 16;
 
@@ -417,8 +462,13 @@ render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_data_interlaced(struct render_struct* p_render,
-                                     uint8_t data) {
+                                     uint8_t data,
+                                     uint16_t address,
+                                     uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 16;
 
@@ -442,10 +492,14 @@ render_function_1MHz_data_interlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
-                                        uint8_t data) {
+                                        uint8_t data,
+                                        uint16_t address,
+                                        uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 16;
 
@@ -465,10 +519,14 @@ render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_blank_interlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address,
+                                      uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 16;
 
@@ -492,8 +550,13 @@ render_function_1MHz_blank_interlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
-                                       uint8_t data) {
+                                       uint8_t data,
+                                       uint16_t address,
+                                       uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 8;
 
@@ -513,8 +576,13 @@ render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_data_interlaced(struct render_struct* p_render,
-                                     uint8_t data) {
+                                     uint8_t data,
+                                     uint16_t address,
+                                     uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 8;
 
@@ -538,10 +606,14 @@ render_function_2MHz_data_interlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
-                                        uint8_t data) {
+                                        uint8_t data,
+                                        uint16_t address,
+                                        uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 8;
 
@@ -561,10 +633,14 @@ render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_blank_interlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address,
+                                      uint64_t ticks) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
+  (void) ticks;
 
   p_render->horiz_beam_pos += 8;
 
@@ -584,67 +660,6 @@ render_function_2MHz_blank_interlaced(struct render_struct* p_render,
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
-}
-
-void
-render_set_mode(struct render_struct* p_render, int mode) {
-  assert((mode >= k_render_mode0) && (mode <= k_render_mode8));
-
-  if (mode == p_render->render_mode) {
-    return;
-  }
-
-  render_dirty_all_tables(p_render);
-
-  switch (mode) {
-  case k_render_mode0:
-  case k_render_mode1:
-  case k_render_mode2:
-    p_render->is_clock_2MHz = 1;
-    p_render->pixels_size = 8;
-    break;
-  case k_render_mode4:
-  case k_render_mode5:
-  case k_render_mode7:
-  case k_render_mode8:
-    p_render->is_clock_2MHz = 0;
-    p_render->pixels_size = 16;
-    break;
-  default:
-    assert(0);
-    break;
-  }
-
-  p_render->render_mode = mode;
-
-  /* Changing 1MHz <-> 2MHz changes the size of the pixel blocks we write, and
-   * therefore the bounds.
-   */
-  render_reset_render_pos(p_render);
-}
-
-void
-render_set_palette(struct render_struct* p_render,
-                   uint8_t index,
-                   uint32_t rgba) {
-  if (p_render->palette[index] == rgba) {
-    return;
-  }
-
-  p_render->palette[index] = rgba;
-  render_dirty_all_tables(p_render);
-}
-
-void
-render_set_cursor_segments(struct render_struct* p_render,
-                           int s0,
-                           int s1,
-                           int s2,
-                           int s3) {
-  p_render->cursor_segments[0] = s0;
-  p_render->cursor_segments[1] = s1;
-  p_render->cursor_segments[2] = s2;
-  p_render->cursor_segments[3] = s3;
 }
 
 static void
@@ -737,14 +752,7 @@ render_generate_mode8_table(struct render_struct* p_render) {
 
 static void
 render_check_2MHz_render_table(struct render_struct* p_render) {
-  int mode;
-
-  if (p_render->is_rendering_black) {
-    p_render->p_render_table_2MHz = &p_render->render_table_2MHz_black;
-    return;
-  }
-
-  mode = p_render->render_mode;
+  int mode = p_render->render_mode;
 
   if (p_render->render_table_dirty[mode]) {
     switch (mode) {
@@ -782,14 +790,7 @@ render_check_2MHz_render_table(struct render_struct* p_render) {
 
 static void
 render_check_1MHz_render_table(struct render_struct* p_render) {
-  int mode;
-
-  if (p_render->is_rendering_black) {
-    p_render->p_render_table_1MHz = &p_render->render_table_1MHz_black;
-    return;
-  }
-
-  mode = p_render->render_mode;
+  int mode = p_render->render_mode;
 
   if (p_render->render_table_dirty[mode]) {
     switch (mode) {
@@ -825,68 +826,148 @@ render_check_1MHz_render_table(struct render_struct* p_render) {
   }
 }
 
-void (*render_get_render_data_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t) {
+static inline void
+render_select_render_func(struct render_struct* p_render) {
   if (p_render->render_mode == k_render_mode7) {
-    if (p_render->do_deinterlace_teletext) {
-      return render_function_teletext_deinterlaced;
-    } else {
-      return render_function_teletext_interlaced;
-    }
-  } else if (p_render->is_clock_2MHz) {
-    render_check_2MHz_render_table(p_render);
-    if (p_render->do_deinterlace_bitmap) {
-      return render_function_2MHz_data_deinterlaced;
-    } else {
-      return render_function_2MHz_data_interlaced;
-    }
+    p_render->p_selected_render_func = p_render->p_render_func;
+  } else if (p_render->is_dispen && !(p_render->row_address & 0x08)) {
+    p_render->p_selected_render_func = p_render->p_render_func;
   } else {
-    render_check_1MHz_render_table(p_render);
-    if (p_render->do_deinterlace_bitmap) {
-      return render_function_1MHz_data_deinterlaced;
-    } else {
-      return render_function_1MHz_data_interlaced;
-    }
-  }
-}
-
-void (*render_get_render_blank_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t) {
-  if (p_render->render_mode == k_render_mode7) {
-    if (p_render->do_deinterlace_teletext) {
-      return render_function_1MHz_blank_deinterlaced;
-    } else {
-      return render_function_1MHz_blank_interlaced;
-    }
-  } else if (p_render->is_clock_2MHz) {
-    if (p_render->do_deinterlace_bitmap) {
-      return render_function_2MHz_blank_deinterlaced;
-    } else {
-      return render_function_2MHz_blank_interlaced;
-    }
-  } else {
-    if (p_render->do_deinterlace_bitmap) {
-      return render_function_1MHz_blank_deinterlaced;
-    } else {
-      return render_function_1MHz_blank_interlaced;
-    }
+    p_render->p_selected_render_func = p_render->p_render_blank_func;
   }
 }
 
 void
-render_set_RA(struct render_struct* p_render, uint32_t row_address) {
-  int is_rendering_black = 0;
-  int old_is_rendering_black = p_render->is_rendering_black;
-
-  if (row_address & 0x08) {
-    is_rendering_black = 1;
+render_set_mode(struct render_struct* p_render,
+                int clock_speed,
+                int chars_per_line,
+                int is_teletext) {
+  if ((clock_speed != p_render->is_clock_2MHz) ||
+      (chars_per_line != p_render->chars_per_line)) {
+    /* Any change other than flipping teletext means we need to rebuild all
+     * the pixel render tables.
+     */
+    render_dirty_all_tables(p_render);
   }
 
-  if (is_rendering_black == old_is_rendering_black) {
+  p_render->is_clock_2MHz = clock_speed;
+  p_render->chars_per_line = chars_per_line;
+
+  if (is_teletext) {
+    /* For teletext rendeing, we use the same function for data or blank,
+     * because the teletext display chain does its own display enable handling.
+     */
+    if (p_render->do_deinterlace_teletext) {
+      p_render->p_render_func = render_function_teletext_deinterlaced;
+      p_render->p_render_blank_func = NULL;
+    } else {
+      p_render->p_render_func = render_function_teletext_interlaced;
+      p_render->p_render_blank_func = NULL;
+    }
+    p_render->render_mode = k_render_mode7;
+  } else {
+    if (clock_speed == 1) {
+      /* 2MHz. */
+      if (p_render->do_deinterlace_bitmap) {
+        p_render->p_render_func = render_function_2MHz_data_deinterlaced;
+        p_render->p_render_blank_func = render_function_2MHz_blank_deinterlaced;
+      } else {
+        p_render->p_render_func = render_function_2MHz_data_interlaced;
+        p_render->p_render_blank_func = render_function_2MHz_blank_interlaced;
+      }
+      switch (chars_per_line) {
+      case 1:
+        p_render->render_mode = k_render_mode2;
+        break;
+      case 2:
+        p_render->render_mode = k_render_mode1;
+        break;
+      case 3:
+        p_render->render_mode = k_render_mode0;
+        break;
+      default:
+        p_render->render_mode = k_render_mode0;
+        break;
+      }
+    } else {
+      /* 1MHz. */
+      if (p_render->do_deinterlace_bitmap) {
+        p_render->p_render_func = render_function_1MHz_data_deinterlaced;
+        p_render->p_render_blank_func = render_function_1MHz_blank_deinterlaced;
+      } else {
+        p_render->p_render_func = render_function_1MHz_data_interlaced;
+        p_render->p_render_blank_func = render_function_1MHz_blank_interlaced;
+      }
+      switch (chars_per_line) {
+      case 0:
+        p_render->render_mode = k_render_mode8;
+        break;
+      case 1:
+        p_render->render_mode = k_render_mode5;
+        break;
+      case 2:
+        p_render->render_mode = k_render_mode4;
+        break;
+      default:
+        /* EMU NOTE: not clear what to render here. Probably anything will do
+         * for now because it's not a defined mode.
+         * This condition can occur in practice, for example half-way through
+         * mode switches.
+         * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
+         */
+        p_render->render_mode = k_render_mode4;
+        break;
+      }
+    }
+  }
+
+  render_select_render_func(p_render);
+
+  /* Changing 1MHz <-> 2MHz changes the size of the pixel blocks we write, and
+   * therefore the bounds.
+   */
+  render_reset_render_pos(p_render);
+}
+
+void
+render_set_palette(struct render_struct* p_render,
+                   uint8_t index,
+                   uint32_t rgba) {
+  if (p_render->palette[index] == rgba) {
     return;
   }
 
-  p_render->is_rendering_black = is_rendering_black;
+  p_render->palette[index] = rgba;
+  render_dirty_all_tables(p_render);
+}
+
+void
+render_set_cursor_segments(struct render_struct* p_render,
+                           int s0,
+                           int s1,
+                           int s2,
+                           int s3) {
+  p_render->cursor_segments[0] = s0;
+  p_render->cursor_segments[1] = s1;
+  p_render->cursor_segments[2] = s2;
+  p_render->cursor_segments[3] = s3;
+}
+
+void
+render_set_DISPEN(struct render_struct* p_render, int is_enabled) {
+  p_render->is_dispen = is_enabled;
+  render_select_render_func(p_render);
+}
+
+void
+render_set_RA(struct render_struct* p_render, uint32_t row_address) {
+  p_render->row_address = row_address;
+
+  render_select_render_func(p_render);
+}
+
+void
+render_prepare(struct render_struct* p_render) {
   if (p_render->render_mode == k_render_mode7) {
     /* Nothing to do. */
   } else if (p_render->is_clock_2MHz) {
@@ -894,6 +975,14 @@ render_set_RA(struct render_struct* p_render, uint32_t row_address) {
   } else {
     render_check_1MHz_render_table(p_render);
   }
+}
+
+void
+render_render(struct render_struct* p_render,
+              uint8_t data,
+              uint16_t addr,
+              uint64_t ticks) {
+  p_render->p_selected_render_func(p_render, data, addr, ticks);
 }
 
 void
@@ -970,14 +1059,6 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
   }
 
   render_reset_render_pos(p_render);
-
-  /* NOTE: dodgy hack to get MODE7 shifted to the right by two characters
-   * because we do not yet support 6845 skew.
-   */
-  if (p_render->render_mode == k_render_mode7) {
-    render_function_1MHz_blank_deinterlaced(p_render, 0);
-    render_function_1MHz_blank_deinterlaced(p_render, 0);
-  }
 }
 
 void

@@ -11,12 +11,17 @@
 #include <string.h>
 
 struct expression_struct {
-  int64_t (*p_variable_read_callback)(void*, const char*, uint32_t);
-  void (*p_variable_write_callback)(void*, const char*, uint32_t, int64_t);
+  expression_var_read_lookup_func_t p_var_read_lookup_func;
+  expression_var_write_lookup_func_t p_var_write_lookup_func;
   void* p_variable_object;
   char* p_expr_str;
   struct util_tree_struct* p_tree;
   struct util_tree_node_struct* p_current_node;
+};
+
+struct expression_variable_funcs_struct {
+  expression_var_read_func_t p_var_read_func;
+  expression_var_write_func_t p_var_write_func;
 };
 
 enum {
@@ -44,18 +49,13 @@ enum {
 };
 
 struct expression_struct*
-expression_create(int64_t (*p_variable_read_callback)(void* p,
-                                                      const char* p_name,
-                                                      uint32_t index),
-                  void (*p_variable_write_callback)(void* p,
-                                                    const char* p_name,
-                                                    uint32_t index,
-                                                    int64_t value),
+expression_create(expression_var_read_lookup_func_t p_var_read_lookup_func,
+                  expression_var_write_lookup_func_t p_var_write_lookup_func,
                   void* p_variable_object) {
   struct expression_struct* p_expression =
       util_mallocz(sizeof(struct expression_struct));
-  p_expression->p_variable_read_callback = p_variable_read_callback;
-  p_expression->p_variable_write_callback = p_variable_write_callback;
+  p_expression->p_var_read_lookup_func = p_var_read_lookup_func;
+  p_expression->p_var_write_lookup_func = p_var_write_lookup_func;
   p_expression->p_variable_object = p_variable_object;
   p_expression->p_expr_str = NULL;
   p_expression->p_tree = util_tree_alloc();
@@ -180,9 +180,21 @@ expression_process_token(struct expression_struct* p_expression,
     p_new_node = util_tree_node_alloc(k_expression_node_integer);
     util_tree_node_set_int_value(p_new_node, val);
   } else if (isalpha(c)) {
+    struct expression_variable_funcs_struct* p_funcs =
+        util_mallocz(sizeof(struct expression_variable_funcs_struct));
+    p_funcs->p_var_read_func =
+        p_expression->p_var_read_lookup_func(p_expression->p_variable_object,
+                                             p_token_str);
+    p_funcs->p_var_write_func =
+        p_expression->p_var_write_lookup_func(p_expression->p_variable_object,
+                                              p_token_str);
+    if ((p_funcs->p_var_read_func == NULL) &&
+        (p_funcs->p_var_write_func == NULL)) {
+      log_do_log(k_log_misc, k_log_warning, "unknown variable %s", p_token_str);
+    }
     type = k_expression_node_var;
     p_new_node = util_tree_node_alloc(k_expression_node_var);
-    util_tree_node_set_object_value(p_new_node, util_strdup(p_token_str));
+    util_tree_node_set_object_value(p_new_node, p_funcs);
   } else {
     int do_node_alloc = 1;
     if (!strcmp(p_token_str, "==")) {
@@ -371,14 +383,17 @@ expression_parse(struct expression_struct* p_expression,
 static int64_t
 expression_execute_node(struct expression_struct* p_expression,
                         struct util_tree_node_struct* p_node) {
+  struct expression_variable_funcs_struct* p_funcs;
+  expression_var_read_func_t p_read_func;
+  expression_var_write_func_t p_write_func;
+  int64_t lhs;
+  int64_t rhs;
+  uint32_t index;
   int64_t ret = 0;
   int32_t type = util_tree_node_get_type(p_node);
   uint32_t num_children = util_tree_node_get_num_children(p_node);
   struct util_tree_node_struct* p_child_node_1 = NULL;
   struct util_tree_node_struct* p_child_node_2 = NULL;
-  int64_t lhs;
-  int64_t rhs;
-  uint32_t index;
 
   if (num_children > 0) {
     p_child_node_1 = util_tree_node_get_child(p_node, 0);
@@ -396,10 +411,12 @@ expression_execute_node(struct expression_struct* p_expression,
     if (num_children == 1) {
       index = expression_execute_node(p_expression, p_child_node_1);
     }
-    ret = p_expression->p_variable_read_callback(
-        p_expression->p_variable_object,
-        (const char*) util_tree_node_get_object_value(p_node),
-        index);
+    p_funcs = (struct expression_variable_funcs_struct*)
+        util_tree_node_get_object_value(p_node);
+    p_read_func = p_funcs->p_var_read_func;
+    if (p_read_func != NULL) {
+      ret = p_read_func(p_expression->p_variable_object, index);
+    }
     break;
   case k_expression_node_plus:
     if (num_children == 2) {
@@ -506,21 +523,23 @@ expression_execute_node(struct expression_struct* p_expression,
     }
     break;
   case k_expression_node_assign:
-    if (num_children == 2) {
-      rhs = expression_execute_node(p_expression, p_child_node_2);
-      ret = rhs;
-      if (util_tree_node_get_type(p_child_node_1) == k_expression_node_var) {
-        index = 0;
-        if (util_tree_node_get_num_children(p_child_node_1) == 1) {
-          struct util_tree_node_struct* p_index_node =
-              util_tree_node_get_child(p_child_node_1, 0);
-          index = expression_execute_node(p_expression, p_index_node);
-        }
-        p_expression->p_variable_write_callback(
-            p_expression->p_variable_object,
-            (const char*) util_tree_node_get_object_value(p_child_node_1),
-            index,
-            rhs);
+    if (num_children != 2) {
+      break;
+    }
+    rhs = expression_execute_node(p_expression, p_child_node_2);
+    ret = rhs;
+    if (util_tree_node_get_type(p_child_node_1) == k_expression_node_var) {
+      index = 0;
+      if (util_tree_node_get_num_children(p_child_node_1) == 1) {
+        struct util_tree_node_struct* p_index_node =
+            util_tree_node_get_child(p_child_node_1, 0);
+        index = expression_execute_node(p_expression, p_index_node);
+      }
+      p_funcs = (struct expression_variable_funcs_struct*)
+          util_tree_node_get_object_value(p_child_node_1);
+      p_write_func = p_funcs->p_var_write_func;
+      if (p_write_func != NULL) {
+        p_write_func(p_expression->p_variable_object, index, rhs);
       }
     }
     break;

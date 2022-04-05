@@ -8,6 +8,14 @@ The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
 
+JIT improvements
+================
+
+- ARM64 partial zero page caching in host registers.
+- Investigate mode REL for dynamic operand.
+- Re-add mode IDX address optimization.
+
+
 Fix later
 =========
 Bugs and issues not serious enough to warrant fixing before the next release.
@@ -21,7 +29,6 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Tape loading noises.
 - Disc loading noises.
-- Add a test for the JIT optimizer.
 - BCD support in JIT. It gives accurate results but slowly because it uses the
 interpreter. No evidence yet of intense BCD usage in anything that needs to go
 fast.
@@ -38,7 +45,7 @@ improvements out one by one on a rainy day.
 These speeds are for JIT mode. In some cases here, interp mode is faster
 because of some very severe JIT interaction.
 
-(all: -mode jit -opt sound:off,video:no-vsync-wait-for-render)
+(all: -mode jit -opt sound:off)
 (5th gen i5, v0.9.4 or so)
 - Elite.ssd. Slams hardware registers in a tight loop reading keyboard.
 - Tarzan.ssd. Very slow (120MHz). interp is faster!! Looks to be a tight
@@ -94,4 +101,3 @@ low.
 - Mouse support.
 - Joystick support.
 - NULA support.
-- 6845 skew support.

@@ -2,740 +2,76 @@
 
 #include "defs_6502.h"
 #include "jit_opcode.h"
+#include "asm/asm_jit.h"
+#include "asm/asm_opcodes.h"
+#include "asm/asm_util.h"
 
 #include <assert.h>
 #include <string.h>
 
-/* TODO: replace direct references to defs_6502_get_6502_optype_map(). */
-
 static const int32_t k_value_unknown = -1;
 
 static void
-jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
-                        struct jit_uop* p_elim_uop,
-                        struct jit_opcode_details* p_curr_opcode) {
-  struct jit_opcode_details* p_elim_opcode = *pp_elim_opcode;
+jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_prev_opcode = NULL;
+  int32_t prev_optype = -1;
+  int32_t uopcode = -1;
+  struct jit_opcode_details* p_opcode;
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint8_t optype;
 
-  *pp_elim_opcode = NULL;
-
-  assert(!p_elim_uop->eliminated);
-  p_elim_uop->eliminated = 1;
-
-  p_elim_opcode++;
-  while (p_elim_opcode <= p_curr_opcode) {
-    uint32_t num_fixup_uops = p_elim_opcode->num_fixup_uops;
-    assert(num_fixup_uops < k_max_uops_per_opcode);
-    /* Prepend the elimination so that fixups are applied in order of last
-     * fixup first. This is important because some fixups trash each other,
-     * such as FLAGX trashing any pending SAVE_CARRY.
-     */
-    (void) memmove(&p_elim_opcode->fixup_uops[1],
-                   &p_elim_opcode->fixup_uops[0],
-                   (sizeof(struct jit_uop*) * num_fixup_uops));
-    p_elim_opcode->fixup_uops[0] = p_elim_uop;
-    p_elim_opcode->num_fixup_uops++;
-    p_elim_opcode++;
-  }
-}
-
-static int
-jit_optimizer_uopcode_can_jump(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    uint8_t opbranch = g_opbranch[optype];
-    if (opbranch != k_bra_n) {
-      ret = 1;
+    if (p_opcode->ends_block) {
+      continue;
     }
-  } else {
-    switch (uopcode) {
-    case k_opcode_JMP_SCRATCH_n:
-      ret = 1;
-      break;
-    default:
-      break;
+
+    if (p_opcode->opmode_6502 != k_acc) {
+      p_prev_opcode = NULL;
+      continue;
     }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uop_could_write(struct jit_uop* p_uop, uint16_t addr) {
-  int32_t write_addr_start = -1;
-  int32_t write_addr_end = -1;
-
-  int32_t uopcode = p_uop->uopcode;
-
-  if (uopcode <= 0xFF) {
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
-    uint8_t opmem = defs_6502_get_6502_opmem_map()[uopcode];
-    if (opmem & k_opmem_write_flag) {
-      switch (opmode) {
-      case k_zpg:
-      case k_abs:
-        write_addr_start = p_uop->value1;
-        write_addr_end = p_uop->value1;
-        break;
-      case k_abx:
-      case k_aby:
-      case k_idx:
-      case k_idy:
-      case k_zpx:
-      case k_zpy:
-        /* NOTE: could be more refined with at least abx, aby. */
-        write_addr_start = 0;
-        write_addr_end = (k_6502_addr_space_size - 1);
-      default:
-        break;
+    optype = p_opcode->optype_6502;
+    switch (optype) {
+    case k_asl: uopcode = k_opcode_ASL_acc; break;
+    case k_lsr: uopcode = k_opcode_LSR_acc; break;
+    case k_rol: uopcode = k_opcode_ROL_acc; break;
+    case k_ror: uopcode = k_opcode_ROR_acc; break;
+    default: assert(0); break;
+    }
+    if ((p_prev_opcode != NULL) && (optype == prev_optype)) {
+      int32_t index;
+      struct asm_uop* p_uop = jit_opcode_find_uop(p_prev_opcode,
+                                                  &index,
+                                                  uopcode);
+      assert(p_uop != NULL);
+      if (p_uop->value1 < 7) {
+        p_uop->value1++;
+        jit_opcode_eliminate(p_opcode);
       }
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_STOA_IMM:
-      write_addr_start = p_uop->value1;
-      write_addr_end = p_uop->value1;
-      break;
-    case k_opcode_STA_SCRATCH_n:
-      write_addr_start = 0;
-      write_addr_end = (k_6502_addr_space_size - 1);
-      break;
-    default:
-      break;
+    } else {
+      p_prev_opcode = p_opcode;
+      prev_optype = optype;
     }
   }
-
-  if (write_addr_start == -1) {
-    return 0;
-  }
-  if (addr >= write_addr_start && addr <= write_addr_end) {
-    return 1;
-  }
-  return 0;
-}
-
-static int
-jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
-  int ret;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    ret = g_optype_changes_nz_flags[optype];
-  } else {
-    switch (uopcode) {
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
-    case k_opcode_EOR_SCRATCH_n:
-    case k_opcode_FLAGA:
-    case k_opcode_FLAGX:
-    case k_opcode_FLAGY:
-    case k_opcode_FLAG_MEM:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
-    case k_opcode_LSR_ACC_n:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-      ret = 1;
-      break;
-    default:
-      ret = 0;
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_needs_nz_flags(int32_t uopcode) {
-  if (jit_optimizer_uopcode_can_jump(uopcode)) {
-    return 1;
-  }
-  switch (uopcode) {
-  case 0x08: /* PHP */
-    return 1;
-  default:
-    return 0;
-  }
-}
-
-static int
-jit_optimizer_uopcode_overwrites_a(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_lda:
-    case k_pla:
-    case k_txa:
-    case k_tya:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_needs_a(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
-    switch (optype) {
-    case k_ora:
-    case k_and:
-    case k_bit:
-    case k_eor:
-    case k_pha:
-    case k_adc:
-    case k_sta:
-    case k_tay:
-    case k_tax:
-    case k_cmp:
-    case k_sbc:
-    case k_sax:
-    case k_alr:
-    case k_slo:
-      ret = 1;
-      break;
-    case k_asl:
-    case k_rol:
-    case k_lsr:
-    case k_ror:
-      if (opmode == k_acc) {
-        ret = 1;
-      }
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
-    case k_opcode_FLAGA:
-    case k_opcode_LSR_ACC_n:
-    case k_opcode_ROL_ACC_n:
-    case k_opcode_ROR_ACC_n:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_overwrites_x(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_ldx:
-    case k_tax:
-    case k_tsx:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDX_Z:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_needs_x(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
-    switch (optype) {
-    case k_stx:
-    case k_txa:
-    case k_txs:
-    case k_cpx:
-    case k_dex:
-    case k_inx:
-    case k_sax:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-    switch (opmode) {
-    case k_zpx:
-    case k_abx:
-    case k_idx:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_ADD_ABX:
-    case k_opcode_FLAGX:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ZPX:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_overwrites_y(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_ldy:
-    case k_tay:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDY_Z:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_needs_y(int32_t uopcode) {
-  int ret = 0;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
-    switch (optype) {
-    case k_sty:
-    case k_dey:
-    case k_tya:
-    case k_cpy:
-    case k_iny:
-    case k_shy:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-    switch (opmode) {
-    case k_zpy:
-    case k_aby:
-    case k_idy:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_FLAGY:
-    case k_opcode_MODE_ABY:
-    case k_opcode_MODE_ZPY:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uop_idy_match(struct jit_uop* p_uop, struct jit_uop* p_idy_uop) {
-  if ((p_uop->uopcode == k_opcode_MODE_IND_8) &&
-      (p_uop->value1 == p_idy_uop->value1)) {
-    return 1;
-  }
-  return 0;
-}
-
-static int
-jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
-                                  struct jit_uop* p_idy_uop) {
-  int ret = 1;
-  int32_t uopcode = p_uop->uopcode;
-
-  /* If this opcode could write to the idy indirect address, we must
-   * invalidate.
-   */
-  if (jit_optimizer_uop_could_write(p_uop, p_idy_uop->value1) ||
-      jit_optimizer_uop_could_write(p_uop, (uint8_t) (p_idy_uop->value1 + 1))) {
-    return 1;
-  }
-
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_nop:
-    case k_adc:
-    case k_and:
-    case k_cmp:
-    case k_eor:
-    case k_ora:
-    case k_lda:
-    case k_ldx:
-    case k_ldy:
-    case k_sbc:
-    case k_sta:
-    case k_stx:
-    case k_sty:
-    case k_inx:
-    case k_dex:
-    case k_iny:
-    case k_dey:
-    case k_tax:
-    case k_txa:
-    case k_tay:
-    case k_tya:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_CHECK_BCD:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_EOR_SCRATCH_n:
-    case k_opcode_FLAGA:
-    case k_opcode_FLAGX:
-    case k_opcode_FLAGY:
-    case k_opcode_FLAG_MEM:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_OVERFLOW:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-/* TODO: these lists are duplicative and awful. Improve. */
-static int
-jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
-  /* Many things need or trash overflow so we'll just enumerate what's safe. */
-  int ret = 1;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_nop:
-    case k_adc:
-    case k_sbc:
-    case k_bit:
-    case k_clv:
-    case k_lda:
-    case k_ldx:
-    case k_ldy:
-    case k_sta:
-    case k_stx:
-    case k_sty:
-    case k_sec:
-    case k_clc:
-    case k_pla:
-    case k_pha:
-    case k_tax:
-    case k_tay:
-    case k_txa:
-    case k_tya:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_CHECK_BCD:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_CHECK_PENDING_IRQ:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_SCRATCH_8:
-    case k_opcode_LOAD_SCRATCH_16:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND_8:
-    case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_8:
-    case k_opcode_MODE_IND_SCRATCH_16:
-    case k_opcode_MODE_ZPX:
-    case k_opcode_MODE_ZPY:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-    case k_opcode_WRITE_INV_ABS:
-    case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_n:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
-}
-
-static int
-jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
-  /* Many things need or trash carry so we'll just enumerate what's safe. */
-  int ret = 1;
-  if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
-    switch (optype) {
-    case k_nop:
-    case k_cmp:
-    case k_cpx:
-    case k_cpy:
-    case k_inx:
-    case k_dex:
-    case k_iny:
-    case k_dey:
-    case k_asl:
-    case k_lsr:
-    case k_lda:
-    case k_ldx:
-    case k_ldy:
-    case k_sta:
-    case k_stx:
-    case k_sty:
-    case k_sec:
-    case k_clc:
-    case k_pla:
-    case k_pha:
-    case k_tax:
-    case k_tay:
-    case k_txa:
-    case k_tya:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
-    case k_opcode_CHECK_BCD:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_CHECK_PENDING_IRQ:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_SCRATCH_8:
-    case k_opcode_LOAD_SCRATCH_16:
-    case k_opcode_LSR_ACC_n:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND_8:
-    case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_8:
-    case k_opcode_MODE_IND_SCRATCH_16:
-    case k_opcode_MODE_ZPX:
-    case k_opcode_MODE_ZPY:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-    case k_opcode_WRITE_INV_ABS:
-    case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_n:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
-      ret = 0;
-      break;
-    default:
-      break;
-    }
-  }
-  return ret;
 }
 
 static void
-jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
-                         int32_t uopcode) {
-  uint8_t num_uops = p_opcode->num_uops;
-  struct jit_uop* p_uop = &p_opcode->uops[num_uops];
-  assert(num_uops < k_max_uops_per_opcode);
-  p_opcode->num_uops++;
-  p_uop->uopcode = uopcode;
-  p_uop->uoptype = -1;
-  p_uop->value1 = 0;
-  p_uop->value2 = 0;
+jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  int32_t reg_a = k_value_unknown;
+  int32_t reg_x = k_value_unknown;
+  int32_t reg_y = k_value_unknown;
+  int32_t flag_carry = k_value_unknown;
+  int32_t flag_decimal = k_value_unknown;
 
-  p_uop->eliminated = 0;
-}
-
-uint32_t
-jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
-                       uint32_t num_opcodes) {
-  uint32_t i_opcodes;
-
-  int32_t reg_a;
-  int32_t reg_x;
-  int32_t reg_y;
-  int32_t flag_carry;
-  int32_t flag_decimal;
-
-  struct jit_opcode_details* p_prev_opcode;
-
-  struct jit_opcode_details* p_nz_flags_opcode;
-  struct jit_uop* p_nz_flags_uop;
-  struct jit_opcode_details* p_lda_opcode;
-  struct jit_uop* p_lda_uop;
-  struct jit_opcode_details* p_ldx_opcode;
-  struct jit_uop* p_ldx_uop;
-  struct jit_opcode_details* p_ldy_opcode;
-  struct jit_uop* p_ldy_uop;
-  struct jit_opcode_details* p_idy_opcode;
-  struct jit_uop* p_idy_uop;
-  struct jit_opcode_details* p_overflow_opcode;
-  struct jit_uop* p_overflow_uop;
-  struct jit_opcode_details* p_carry_write_opcode;
-  struct jit_uop* p_carry_write_uop;
-  int carry_flipped_for_branch;
-
-  struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
-
-  /* Use a compiler-provided scratch opcode to eliminate all BCD checks and do
-   * it just once at the start of the block, if any ADC / SBC are present.
-   */
-  assert(num_opcodes > 2);
-  assert(p_bcd_opcode->eliminated);
-  assert(p_bcd_opcode->num_uops == 1);
-  p_bcd_opcode->uops[0].uopcode = k_opcode_CHECK_BCD;
-
-  /* Pass 1: tag opcodes with any known register and flag values. */
-  /* TODO: this pass operates on 6502 opcodes but it should probably work on
-   * uopcodes, because previous passes may change the characteristic of
-   * 6502 opcodes.
-   * One example is LDY imm -> dynamic operand conversion, which no longer
-   * results in "known Y".
-   */
-  reg_a = k_value_unknown;
-  reg_x = k_value_unknown;
-  reg_y = k_value_unknown;
-  flag_carry = k_value_unknown;
-  flag_decimal = k_value_unknown;
-  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
     uint16_t operand_6502 = p_opcode->operand_6502;
-    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
-    uint8_t opreg = g_optype_sets_register[optype];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
+    uint8_t optype = p_opcode->optype_6502;
+    uint8_t opreg = p_opcode->opreg_6502;
+    uint8_t opmode = p_opcode->opmode_6502;
     int changes_carry = g_optype_changes_carry[optype];
-
-    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
-    if (opmode == k_acc) {
-      opreg = k_a;
-    }
 
     p_opcode->reg_a = reg_a;
     p_opcode->reg_x = reg_x;
@@ -743,72 +79,76 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
     p_opcode->flag_carry = flag_carry;
     p_opcode->flag_decimal = flag_decimal;
 
-    switch (opcode_6502) {
-    case 0x18: /* CLC */
-    case 0xB0: /* BCS */
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
+    switch (optype) {
+    case k_clc:
+    case k_bcs:
       flag_carry = 0;
       break;
-    case 0x38: /* SEC */
-    case 0x90: /* BCC */
+    case k_sec:
+    case k_bcc:
       flag_carry = 1;
       break;
-    case 0x88: /* DEY */
+    case k_dey:
       if (reg_y != k_value_unknown) {
         reg_y = (uint8_t) (reg_y - 1);
       }
       break;
-    case 0x8A: /* TXA */
+    case k_txa:
       reg_a = reg_x;
       break;
-    case 0x98: /* TYA */
+    case k_tya:
       reg_a = reg_y;
       break;
-    case 0xA0: /* LDY imm */
-      if (!p_opcode->is_dynamic_operand) {
+    case k_ldy:
+      if ((opmode == k_imm) && (!p_opcode->is_dynamic_operand)) {
         reg_y = operand_6502;
       } else {
         reg_y = k_value_unknown;
       }
       break;
-    case 0xA2: /* LDX imm */
-      if (!p_opcode->is_dynamic_operand) {
+    case k_ldx:
+      if ((opmode == k_imm) && !p_opcode->is_dynamic_operand) {
         reg_x = operand_6502;
       } else {
         reg_x = k_value_unknown;
       }
       break;
-    case 0xA8: /* TAY */
+    case k_tay:
       reg_y = reg_a;
       break;
-    case 0xA9: /* LDA imm */
-      if (!p_opcode->is_dynamic_operand) {
+    case k_lda:
+      if ((opmode == k_imm) && !p_opcode->is_dynamic_operand) {
         reg_a = operand_6502;
       } else {
         reg_a = k_value_unknown;
       }
       break;
-    case 0xAA: /* TAX */
+    case k_tax:
       reg_x = reg_a;
       break;
-    case 0xC8: /* INY */
+    case k_iny:
       if (reg_y != k_value_unknown) {
         reg_y = (uint8_t) (reg_y + 1);
       }
       break;
-    case 0xCA: /* DEX */
+    case k_dex:
       if (reg_x != k_value_unknown) {
         reg_x = (uint8_t) (reg_x - 1);
       }
       break;
-    case 0xD8: /* CLD */
+    case k_cld:
       flag_decimal = 0;
       break;
-    case 0xE8: /* INX */
+    case k_inx:
       if (reg_x != k_value_unknown) {
         reg_x = (uint8_t) (reg_x + 1);
       }
       break;
-    case 0xF8: /* SED */
+    case k_sed:
       flag_decimal = 1;
       break;
     default:
@@ -831,607 +171,780 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
       break;
     }
   }
+}
 
-  /* Pass 2: replace single uops with replacements if known state offers
-   * better alternatives.
-   * Classic example is CLC; ADC. At the ADC instruction, it is known that
-   * CF==0 so the ADC can become just an ADD.
-   */
-  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    uint32_t num_uops;
-    uint32_t i_uops;
+static void
+jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  int had_check_bcd = 0;
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    int32_t index;
+    struct asm_uop* p_uop;
+    int32_t load_uopcode_old = -1;
+    int32_t load_uopcode_new = -1;
+    uint8_t load_uopcode_value = 0;
+    int do_eliminate_check_bcd = 0;
+    int do_eliminate_load_carry = 0;
 
-    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    uint16_t addr_6502 = p_opcode->addr_6502;
-    int32_t interp_replace = -1;
-
-    reg_a = p_opcode->reg_a;
-    reg_x = p_opcode->reg_x;
-    reg_y = p_opcode->reg_y;
-    flag_carry = p_opcode->flag_carry;
-    flag_decimal = p_opcode->flag_decimal;
-
-    if (p_opcode == p_bcd_opcode) {
+    /* The transforms below will crash if we've written the opcode to be an
+     * interp or inturbo bail.
+     */
+    if (p_opcode->ends_block) {
       continue;
     }
 
-    num_uops = p_opcode->num_uops;
-    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
-      int32_t new_add_uopcode = -1;
-      int32_t new_sub_uopcode = -1;
-
-      switch (uopcode) {
-      case 0x61: /* ADC idx */
-      case 0x75: /* ADC zpx */
-        new_add_uopcode = k_opcode_ADD_SCRATCH;
-        break;
-      case 0x65: /* ADC zpg */
-      case 0x6D: /* ADC abs */
-        new_add_uopcode = k_opcode_ADD_ABS;
-        break;
-      case 0x69: /* ADC imm */
-        new_add_uopcode = k_opcode_ADD_IMM;
-        break;
-      case 0x71: /* ADC idy */
-        new_add_uopcode = k_opcode_ADD_SCRATCH_Y;
-        break;
-      case 0x79: /* ADC aby */
-        new_add_uopcode = k_opcode_ADD_ABY;
-        break;
-      case 0x7D: /* ADC abx */
-        new_add_uopcode = k_opcode_ADD_ABX;
-        break;
-      case 0x84: /* STY zpg */
-      case 0x8C: /* STY abs */
-        if (reg_y != k_value_unknown) {
-          uopcode = k_opcode_STOA_IMM;
-          p_uop->value2 = reg_y;
-        }
-        break;
-      case 0x85: /* STA zpg */
-      case 0x8D: /* STA abs */
-        if (reg_a != k_value_unknown) {
-          uopcode = k_opcode_STOA_IMM;
-          p_uop->value2 = reg_a;
-        }
-        break;
-      case 0x86: /* STX zpg */
-      case 0x8E: /* STX abs */
-        if (reg_x != k_value_unknown) {
-          uopcode = k_opcode_STOA_IMM;
-          p_uop->value2 = reg_x;
-        }
-        break;
-      case 0x88: /* DEY */
-        if (reg_y != k_value_unknown) {
-          uopcode = 0xA0; /* LDY imm */
-          p_uop->value1 = (uint8_t) (reg_y - 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
-        }
-        break;
-      case 0x8A: /* TXA */
-        if (reg_x != k_value_unknown) {
-          uopcode = 0xA9; /* LDA imm */
-          p_uop->value1 = reg_x;
-        }
-        break;
-      case 0x98: /* TYA */
-        if (reg_y != k_value_unknown) {
-          uopcode = 0xA9; /* LDA imm */
-          p_uop->value1 = reg_y;
-        }
-        break;
-      case 0xA8: /* TAY */
-        if (reg_a != k_value_unknown) {
-          uopcode = 0xA0; /* LDY imm */
-          p_uop->value1 = reg_a;
-        }
-        break;
-      case 0xAA: /* TAX */
-        if (reg_a != k_value_unknown) {
-          uopcode = 0xA2; /* LDX imm */
-          p_uop->value1 = reg_a;
-        }
-        break;
-      case 0xC8: /* INY */
-        if (reg_y != k_value_unknown) {
-          uopcode = 0xA0; /* LDY imm */
-          p_uop->value1 = (uint8_t) (reg_y + 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
-        }
-        break;
-      case 0xCA: /* DEX */
-        if (reg_x != k_value_unknown) {
-          uopcode = 0xA2; /* LDX imm */
-          p_uop->value1 = (uint8_t) (reg_x - 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
-        }
-        break;
-      case 0xE5: /* SBC zpg */
-      case 0xED: /* SBC abs */
-        new_sub_uopcode = k_opcode_SUB_ABS;
-        break;
-      case 0xE8: /* INX */
-        if (reg_x != k_value_unknown) {
-          uopcode = 0xA2; /* LDX imm */
-          p_uop->value1 = (uint8_t) (reg_x + 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
-        }
-        break;
-      case 0xE9: /* SBC imm */
-        new_sub_uopcode = k_opcode_SUB_IMM;
-        break;
-      case k_opcode_CHECK_BCD:
-        if (flag_decimal == k_value_unknown) {
-          p_uop->eliminated = 1;
-          p_bcd_opcode->eliminated = 0;
-        } else if (flag_decimal == 0) {
-          p_uop->eliminated = 1;
-        } else {
-          interp_replace = k_opcode_CHECK_BCD;
-        }
-        break;
-      default:
-        break;
-      }
-
-      if ((new_add_uopcode != -1) && (flag_carry != k_value_unknown)) {
-        if ((flag_carry == 0) ||
-            ((new_add_uopcode == k_opcode_ADD_IMM) &&
-             (p_uop->value1 != 0xFF) &&
-             (p_uop->value1 != 0x7F))) {
-          /* Eliminate LOAD_CARRY_FOR_CALC, flip ADC to ADD. */
-          struct jit_uop* p_elim_uop;
-          uopcode = new_add_uopcode;
-          if (flag_carry == 1) {
-            p_uop->value1++;
-          }
-          p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                           k_opcode_LOAD_CARRY_FOR_CALC);
-          assert(p_elim_uop != NULL);
-          p_elim_uop->eliminated = 1;
-        }
-      }
-      if ((new_sub_uopcode != -1) && (flag_carry != k_value_unknown)) {
-        if ((flag_carry == 1) ||
-            ((new_sub_uopcode == k_opcode_SUB_IMM) &&
-             (p_uop->value1 != 0xFF) &&
-             (p_uop->value1 != 0x7F))) {
-          /* Eliminate LOAD_CARRY_INV_FOR_CALC, flip SBC to SUB. */
-          struct jit_uop* p_elim_uop;
-          uopcode = new_sub_uopcode;
-          if (flag_carry == 0) {
-            p_uop->value1++;
-          }
-          p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                           k_opcode_LOAD_CARRY_INV_FOR_CALC);
-          assert(p_elim_uop != NULL);
-          p_elim_uop->eliminated = 1;
-        }
-      }
-
-      if (reg_y != k_value_unknown) {
-        int replaced = 0;
-        switch (uopcode) {
-        case 0x51: /* EOR idy */
-          uopcode = k_opcode_EOR_SCRATCH_n;
-          replaced = 1;
-          break;
-        case 0x91: /* STA idy */
-          uopcode = k_opcode_STA_SCRATCH_n;
-          replaced = 1;
-          break;
-        case 0xB1: /* LDA idy */
-          uopcode = k_opcode_LDA_SCRATCH_n;
-          replaced = 1;
-          break;
-        default:
-          break;
-        }
-
-        if (replaced) {
-          struct jit_uop* p_crossing_uop =
-              jit_opcode_find_uop(p_opcode,
-                                  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
-          struct jit_uop* p_write_inv_uop =
-              jit_opcode_find_uop(p_opcode, k_opcode_WRITE_INV_SCRATCH_Y);
-
-          p_uop->value1 = reg_y;
-          if (p_crossing_uop != NULL) {
-            p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
-            p_crossing_uop->value1 = reg_y;
-          }
-          if (p_write_inv_uop != NULL) {
-            p_write_inv_uop->uopcode = k_opcode_WRITE_INV_SCRATCH_n;
-            p_write_inv_uop->value1 = reg_y;
-          }
-        }
-      }
-
-      p_uop->uopcode = uopcode;
+    if (p_opcode->is_dynamic_operand) {
+      continue;
     }
 
-    if (interp_replace != -1) {
-      jit_opcode_find_replace1(p_opcode,
-                               interp_replace,
-                               k_opcode_interp,
-                               addr_6502);
-      p_opcode->ends_block = 1;
-      num_opcodes = (i_opcodes + 1);
+    switch (p_opcode->optype_6502) {
+    case k_adc:
+      if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
+        do_eliminate_check_bcd = 1;
+      }
+      if (p_opcode->flag_carry == 0) {
+        p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_ADC);
+        assert(p_uop != NULL);
+        asm_make_uop0(p_uop, k_opcode_ADD);
+        do_eliminate_load_carry = 1;
+      }
+      had_check_bcd = 1;
+      break;
+    case k_dex:
+      if (p_opcode->reg_x == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_DEX;
+      load_uopcode_new = k_opcode_LDX;
+      load_uopcode_value = (p_opcode->reg_x - 1);
+      break;
+    case k_dey:
+      if (p_opcode->reg_y == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_DEY;
+      load_uopcode_new = k_opcode_LDY;
+      load_uopcode_value = (p_opcode->reg_y - 1);
+      break;
+    case k_inx:
+      if (p_opcode->reg_x == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_INX;
+      load_uopcode_new = k_opcode_LDX;
+      load_uopcode_value = (p_opcode->reg_x + 1);
+      break;
+    case k_iny:
+      if (p_opcode->reg_y == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_INY;
+      load_uopcode_new = k_opcode_LDY;
+      load_uopcode_value = (p_opcode->reg_y + 1);
+      break;
+    case k_sbc:
+      if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
+        do_eliminate_check_bcd = 1;
+      }
+      if (p_opcode->flag_carry == 1) {
+        p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_SBC);
+        assert(p_uop != NULL);
+        asm_make_uop0(p_uop, k_opcode_SUB);
+        do_eliminate_load_carry = 1;
+      }
+      had_check_bcd = 1;
+      break;
+    case k_sta:
+      if (p_opcode->reg_a == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STA);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_a;
+      break;
+    case k_stx:
+      if (p_opcode->reg_x == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STX);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_x;
+      break;
+    case k_sty:
+      if (p_opcode->reg_y == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STY);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_y;
+      break;
+    case k_tax:
+      if (p_opcode->reg_a == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_TAX;
+      load_uopcode_new = k_opcode_LDX;
+      load_uopcode_value = p_opcode->reg_a;
+      break;
+    case k_tay:
+      if (p_opcode->reg_a == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_TAY;
+      load_uopcode_new = k_opcode_LDY;
+      load_uopcode_value = p_opcode->reg_a;
+      break;
+    case k_txa:
+      if (p_opcode->reg_x == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_TXA;
+      load_uopcode_new = k_opcode_LDA;
+      load_uopcode_value = p_opcode->reg_x;
+      break;
+    case k_tya:
+      if (p_opcode->reg_y == k_value_unknown) {
+        break;
+      }
+      load_uopcode_old = k_opcode_TYA;
+      load_uopcode_new = k_opcode_LDA;
+      load_uopcode_value = p_opcode->reg_y;
+      break;
+    default:
       break;
     }
+
+    if ((p_opcode->opmode_6502 == k_idy) &&
+        (p_opcode->reg_y != k_value_unknown)) {
+      uint8_t reg_y = p_opcode->reg_y;
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_add_base_y);
+      assert(p_uop != NULL);
+      p_uop->uopcode = k_opcode_addr_add_base_constant;
+      p_uop->value1 = reg_y;
+      p_uop = jit_opcode_find_uop(p_opcode,
+                                  &index,
+                                  k_opcode_check_page_crossing_y);
+      if (p_uop != NULL) {
+        p_uop->uopcode = k_opcode_check_page_crossing_n;
+        p_uop->value1 = reg_y;
+        if (reg_y == 0) {
+          /* Y is known to be zero, so skip the page crossing check entirely. */
+          p_uop->is_eliminated = 1;
+          p_opcode->max_cycles = 5;
+        }
+      }
+    }
+
+    if (do_eliminate_check_bcd) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_check_bcd);
+      assert(p_uop != NULL);
+      p_uop->is_eliminated = 1;
+    }
+    if (do_eliminate_load_carry) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_load_carry);
+      assert(p_uop != NULL);
+      p_uop->is_eliminated = 1;
+    }
+
+    if (load_uopcode_old != -1) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, load_uopcode_old);
+      assert(p_uop != NULL);
+      asm_make_uop1(p_uop, k_opcode_value_set, load_uopcode_value);
+      p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
+      asm_make_uop0(p_uop, load_uopcode_new);
+    }
   }
+}
 
-  /* Pass 3: merge macro opcodes as we can. */
-  p_prev_opcode = NULL;
-  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+static void
+jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  int32_t curr_base_addr_index = -1;
 
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t i_uops;
+    uint32_t num_uops = p_opcode->num_uops;
+    struct asm_uop* p_addr_set_uop = NULL;
+    struct asm_uop* p_addr_add_uop = NULL;
+    struct asm_uop* p_addr_load_uop = NULL;
+    int is_write = 0;
+    int is_simple_addr = 1;
+    int is_changing_addr_reg = 0;
+    int is_tricky_opcode = 0;
 
-    if (p_prev_opcode == NULL) {
-      p_prev_opcode = p_opcode;
+    if (p_opcode->ends_block) {
       continue;
     }
 
-    /* Merge runs of the same opcode into just one, if supported. */
-    if (opcode_6502 == p_prev_opcode->opcode_6502) {
-      int32_t old_uopcode = -1;
-      int32_t new_uopcode = -1;
-      switch (opcode_6502) {
-      case 0x0A: /* ASL A */
-        old_uopcode = 0x0A;
-        new_uopcode = k_opcode_ASL_ACC_n;
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t uopcode = p_uop->uopcode;
+      switch (uopcode) {
+      case k_opcode_addr_set:
+        p_addr_set_uop = p_uop;
         break;
-      case 0x2A: /* ROL A */
-        old_uopcode = 0x2A;
-        new_uopcode = k_opcode_ROL_ACC_n;
+      case k_opcode_addr_add_x_8bit:
+        p_addr_add_uop = p_uop;
         break;
-      case 0x4A: /* LSR A */
-        old_uopcode = 0x4A;
-        new_uopcode = k_opcode_LSR_ACC_n;
+      case k_opcode_addr_base_load_16bit_wrap:
+        p_addr_load_uop = p_uop;
         break;
-      case 0x6A: /* ROR A */
-        old_uopcode = 0x6A;
-        new_uopcode = k_opcode_ROR_ACC_n;
+      case k_opcode_PHP:
+      case k_opcode_PLP:
+        is_tricky_opcode = 1;
         break;
       default:
         break;
       }
 
-      if (old_uopcode != -1) {
-        struct jit_uop* p_modify_uop = jit_opcode_find_uop(p_prev_opcode,
-                                                           old_uopcode);
-        if (p_modify_uop != NULL) {
-          p_modify_uop->uopcode = new_uopcode;
-          p_modify_uop->value1 = 1;
-        } else {
-          p_modify_uop = jit_opcode_find_uop(p_prev_opcode, new_uopcode);
+      if ((uopcode > k_opcode_addr_begin) && (uopcode < k_opcode_addr_end)) {
+        if (uopcode != k_opcode_addr_set) {
+          is_simple_addr = 0;
         }
-        assert(p_modify_uop != NULL);
-        p_opcode->eliminated = 1;
-        p_modify_uop->value1++;
-        p_prev_opcode->len_bytes_6502_merged += p_opcode->len_bytes_6502_orig;
-        p_prev_opcode->max_cycles_merged += p_opcode->max_cycles_orig;
-
-        continue;
+        if (!p_uop->is_eliminated) {
+          is_changing_addr_reg = 1;
+        }
       }
     }
 
-    /* Merge a "branch not taken" cycles fixup with a countdown check. */
-    if (p_opcode->uops[0].uopcode == k_opcode_countdown) {
-      struct jit_uop* p_prev_last_uop =
-          &p_prev_opcode->uops[p_prev_opcode->num_uops - 1];
-      if (p_prev_last_uop->uopcode == k_opcode_ADD_CYCLES) {
-        p_opcode->uops[0].value2 -= p_prev_last_uop->value1;
-        p_prev_last_uop->eliminated = 1;
+    if ((p_addr_load_uop != NULL) && (p_addr_add_uop == NULL)) {
+      /* It's mode IDY. */
+      int32_t this_base_addr_index;
+      assert(p_addr_set_uop != NULL);
+      this_base_addr_index = p_addr_set_uop->value1;
+      if (this_base_addr_index == curr_base_addr_index) {
+        p_addr_set_uop->is_eliminated = 1;
+        p_addr_load_uop->is_eliminated = 1;
+      }
+      curr_base_addr_index = this_base_addr_index;
+    } else if (is_changing_addr_reg) {
+      /* Changing the address register invalidates the optimization. */
+      curr_base_addr_index = -1;
+    }
+
+    /* Writes to where the base address is stored invaldates the cached base
+     * address.
+     */
+    is_write = !!(p_opcode->opmem_6502 & k_opmem_write_flag);
+    if (is_write && (curr_base_addr_index != -1)) {
+      uint16_t simple_addr = p_addr_set_uop->value1;
+      uint16_t curr_base_addr_index_next = (uint8_t) (curr_base_addr_index + 1);
+      if (is_simple_addr &&
+          (curr_base_addr_index != simple_addr) &&
+          (curr_base_addr_index_next != simple_addr)) {
+        /* This write doesn't affect the cached base address. */
+      } else {
+        curr_base_addr_index = -1;
       }
     }
 
-    p_prev_opcode = p_opcode;
+    /* This is hacky, but for now don't carry the optimization across a couple
+     * of "tricky" opcodes where the backends might re-use the cached address
+     * register as a scratch space.
+     */
+    if (is_tricky_opcode) {
+      curr_base_addr_index = -1;
+    }
   }
+}
 
-  /* Pass 4: first uopcode elimination pass, particularly FLAGn. */
-  p_nz_flags_opcode = NULL;
-  p_nz_flags_uop = NULL;
-  p_idy_opcode = NULL;
-  p_idy_uop = NULL;
-  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+static void
+jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_nz_flags_uop = NULL;
+  uint16_t nz_mem_addr = 0;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
-    uint32_t num_uops;
 
-    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    if (p_opcode->eliminated) {
+    if (p_opcode->ends_block) {
       continue;
     }
 
-    num_uops = p_opcode->num_uops;
-    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
 
-      /* Finalize eliminations. */
-      /* NZ flag save. */
-      if ((p_nz_flags_opcode != NULL) &&
-          jit_optimizer_uopcode_sets_nz_flags(uopcode)) {
-        /* As well as eliminating explicit flag saves, this optimization also
-         * flips the countdown uopcode to a non-flag-preserving one when that
-         * can be safely done.
+    if (p_nz_flags_uop != NULL) {
+      if (p_nz_flags_uop->uopcode == k_opcode_flags_nz_mem) {
+        p_opcode->nz_flags_location = nz_mem_addr;
+      } else {
+        p_opcode->nz_flags_location = -p_nz_flags_uop->uopcode;
+      }
+    }
+
+    /* PHP needs the NZ flags. */
+    if (p_opcode->optype_6502 == k_php) {
+      p_nz_flags_uop = NULL;
+    }
+    /* Any jump, including conditional, must commit flags. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_nz_flags_uop = NULL;
+    }
+    /* A write might invalidate flag state stored in memory. */
+    if ((p_nz_flags_uop != NULL) &&
+        (p_nz_flags_uop->uopcode == k_opcode_flags_nz_mem) &&
+        jit_opcode_can_write_to_addr(p_opcode, nz_mem_addr)) {
+      p_nz_flags_uop = NULL;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t nz_flags_uopcode = 0;
+      switch (p_uop->uopcode) {
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+      case k_opcode_flags_nz_y:
+      case k_opcode_flags_nz_value:
+      case k_opcode_flags_nz_mem:
+        nz_flags_uopcode = p_uop->uopcode;
+        break;
+      default:
+        break;
+      }
+      if (nz_flags_uopcode == 0) {
+        continue;
+      }
+      /* Eliminate the previous flag set, if appropriate. */
+      if (p_nz_flags_uop != NULL) {
+        p_nz_flags_uop->is_eliminated = 1;
+      }
+      if (p_uop->is_merged) {
+        /* The x64 rewriter will have merge eliminated a lot of NZ flag
+         * writes.
          */
-        if (p_nz_flags_uop->uopcode == k_opcode_countdown) {
-          /* TODO: optimization disabled as it is unsound.
-           * p_nz_flags_uop->uopcode = k_opcode_countdown_no_save_nz_flags;
-           */
-        } else {
-          jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
-        }
-        p_nz_flags_opcode = NULL;
+        assert(p_uop->is_eliminated);
         p_nz_flags_uop = NULL;
-      }
-      /* idy indirect load. */
-      if ((p_idy_opcode != NULL) &&
-          jit_optimizer_uop_idy_match(p_uop, p_idy_uop)) {
-        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
-        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-      }
-
-      /* Cancel eliminations. */
-      /* NZ flag load. */
-      if (p_nz_flags_opcode != NULL) {
-        int32_t nz_flags_uopcode = p_nz_flags_uop->uopcode;
-        if (jit_optimizer_uopcode_needs_nz_flags(uopcode) ||
-            ((nz_flags_uopcode == k_opcode_FLAG_MEM) &&
-             jit_optimizer_uop_could_write(p_uop, p_nz_flags_uop->value1))) {
-          /* If we can't eliminate a flag load, there's a special case of
-           * loading 0 into a register where we can collapse the register load
-           * and flag load.
-           */
-          int32_t find_uopcode = -1;
-          int32_t replace_uopcode = -1;
-          struct jit_uop* p_find_uop;
-          switch (nz_flags_uopcode) {
-          case k_opcode_FLAGA:
-            find_uopcode = 0xA9; /* LDA imm */
-            replace_uopcode = k_opcode_LDA_Z;
-            break;
-          case k_opcode_FLAGX:
-            find_uopcode = 0xA2; /* LDX imm */
-            replace_uopcode = k_opcode_LDX_Z;
-            break;
-          case k_opcode_FLAGY:
-            find_uopcode = 0xA0; /* LDY imm */
-            replace_uopcode = k_opcode_LDY_Z;
-            break;
-          case k_opcode_FLAG_MEM:
-          case k_opcode_countdown:
-            break;
-          default:
-            assert(0);
-            break;
-          }
-          p_find_uop = jit_opcode_find_uop(p_nz_flags_opcode, find_uopcode);
-          if ((p_find_uop != NULL) && (p_find_uop->value1 == 0x00)) {
-            p_find_uop->uopcode = replace_uopcode;
-            p_find_uop->uoptype = -1;
-            p_nz_flags_uop->eliminated = 1;
-          }
-          p_nz_flags_opcode = NULL;
-        }
-      }
-      /* idy indirect load. */
-      if ((p_idy_opcode != NULL) &&
-          jit_optimizer_uop_invalidates_idy(p_uop, p_idy_uop)) {
-        p_idy_opcode = NULL;
-      }
-
-      /* Keep track of uops we may be able to eliminate. */
-      switch (uopcode) {
-      case k_opcode_FLAGA:
-      case k_opcode_FLAGX:
-      case k_opcode_FLAGY:
-      case k_opcode_FLAG_MEM:
-      case k_opcode_countdown:
-        p_nz_flags_opcode = p_opcode;
+      } else {
         p_nz_flags_uop = p_uop;
-        break;
-      case k_opcode_MODE_IND_8:
-        p_idy_opcode = p_opcode;
-        p_idy_uop = p_uop;
-        break;
-      default:
-        break;
+        if (nz_flags_uopcode == k_opcode_flags_nz_mem) {
+          nz_mem_addr = p_uop->value1;
+        }
       }
     }
   }
+}
 
-  /* Pass 5: second uopcode elimination pass, particularly those eliminations
-   * that only occur well after FLAGn has been eliminated.
-   */
-  p_lda_opcode = NULL;
-  p_lda_uop = NULL;
-  p_ldx_opcode = NULL;
-  p_ldx_uop = NULL;
-  p_ldy_opcode = NULL;
-  p_ldy_uop = NULL;
-  p_overflow_opcode = NULL;
-  p_overflow_uop = NULL;
-  p_carry_write_opcode = NULL;
-  p_carry_write_uop = NULL;
-  carry_flipped_for_branch = 0;
-  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+static void
+jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_save_carry_uop = NULL;
+  struct asm_uop* p_save_overflow_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
-    uint32_t num_uops;
+    int had_save_carry = 0;
+    int had_save_overflow = 0;
+    int32_t index;
 
-    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    if (p_opcode->eliminated) {
+    if (p_opcode->ends_block) {
       continue;
     }
 
-    num_uops = p_opcode->num_uops;
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    if (p_save_carry_uop != NULL) {
+      p_opcode->c_flag_location = p_save_carry_uop->uopcode;
+    }
+    if (p_save_overflow_uop != NULL) {
+      p_opcode->v_flag_location = p_save_overflow_uop->uopcode;
+    }
+
+    /* If this is a carry-related branch, we might be able to collapse out the
+     * carry load, if we've tracking a carry save.
+     */
+    if ((p_opcode->optype_6502 == k_bcc) || (p_opcode->optype_6502 == k_bcs)) {
+      if (p_save_carry_uop != NULL) {
+        if ((p_save_carry_uop->uopcode == k_opcode_save_carry) ||
+            (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted)) {
+          int is_inversion =
+              (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted);
+          struct asm_uop* p_load_carry_uop =
+              jit_opcode_find_uop(p_opcode, &index, k_opcode_load_carry);
+          p_load_carry_uop->is_eliminated = 1;
+          /* If it's an inversion, flip BCC <-> BCS. */
+          if (is_inversion) {
+            if (p_opcode->optype_6502 == k_bcc) {
+              struct asm_uop* p_branch_uop =
+                  jit_opcode_find_uop(p_opcode, &index, k_opcode_BCC);
+              p_branch_uop->uopcode = k_opcode_BCS;
+            } else {
+              struct asm_uop* p_branch_uop =
+                  jit_opcode_find_uop(p_opcode, &index, k_opcode_BCS);
+              p_branch_uop->uopcode = k_opcode_BCC;
+            }
+          }
+        }
+      }
+    }
+
+    /* Any jump, including conditional, must commit flags. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_save_carry_uop = NULL;
+      p_save_overflow_uop = NULL;
+    }
+
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
-      if (p_uop->eliminated) {
-        continue;
-      }
-
-      /* Finalize eliminations. */
-      /* LDA A load. */
-      if ((p_lda_opcode != NULL) &&
-          jit_optimizer_uopcode_overwrites_a(uopcode)) {
-        jit_optimizer_eliminate(&p_lda_opcode, p_lda_uop, p_opcode);
-      }
-      /* LDX X load. */
-      if ((p_ldx_opcode != NULL) &&
-          jit_optimizer_uopcode_overwrites_x(uopcode)) {
-        jit_optimizer_eliminate(&p_ldx_opcode, p_ldx_uop, p_opcode);
-      }
-      /* LDY Y load. */
-      if ((p_ldy_opcode != NULL) &&
-          jit_optimizer_uopcode_overwrites_y(uopcode)) {
-        jit_optimizer_eliminate(&p_ldy_opcode, p_ldy_uop, p_opcode);
-      }
-      /* Overflow flag save elimination. */
-      if ((p_overflow_opcode != NULL) && (uopcode == k_opcode_SAVE_OVERFLOW)) {
-        jit_optimizer_eliminate(&p_overflow_opcode, p_overflow_uop, p_opcode);
-      }
-      /* Carry flag save elimination. */
-      if (p_carry_write_opcode != NULL) {
-        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
-        int32_t carry_write_uopcode = p_carry_write_uop->uopcode;
-        int inversion = 0;
-        switch (uopcode) {
-        case k_opcode_SAVE_CARRY:
-        case k_opcode_SAVE_CARRY_INV:
-        case 0x18: /* CLC */
-        case 0x38: /* SEC */
-          jit_optimizer_eliminate(&p_carry_write_opcode,
-                                  p_carry_write_uop,
-                                  p_opcode);
-          break;
-        case k_opcode_LOAD_CARRY_FOR_BRANCH:
-        case k_opcode_LOAD_CARRY_FOR_CALC:
-        case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-          if (uopcode != k_opcode_LOAD_CARRY_FOR_BRANCH) {
-            /* Eliminate unfinalized write. */
-            jit_optimizer_eliminate(&p_carry_write_opcode,
-                                    p_carry_write_uop,
-                                    p_opcode);
-          }
-          /* Eliminate load or replace with direct host carry flag change. */
-          inversion ^= (uopcode == k_opcode_LOAD_CARRY_INV_FOR_CALC);
-          switch (carry_write_uopcode) {
-          case k_opcode_SAVE_CARRY:
-          case k_opcode_SAVE_CARRY_INV:
-            inversion ^= (carry_write_uopcode == k_opcode_SAVE_CARRY_INV);
-            if (inversion) {
-              if (uopcode == k_opcode_LOAD_CARRY_FOR_BRANCH) {
-                carry_flipped_for_branch = 1;
-                jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-              } else {
-                p_uop->uopcode = k_opcode_INVERT_CARRY;
-              }
-            } else {
-              jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-            }
-            break;
-          case 0x18: /* CLC */
-          case 0x38: /* SEC */
-            inversion ^= (carry_write_uopcode == 0x38); /* SEC */
-            if (inversion) {
-              p_uop->uopcode = k_opcode_SET_CARRY;
-            } else {
-              p_uop->uopcode = k_opcode_CLEAR_CARRY;
-            }
-            break;
-          default:
-            assert(0);
-            break;
-          }
-          break;
-        default:
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_load_carry:
+      case k_opcode_load_carry_inverted:
+        /* The carry load will be eliminated if this was made an ADD / SUB, or
+         * by the ARM64 backend.
+         */
+        if (p_uop->is_eliminated && !p_uop->is_merged) {
           break;
         }
-      }
-      /* Carry flip vs. carry branch elimination. */
-      if (carry_flipped_for_branch) {
-        switch (uopcode) {
-        case 0x90: /* BCC */
-          p_uop->uopcode = 0xB0; /* BCS */
-          break;
-        case 0xB0: /* BCS */
-          p_uop->uopcode = 0x90; /* BCC */
-          break;
-        default:
-          break;
+        /* Eliminate the store and the load together if we've got a pair. */
+        if (!p_uop->is_merged &&
+            (p_save_carry_uop != NULL) &&
+            ((p_save_carry_uop->uopcode == k_opcode_save_carry) ||
+                (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted))) {
+          int do_invert =
+              (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted);
+          if (p_uop->uopcode == k_opcode_load_carry_inverted) {
+            do_invert ^= 1;
+          }
+          p_save_carry_uop->is_eliminated = 1;
+          if (do_invert) {
+            p_uop->uopcode = k_opcode_carry_invert;
+          } else {
+            p_uop->is_eliminated = 1;
+          }
         }
-      }
-
-      /* Cancel eliminations. */
-      /* LDA A load. */
-      if ((p_lda_opcode != NULL) && jit_optimizer_uopcode_needs_a(uopcode)) {
-        p_lda_opcode = NULL;
-      }
-      /* LDX X load. */
-      if ((p_ldx_opcode != NULL) && jit_optimizer_uopcode_needs_x(uopcode)) {
-        p_ldx_opcode = NULL;
-      }
-      /* LDX Y load. */
-      if ((p_ldy_opcode != NULL) && jit_optimizer_uopcode_needs_y(uopcode)) {
-        p_ldy_opcode = NULL;
-      }
-      /* Overflow flag save elimination. */
-      if ((p_overflow_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_or_trashes_overflow(uopcode)) {
-        p_overflow_opcode = NULL;
-      }
-      /* Carry flag save elimination. */
-      if ((p_carry_write_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_or_trashes_carry(uopcode)) {
-        p_carry_write_opcode = NULL;
-      }
-      /* Many eliminations can't cross branches, or need modifications. */
-      if (jit_optimizer_uopcode_can_jump(uopcode)) {
-        p_lda_opcode = NULL;
-        p_ldx_opcode = NULL;
-        p_ldy_opcode = NULL;
-        p_overflow_opcode = NULL;
-        p_carry_write_opcode = NULL;
-        carry_flipped_for_branch = 0;
-      }
-
-      /* Keep track of uops we may be able to eliminate. */
-      switch (uopcode) {
-      case 0xA9: /* LDA imm */
-        p_lda_opcode = p_opcode;
-        p_lda_uop = p_uop;
+        p_save_carry_uop = NULL;
         break;
-      case 0xA2: /* LDX imm */
-        p_ldx_opcode = p_opcode;
-        p_ldx_uop = p_uop;
+      case k_opcode_save_carry:
+      case k_opcode_save_carry_inverted:
+        had_save_carry = 1;
+        /* FALL THROUGH */
+      case k_opcode_CLC:
+      case k_opcode_SEC:
+        if (p_save_carry_uop != NULL) {
+          p_save_carry_uop->is_eliminated = 1;
+        }
+        if (p_uop->is_merged) {
+          assert(p_uop->is_eliminated);
+          p_save_carry_uop = NULL;
+        } else {
+          p_save_carry_uop = p_uop;
+        }
         break;
-      case 0xA0: /* LDY imm */
-        p_ldy_opcode = p_opcode;
-        p_ldy_uop = p_uop;
+      case k_opcode_load_overflow:
+        p_save_overflow_uop = NULL;
         break;
-      case k_opcode_SAVE_OVERFLOW:
-        p_overflow_opcode = p_opcode;
-        p_overflow_uop = p_uop;
+      case k_opcode_save_overflow:
+        if (p_save_overflow_uop != NULL) {
+          p_save_overflow_uop->is_eliminated = 1;
+        }
+        p_save_overflow_uop = p_uop;
+        had_save_overflow = 1;
         break;
-      case k_opcode_SAVE_CARRY:
-      case k_opcode_SAVE_CARRY_INV:
-      case 0x18: /* CLC */
-      case 0x38: /* SEC */
-        p_carry_write_opcode = p_opcode;
-        p_carry_write_uop = p_uop;
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+      case k_opcode_flags_nz_y:
+      case k_opcode_flags_nz_value:
+      case k_opcode_flags_nz_mem:
+        /* This might be best abstracted into the asm backends somehow, but for
+         * now, let's observe that both the x64 and ARM64 backends cannot
+         * preserve the host carry / overflow flags across a "test" instruction.
+         */
+        if (!p_uop->is_eliminated) {
+          p_save_carry_uop = NULL;
+          p_save_overflow_uop = NULL;
+        }
+        /* The NZ flag set might be part of a host instruction, in which case
+         * it's also typical to trash host carry / overflow flags, unless the
+         * carry / overflow is being set at the same time.
+         */
+        if (p_uop->is_merged) {
+          if (!had_save_carry) {
+            p_save_carry_uop = NULL;
+          }
+          if (!had_save_overflow) {
+            p_save_overflow_uop = NULL;
+          }
+        }
+        break;
+      case k_opcode_CLD:
+      case k_opcode_CLI:
+      case k_opcode_SED:
+      case k_opcode_SEI:
+      case k_opcode_BIT:
+        /* TODO: the Intel x64 backend trashes the host carry / overflow on
+         * these and it probably shouldn't.
+         */
+        p_save_carry_uop = NULL;
+        p_save_overflow_uop = NULL;
         break;
       default:
         break;
       }
     }
   }
+}
 
-  return num_opcodes;
+static void
+jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_load_a_uop = NULL;
+  struct asm_uop* p_load_x_uop = NULL;
+  struct asm_uop* p_load_y_uop = NULL;
+  struct asm_uop* p_add_cycles_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t i_uops;
+    uint32_t num_uops = p_opcode->num_uops;
+    int32_t imm_value = -1;
+    struct asm_uop* p_load_uop = NULL;
+    struct asm_uop* p_load_flags_uop = NULL;
+
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    /* Any jump, including conditional, must commit register values. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_load_a_uop = NULL;
+      p_load_x_uop = NULL;
+      p_load_y_uop = NULL;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_value_set:
+        imm_value = p_uop->value1;
+        break;
+      case k_opcode_LDA:
+        if (p_load_a_uop != NULL) {
+          p_load_a_uop->is_eliminated = 1;
+        }
+        if (imm_value >= 0) {
+          p_load_a_uop = p_uop;
+        } else {
+          p_load_a_uop = NULL;
+        }
+        p_load_uop = p_uop;
+        break;
+      case k_opcode_LDX:
+        if (p_load_x_uop != NULL) {
+          p_load_x_uop->is_eliminated = 1;
+        }
+        if (imm_value >= 0) {
+          p_load_x_uop = p_uop;
+        } else {
+          p_load_x_uop = NULL;
+        }
+        p_load_uop = p_uop;
+        break;
+      case k_opcode_LDY:
+        if (p_load_y_uop != NULL) {
+          p_load_y_uop->is_eliminated = 1;
+        }
+        if (imm_value >= 0) {
+          p_load_y_uop = p_uop;
+        } else {
+          p_load_y_uop = NULL;
+        }
+        p_load_uop = p_uop;
+        break;
+      case k_opcode_flags_nz_a:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
+      case k_opcode_ADC:
+      case k_opcode_ADD:
+      case k_opcode_ALR:
+      case k_opcode_AND:
+      case k_opcode_ASL_acc:
+      case k_opcode_BIT:
+      case k_opcode_CMP:
+      case k_opcode_EOR:
+      case k_opcode_LSR_acc:
+      case k_opcode_ORA:
+      case k_opcode_PHA:
+      case k_opcode_ROL_acc:
+      case k_opcode_ROR_acc:
+      case k_opcode_SBC:
+      case k_opcode_SLO:
+      case k_opcode_STA:
+      case k_opcode_SUB:
+      case k_opcode_TAX:
+      case k_opcode_TAY:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_a_uop = NULL;
+        }
+        break;
+      case k_opcode_flags_nz_x:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
+      case k_opcode_check_page_crossing_x:
+      case k_opcode_addr_add_x:
+      case k_opcode_addr_add_x_8bit:
+      case k_opcode_CPX:
+      case k_opcode_DEX:
+      case k_opcode_INX:
+      case k_opcode_STX:
+      case k_opcode_TXS:
+      case k_opcode_TXA:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_x_uop = NULL;
+        }
+        break;
+      case k_opcode_flags_nz_y:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
+      case k_opcode_check_page_crossing_y:
+      case k_opcode_addr_add_y:
+      case k_opcode_addr_add_y_8bit:
+      case k_opcode_CPY:
+      case k_opcode_DEY:
+      case k_opcode_INY:
+      case k_opcode_STY:
+      case k_opcode_TYA:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_y_uop = NULL;
+        }
+        break;
+      case k_opcode_add_cycles:
+        p_add_cycles_uop = p_uop;
+        break;
+      case k_opcode_countdown:
+        if (p_add_cycles_uop != NULL) {
+          if (p_uop->value2 >= p_add_cycles_uop->value1) {
+            p_uop->value2 -= p_add_cycles_uop->value1;
+            p_add_cycles_uop->is_eliminated = 1;
+            p_add_cycles_uop->is_merged = 1;
+          }
+        }
+        break;
+      default:
+        if (p_uop->uopcode == k_opcode_SAX) {
+          if (!p_uop->is_eliminated || p_uop->is_merged) {
+            p_load_a_uop = NULL;
+            p_load_x_uop = NULL;
+          }
+        }
+        break;
+      }
+    }
+
+    /* Replace loads of immediate #0 + flags setting with a single uopcode. */
+    if (p_load_uop != NULL) {
+      assert(p_load_flags_uop != NULL);
+      if ((imm_value == 0) && !p_load_flags_uop->is_eliminated) {
+        switch (p_load_uop->uopcode) {
+        case k_opcode_LDA:
+          p_load_uop->uopcode = k_opcode_LDA_zero_and_flags;
+          break;
+        case k_opcode_LDX:
+          p_load_uop->uopcode = k_opcode_LDX_zero_and_flags;
+          break;
+        case k_opcode_LDY:
+          p_load_uop->uopcode = k_opcode_LDY_zero_and_flags;
+          break;
+        default:
+          assert(0);
+          break;
+        }
+        p_load_uop->backend_tag = 0;
+        /* This whole shebang might already be eliminated, but no harm in doing
+         * part of it again if that's the case.
+         */
+        p_load_flags_uop->is_eliminated = 1;
+        p_load_flags_uop->is_merged = 1;
+      }
+    }
+  }
+}
+
+struct jit_opcode_details*
+jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
+  /* Pass 1: opcode merging. LSR A and similar opcodes. */
+  jit_optimizer_merge_opcodes(p_opcodes);
+
+  /* Pass 2: tag opcodes with any known register and flag values. */
+  jit_optimizer_calculate_known_values(p_opcodes);
+
+  /* Pass 3: replacements of uops with better ones if known state offers the
+   * opportunity.
+   * 1) Classic example is CLC; ADC. At the ADC instruction, it is known that
+   * CF==0 so the ADC can become just an ADD.
+   * 2) We rewrite e.g. INY to be LDY #n if the value of Y is statically known.
+   * This is common for unrolled loops.
+   * 3) We rewrite e.g. LDA ($3A),Y to make the "Y" addition in the address
+   * calculation constant, if Y is statically known. This is common for
+   * unrolled loops.
+   */
+  jit_optimizer_replace_uops(p_opcodes);
+
+  return NULL;
+}
+
+void
+jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
+  /* Pass 1: NZ flag saving elimination. */
+  jit_optimizer_eliminate_nz_flag_saving(p_opcodes);
+
+  /* Pass 2: carry and overflow flag saving elimination. */
+  jit_optimizer_eliminate_c_v_flag_saving(p_opcodes);
+
+  /* Pass 3: eliminate redundant register sets. This comes alive after previous
+   * passes. It triggers most significantly for code that uses INY to index
+   * an unrolled sequence of e.g LDA ($00),Y loads.
+   * It's also a convenient pass to look for remaining loads of the constant
+   * zero, with NZ flag setting, and replace with a dedicated opcode.
+   * Furthermore, it's also a convenient pass to merge post-branch cycles
+   * fixups with countdowns.
+   */
+  jit_optimizer_eliminate_axy_loads(p_opcodes);
+
+  /* Pass 4: eliminate repeated mode loads, e.g EOR ($70),Y STA ($70),Y. */
+  jit_optimizer_eliminate_mode_loads(p_opcodes);
 }

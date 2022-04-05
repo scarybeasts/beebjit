@@ -22,11 +22,11 @@ void asm_abi_init(struct asm_abi* p_abi,
   p_abi->p_debug_callback = p_options->debug_callback;
   p_abi->p_debug_object = p_options->p_debug_object;
 
-  p_state_6502->reg_a = 0;
-  p_state_6502->reg_x = 0;
-  p_state_6502->reg_y = 0;
-  p_state_6502->reg_s = 0;
-  p_state_6502->reg_pc = 0;
+  p_state_6502->abi_state.reg_a = 0;
+  p_state_6502->abi_state.reg_x = 0;
+  p_state_6502->abi_state.reg_y = 0;
+  p_state_6502->abi_state.reg_s = 0;
+  p_state_6502->abi_state.reg_pc = 0;
 
   asm_tables_init();
 }

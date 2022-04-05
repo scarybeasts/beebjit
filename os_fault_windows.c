@@ -57,3 +57,13 @@ void
 os_debug_trap(void) {
   DebugBreak();
 }
+
+int
+os_fault_is_carry_flag_set(uintptr_t host_flags) {
+  return !!(host_flags & 0x0001);
+}
+
+int
+os_fault_is_overflow_flag_set(uintptr_t host_flags) {
+  return !!(host_flags & 0x0800);
+}

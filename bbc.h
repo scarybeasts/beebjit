@@ -8,6 +8,7 @@ struct cmos_struct;
 struct cpu_driver;
 struct keyboard_struct;
 struct serial_struct;
+struct serial_ula_struct;
 struct sound_struct;
 struct state_6502;
 struct via_struct;
@@ -50,8 +51,7 @@ struct bbc_struct* bbc_create(int mode,
                               int fasttape_flag,
                               int test_map_flag,
                               const char* p_opt_flags,
-                              const char* p_log_flags,
-                              int32_t debug_stop_addr);
+                              const char* p_log_flags);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_focus_lost_callback(void* p);
@@ -85,20 +85,6 @@ void bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag);
 void bbc_set_commands(struct bbc_struct* p_bbc, const char* p_commands);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);
-void bbc_get_registers(struct bbc_struct* p_bbc,
-                       uint8_t* a,
-                       uint8_t* x,
-                       uint8_t* y,
-                       uint8_t* s,
-                       uint8_t* flags,
-                       uint16_t* pc);
-void bbc_set_registers(struct bbc_struct* p_bbc,
-                       uint8_t a,
-                       uint8_t x,
-                       uint8_t y,
-                       uint8_t s,
-                       uint8_t flags,
-                       uint16_t pc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 
 void bbc_run_async(struct bbc_struct* p_bbc);
@@ -112,12 +98,14 @@ struct keyboard_struct* bbc_get_keyboard(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
-struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct mc6850_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct serial_ula_struct* bbc_get_serial_ula(struct bbc_struct* p_bbc);
 struct cmos_struct* bbc_get_cmos(struct bbc_struct* p_bbc);
 struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);
 struct wd_fdc_struct* bbc_get_wd_fdc(struct bbc_struct* p_bbc);
 struct disc_drive_struct* bbc_get_drive_0(struct bbc_struct* p_bbc);
 struct disc_drive_struct* bbc_get_drive_1(struct bbc_struct* p_bbc);
+struct adc_struct* bbc_get_adc(struct bbc_struct* p_bbc);
 
 uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
 void bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val);
@@ -141,7 +129,6 @@ void bbc_set_fast_flag(struct bbc_struct* p_bbc, int fast_flag );
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
-int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
 void bbc_set_channel_handles(struct bbc_struct* p_bbc,
                              intptr_t handle_channel_read_bbc,
@@ -150,7 +137,7 @@ void bbc_set_channel_handles(struct bbc_struct* p_bbc,
                              intptr_t handle_channel_write_client);
 
 struct bbc_message {
-  uint64_t data[4];
+  uint64_t data[5];
 };
 void bbc_client_send_message(struct bbc_struct* p_bbc,
                              struct bbc_message* p_message);

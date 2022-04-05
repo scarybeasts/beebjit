@@ -1,0 +1,205 @@
+Some programs that make heavy use of self-modifiying code. These are good
+performance and stability test cases.
+
+1) Castle Quest
+- Continually self-modifies a BPL branch target:
+[ITRP] 2FC3: STA $2FC7
+[ITRP] 2FC6: BPL $2FCC
+
+
+2) Pipeline
+- Self-modified read location, probable sprite plot loop:
+[ITRP] 0A70: LDA $76
+[ITRP] 0A72: STA $0AD4
+[ITRP] 0A75: LDA $77
+[ITRP] 0A77: STA $0AD5
+...
+[ITRP] 0AD1: LDY #$00
+[ITRP] 0AD3: LDA $5480,X
+[ITRP] 0AD6: DEX
+[ITRP] 0AD7: STA ($84),Y
+[ITRP] 0AD9: INY
+[ITRP] 0ADA: CPY #$08
+[ITRP] 0ADC: BNE $0AD3
+
+
+3) Galaforce
+- Heavily self-modified sprite plot function, multiple LDA ABX.
+[ITRP] 0B00: STA $0B4F
+...
+[ITRP] 0B4A: LDX #$00
+[ITRP] 0B4C: LDY #$00
+[ITRP] 0B4E: LDA $2D60,X
+[ITRP] 0B51: EOR ($00),Y
+[ITRP] 0B53: STA ($00),Y
+...
+
+- LDA ABY self-modifications, e.g.:
+[ITRP] 1613: STX $1619
+[ITRP] 1616: LDY #$17
+[ITRP] 1618: LDA $0A00,Y
+
+- An LDA imm self-modification:
+[ITRP] 1B04: STA $1B1F
+...
+[ITRP] 1B1E: LDA #$2A
+
+
+4) Thrust
+- Multiple instances of ABX mode self-modify:
+[ITRP] 1EDB: STA $1EF8
+[ITRP] 1EDE: STA $1F2D
+[ITRP] 1EE1: STA $1F48
+...
+[ITRP] 1EF6: LDA $11E5,X
+
+- Self modify of the immediate value of an SBC:
+[ITRP] 0B56: STX $0BA1
+[ITRP] 0B59: STX $0B63
+...
+[ITRP] 0B62: SBC #$55
+
+- Self modify opcode and operand:
+[ITRP] 1E9A: LDA #$C9
+[ITRP] 1E9C: STA $1EFC
+[ITRP] 1E9F: LDA #$FF
+[ITRP] 1EA1: STA $1EFD
+...
+[ITRP] 1EFC: CMP #$1F
+
+- Unusual self-modify of LDY ABX:
+[ITRP] 0E4F: STA $11DC
+...
+[ITRP] 11DB: LDY $345A,X
+
+
+5) Stryker's Run
+- Sprite plot routine hosted in zero page, 0x7 - 0x77 inclusive.
+- Self modify the immediate values of AND / EOR:
+[ITRP] 002E: LDA ($B8),Y
+[ITRP] 0030: STA $3D
+[ITRP] 0032: LDA ($C8),Y
+[ITRP] 0034: STA $3B
+[ITRP] 0036: LDY #$00
+[ITRP] 0038: LDA ($3F),Y
+[ITRP] 003A: AND #$00
+[ITRP] 003C: EOR #$2C
+
+- Self modiy a STA ABS mode:
+[ITRP] 003E: STA $7847
+[ITRP] 0041: LDA $3F
+[ITRP] 0043: AND #$07
+[ITRP] 0045: BEQ $0050
+[ITRP] 0047: DEC $3F
+[ITRP] 0049: DEX
+[ITRP] 004A: BNE $0038
+[ITRP] 004C: LDY $CD
+[ITRP] 004E: BNE $0004
+[ITRP] 0050: DEC $40
+[ITRP] 0052: DEC $40
+
+
+6) Meteors
+- Some LDA ABX self-modifications:
+[ITRP] 0FFD: STA $101A
+[ITRP] 1000: LDA $2C60,X
+[ITRP] 1003: STA $1037
+[ITRP] 1006: STA $109E
+[ITRP] 1009: STA $101B
+...
+[ITRP] 1019: LDA $2908,X
+...
+[ITRP] 1035: LDA $2408,X
+
+
+7) Rocket Raid
+- Couple of instances of STA ABY self-modification, e.g.
+[ITRP] 1852: STA $186E
+...
+[ITRP] 186C: STA $3D00,Y
+
+
+8) Fire Track
+- Curious BIT self-modification in a loop.
+[ITRP] 2D87: CPX $92
+[ITRP] 2D89: BEQ $2D97
+[ITRP] 2D8B: STX $2D90
+[ITRP] 2D8E: INX
+[ITRP] 2D8F: BIT $0403
+[ITRP] 2D92: BEQ $2D87
+[ITRP] 2D94: INY
+[ITRP] 2D95: BNE $2D87
+
+- Lots of self-modifications of branch targets.
+[ITRP] 1C80: STA $1C85
+[ITRP] 1C83: SEC
+[ITRP] 1C84: BCS $1CB7
+
+
+9) Citadel
+- Self-modified JSR operand.
+[ITRP] 3B93: LDA $3E47,Y
+[ITRP] 3B96: STA $3BA4
+[ITRP] 3B99: LDA $3E4F,Y
+[ITRP] 3B9C: STA $3BA5
+[ITRP] 3B9F: LDA #$00
+[ITRP] 3BA1: LDX $1D
+[ITRP] 3BA3: JSR $3BD4
+
+- Flips JSR to JMP and back.
+[ITRP] 3AB7: LDA #$4C
+[ITRP] 3AB9: STA $3BA3
+
+- LDA ABX
+[ITRP] 259C: LDA $019B,Y
+[ITRP] 259F: STA $25DA
+[ITRP] 25A2: LDA $01A7,Y
+[ITRP] 25A5: STA $25DB
+...
+[ITRP] 25D9: LDA $0458,X
+
+- Various mode IMM, e.g.
+[ITRP] 25A8: LDA $013B,Y
+[ITRP] 25AB: STA $2606
+...
+[ITRP] 2605: ORA #$80
+
+- Flips around an EOR ($02),Y and STA ($02),Y in a couple places:
+[ITRP] 2549: LDA #$51
+[ITRP] 254B: STA $25E4
+...
+[ITRP] 25E4: STA ($02),Y
+[ITRP] 25E6: STA ($02),Y
+
+- Changes LDA constants:
+This is an interesting challenge for the optimizer and dynamic operand detector
+because the modified LDA's are typically eliminated in the x64 backend.
+[ITRP] 2CB5: STA $2C39
+[ITRP] 2CB8: STX $04
+[ITRP] 2CBA: STX $2C35
+...
+[ITRP] 2C2A: LDA #$23
+[ITRP] 2C2C: STA $2688
+[ITRP] 2C2F: LDA #$00
+[ITRP] 2C31: STA $26BC
+[ITRP] 2C34: LDA #$03
+[ITRP] 2C36: STA $04
+[ITRP] 2C38: LDA #$38
+[ITRP] 2C3A: STA $268C
+[ITRP] 2C3D: STA $2692
+[ITRP] 2C40: LDA #$06
+[ITRP] 2C42: STA $268D
+[ITRP] 2C45: STA $2693
+[ITRP] 2C48: LDA $27
+[ITRP] 2C4A: STA $00
+
+
+10) Exile
+- Has it all. See disassembly at:
+http://www.level7.org.uk/miscellany/exile-disassembly.txt
+- LDA ABY at $1022.
+- Less common, has LDA ZPG, e.g. in the sprite routine at $102B.
+- STY ABS at $1051.
+- Self-modify writes either an INX or DEX, e.g. target at $105C.
+- A more complicated rearrangement of instructions at $1066.
+- Lots of mode IMM, e.g. ADC IMM at $107C, LDX IMM at $248F. CMP IMM popular.

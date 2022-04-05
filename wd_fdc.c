@@ -87,6 +87,7 @@ enum {
   k_wd_fdc_timer_none = 1,
   k_wd_fdc_timer_settle = 2,
   k_wd_fdc_timer_seek = 3,
+  k_wd_fdc_timer_done = 4,
 };
 
 struct wd_fdc_struct {
@@ -109,6 +110,7 @@ struct wd_fdc_struct {
   uint8_t data_register;
   int is_intrq;
   int is_drq;
+  int do_raise_intrq;
 
   struct disc_drive_struct* p_current_drive;
   int is_index_pulse;
@@ -185,14 +187,54 @@ wd_fdc_set_intrq(struct wd_fdc_struct* p_fdc, int level) {
 }
 
 static void
+wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_fdc->command_type != 1) {
+    return;
+  }
+
+  p_fdc->status_register &=
+      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+  if (disc_drive_get_track(p_current_drive) == 0) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
+  }
+  if (disc_drive_is_index_pulse(p_current_drive)) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
+  }
+}
+
+static void
+wd_fdc_start_timer(struct wd_fdc_struct* p_fdc,
+                   int timer_state,
+                   uint32_t wait_us) {
+  assert(p_fdc->status_register & k_wd_fdc_status_busy);
+  assert(p_fdc->timer_state == k_wd_fdc_timer_none);
+  p_fdc->timer_state = timer_state;
+  p_fdc->state = k_wd_fdc_state_timer_wait;
+  (void) timing_start_timer_with_value(p_fdc->p_timing,
+                                       p_fdc->timer_id,
+                                       (wait_us * 2));
+}
+
+static void
 wd_fdc_command_done(struct wd_fdc_struct* p_fdc, int do_raise_intrq) {
   assert(p_fdc->status_register & k_wd_fdc_status_busy);
 
+  p_fdc->do_raise_intrq = do_raise_intrq;
+
+  wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_done, 32);
+}
+
+static void
+wd_fdc_command_done_timer(struct wd_fdc_struct* p_fdc) {
   p_fdc->status_register &= ~k_wd_fdc_status_busy;
   wd_fdc_clear_state(p_fdc);
 
+  /* Make sure the status are up to date. */
+  wd_fdc_update_type_I_status_bits(p_fdc);
+
   /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
-  if (do_raise_intrq) {
+  if (p_fdc->do_raise_intrq) {
     wd_fdc_set_intrq(p_fdc, 1);
   }
 
@@ -215,36 +257,6 @@ wd_fdc_check_verify(struct wd_fdc_struct* p_fdc) {
 }
 
 static void
-wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_fdc->command_type != 1) {
-    return;
-  }
-
-  p_fdc->status_register &=
-      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
-  if (disc_drive_get_track(p_current_drive) == 0) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
-  }
-  if (disc_drive_is_index_pulse(p_current_drive)) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
-  }
-}
-
-static void
-wd_fdc_start_timer(struct wd_fdc_struct* p_fdc,
-                   int timer_state,
-                   uint32_t wait_ms) {
-  assert(p_fdc->status_register & k_wd_fdc_status_busy);
-  assert(p_fdc->timer_state == k_wd_fdc_timer_none);
-  p_fdc->timer_state = timer_state;
-  p_fdc->state = k_wd_fdc_state_timer_wait;
-  (void) timing_start_timer_with_value(p_fdc->p_timing,
-                                       p_fdc->timer_id,
-                                       (wait_ms * 2000));
-}
-
-static void
 wd_fdc_do_seek_step(struct wd_fdc_struct* p_fdc, int step_direction) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   assert(p_current_drive != NULL);
@@ -253,7 +265,9 @@ wd_fdc_do_seek_step(struct wd_fdc_struct* p_fdc, int step_direction) {
   p_fdc->track_register += step_direction;
   /* TRK0 signal may have raised or lowered. */
   wd_fdc_update_type_I_status_bits(p_fdc);
-  wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_seek, p_fdc->command_step_rate_ms);
+  wd_fdc_start_timer(p_fdc,
+                     k_wd_fdc_timer_seek,
+                     (p_fdc->command_step_rate_ms * 1000));
 }
 
 static void
@@ -353,6 +367,9 @@ wd_fdc_timer_fired(void* p) {
     } else {
       wd_fdc_do_seek_step_or_verify(p_fdc);
     }
+    break;
+  case k_wd_fdc_timer_done:
+    wd_fdc_command_done_timer(p_fdc);
     break;
   default:
     assert(0);
@@ -1310,7 +1327,7 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
       if (p_fdc->is_1772) {
         settle_ms /= 2;
       }
-      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, settle_ms);
+      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, (settle_ms * 1000));
     } else {
       wd_fdc_dispatch_command(p_fdc);
     }

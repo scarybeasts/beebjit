@@ -580,8 +580,16 @@ via_advance_ticks(struct via_struct* p_via, uint64_t ticks) {
   p_via->p_timing_advancer(p_via->p_timing_advancer_object, ticks);
 }
 
-uint8_t
-via_read(struct via_struct* p_via, uint8_t reg) {
+static void
+via_load_T1(struct via_struct* p_via) {
+  int32_t timer_val = p_via->T1L;
+  /* Increment the value because it must take effect in 1 tick. */
+  timer_val++;
+  via_set_t1c(p_via, timer_val);
+}
+
+static uint8_t
+via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   uint8_t orb;
   uint8_t ddrb;
   uint8_t port_val;
@@ -592,9 +600,14 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   /* Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
+  int t1_firing = 0;
+  int t2_firing = 0;
   uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-  int t1_firing = via_is_t1_firing(p_via, ticks);
-  int t2_firing = via_is_t2_firing(p_via, ticks);
+  if ((reg == k_via_T1CL) || (reg == k_via_T1CH)) {
+    t1_firing = via_is_t1_firing(p_via, ticks);
+  } else if (reg == k_via_T2CL) {
+    t2_firing = via_is_t2_firing(p_via, ticks);
+  }
 
   /* Advance to the VIA mid-cycle.
    * EMU NOTE: do this first before processing the read. Interrupts fire at
@@ -602,25 +615,19 @@ via_read(struct via_struct* p_via, uint8_t reg) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  via_advance_ticks(p_via, (ticks + 1));
-
-  t1_val = via_get_t1c(p_via);
-  if (t1_firing) {
-    /* If the timer is firing, return -1. Need to force this because the raw
-     * timer value is set to the relatch value plus one which must not be
-     * exposed.
-     */
-    t1_val = -1;
+  if (!is_raw) {
+    via_advance_ticks(p_via, (ticks + 1));
   }
-  t2_val = via_get_t2c(p_via);
 
   switch (reg) {
   case k_via_ORB:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0xA0) != 0x20);
 
-    via_clear_interrupt(p_via, k_int_CB1);
-    via_clear_interrupt(p_via, k_int_CB2);
+    if (!is_raw) {
+      via_clear_interrupt(p_via, k_int_CB1);
+      via_clear_interrupt(p_via, k_int_CB2);
+    }
 
     /* A read of VIA port B mixes input and output as indicated by DDRB. */
     orb = p_via->ORB;
@@ -645,8 +652,10 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   case k_via_ORA:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
-    via_clear_interrupt(p_via, k_int_CA1);
-    via_clear_interrupt(p_via, k_int_CA2);
+    if (!is_raw) {
+      via_clear_interrupt(p_via, k_int_CA1);
+      via_clear_interrupt(p_via, k_int_CA2);
+    }
   /* Fall through. */
   case k_via_ORAnh:
     /* A read of VIA port A reads the current pins levels, or uses the pin
@@ -665,12 +674,28 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     ret = p_via->DDRA;
     break;
   case k_via_T1CL:
-    if (!t1_firing) {
+    if (!t1_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER1);
+    }
+    t1_val = via_get_t1c(p_via);
+    if (t1_firing) {
+      /* If the timer is firing, return -1. Need to force this because the raw
+       * timer value is set to the relatch value plus one which must not be
+       * exposed.
+       */
+      t1_val = -1;
     }
     ret = (((uint16_t) t1_val) & 0xFF);
     break;
   case k_via_T1CH:
+    t1_val = via_get_t1c(p_via);
+    if (t1_firing) {
+      /* If the timer is firing, return -1. Need to force this because the raw
+       * timer value is set to the relatch value plus one which must not be
+       * exposed.
+       */
+      t1_val = -1;
+    }
     ret = (((uint16_t) t1_val) >> 8);
     break;
   case k_via_T1LL:
@@ -680,13 +705,15 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     ret = (p_via->T1L >> 8);
     break;
   case k_via_T2CL:
-    if (!t2_firing) {
+    if (!t2_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
-    ret = (((uint16_t) t2_val) & 0xFF);
+    t2_val = via_get_t2c(p_via);
+    ret = ((uint16_t) t2_val & 0xFF);
     break;
   case k_via_T2CH:
-    ret = (((uint16_t) t2_val) >> 8);
+    t2_val = via_get_t2c(p_via);
+    ret = ((uint16_t) t2_val >> 8);
     break;
   case k_via_SR:
     ret = p_via->SR;
@@ -709,21 +736,28 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     break;
   }
 
-  via_advance_ticks(p_via, 1);
+  if (!is_raw) {
+    via_advance_ticks(p_via, 1);
+  }
 
   return ret;
 }
 
-static void
-via_load_T1(struct via_struct* p_via) {
-  int32_t timer_val = p_via->T1L;
-  /* Increment the value because it must take effect in 1 tick. */
-  timer_val++;
-  via_set_t1c(p_via, timer_val);
+uint8_t
+via_read(struct via_struct* p_via, uint8_t reg) {
+  return via_read_internal(p_via, reg, 0);
+}
+
+uint8_t
+via_read_raw(struct via_struct* p_via, uint8_t reg) {
+  return via_read_internal(p_via, reg, 1);
 }
 
 void
-via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+via_write_internal(struct via_struct* p_via,
+                   uint8_t reg,
+                   uint8_t val,
+                   int is_raw) {
   uint32_t t2_timer_id;
   int32_t timer_val;
   int32_t t1_val;
@@ -743,7 +777,9 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
    * likely be less fixing up that way around.
    */
   /* Advance to the VIA mid-cycle. */
-  via_advance_ticks(p_via, (ticks + 1));
+  if (!is_raw) {
+    via_advance_ticks(p_via, (ticks + 1));
+  }
 
   /* This is a bit subtle but we need to read the T1C value in order to force
    * the deferred calculation of timer value for one shot timers that have shot.
@@ -926,7 +962,19 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   }
 
-  via_advance_ticks(p_via, 1);
+  if (!is_raw) {
+    via_advance_ticks(p_via, 1);
+  }
+}
+
+void
+via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  return via_write_internal(p_via, reg, val, 0);
+}
+
+void
+via_write_raw(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  return via_write_internal(p_via, reg, val, 1);
 }
 
 void
@@ -949,7 +997,7 @@ via_set_CA1(struct via_struct* p_via, int level) {
     return;
   }
 
-  trigger_level = !!(p_via->PCR & 1);
+  trigger_level = !!(p_via->PCR & 0x01);
   if (level == trigger_level) {
     p_via->IRA = p_via->peripheral_a;
     via_raise_interrupt(p_via, k_int_CA1);
@@ -972,6 +1020,23 @@ via_set_CA2(struct via_struct* p_via, int level) {
     via_raise_interrupt(p_via, k_int_CA2);
   }
   p_via->CA2 = level;
+}
+
+void
+via_set_CB1(struct via_struct* p_via, int level) {
+  int trigger_level;
+
+  if (level == p_via->CB1) {
+    return;
+  }
+
+  trigger_level = !!(p_via->PCR & 0x10);
+  if (level == trigger_level) {
+    p_via->IRB = p_via->peripheral_b;
+    via_raise_interrupt(p_via, k_int_CB1);
+    assert((p_via->PCR & 0xC0) != 0x80);
+  }
+  p_via->CB1 = level;
 }
 
 void
@@ -999,6 +1064,11 @@ via_set_CB2(struct via_struct* p_via, int level) {
   if (level == trigger_level) {
     via_raise_interrupt(p_via, k_int_CB2);
   }
+}
+
+void
+via_set_peripheral_b(struct via_struct* p_via, uint8_t val) {
+  p_via->peripheral_b = val;
 }
 
 void

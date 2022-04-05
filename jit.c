@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "cpu_driver.h"
+#include "debug.h"
 #include "defs_6502.h"
 #include "interp.h"
 #include "inturbo.h"
@@ -16,10 +17,13 @@
 
 #include "asm/asm_common.h"
 #include "asm/asm_defs_host.h"
+#include "asm/asm_inturbo.h"
+#include "asm/asm_inturbo_defs.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +31,7 @@
 #include <unistd.h>
 
 struct jit_struct {
+  /* Fields referenced by the JIT code. */
   struct cpu_driver driver;
 
   /* C callbacks called by JIT code. */
@@ -35,29 +40,34 @@ struct jit_struct {
   /* C pointers used by JIT code. */
   struct inturbo_struct* p_inturbo;
 
-  /* 6502 address -> JIT code pointers. */
+  /* 6502 address -> JIT code pointers.
+   * These are stored as 32-bit even when the mapping is hosted in 64-bit
+   * space. It's hoped to be more cache efficient.
+   */
   uint32_t jit_ptrs[k_6502_addr_space_size];
+
+  /* Fields not referenced by JIT code. */
   /* 6502 address -> code block. */
   int32_t code_blocks[k_6502_addr_space_size];
 
-  /* Fields not referenced by JIT'ed code. */
+  struct asm_jit_struct* p_asm;
   struct os_alloc_mapping* p_mapping_jit;
-  struct os_alloc_mapping* p_mapping_trampolines;
+  struct os_alloc_mapping* p_mapping_no_code_ptr;
   uint8_t* p_jit_base;
-  uint8_t* p_jit_trampolines;
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct interp_struct* p_interp;
-  uint32_t jit_ptr_no_code;
-  uint32_t jit_ptr_dynamic_operand;
-  uint8_t jit_invalidation_sequence[2];
+  void* p_jit_ptr_no_code;
+  void* p_jit_ptr_dynamic_operand;
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
   uint32_t counter_stay_in_interp;
+  uint64_t last_housekeeping_cycles;
 
   int log_compile;
+  int log_fault;
 
   uint64_t counter_num_compiles;
   uint64_t counter_num_interps;
@@ -65,37 +75,22 @@ struct jit_struct {
   int do_fault_log;
 };
 
-static inline uint8_t*
+static inline void*
 jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_jit_ptr = (p_jit->p_jit_base +
-                        (addr_6502 * K_BBC_JIT_BYTES_PER_BYTE));
+  void* p_jit_ptr = (p_jit->p_jit_base + (addr_6502 * K_JIT_BYTES_PER_BYTE));
   return p_jit_ptr;
 }
 
-static inline void
-jit_invalidate_host_address(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
-  p_jit_ptr[0] = p_jit->jit_invalidation_sequence[0];
-  p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
-}
-
 static inline int
-jit_has_6502_code(struct jit_struct* p_jit, uint16_t addr_6502) {
-  if (p_jit->jit_ptrs[addr_6502] == p_jit->jit_ptr_no_code) {
-    return 0;
-  }
-  return 1;
+jit_is_6502_pc_in_code_block(struct jit_struct* p_jit, uint16_t addr_6502) {
+  int ret = (p_jit->code_blocks[addr_6502] != -1);
+  return ret;
 }
 
 static void*
 jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
   return jit_get_jit_block_host_address(p_jit, addr_6502);
-}
-
-static void*
-jit_get_trampoline_host_address_callback(void* p, uint16_t addr_6502) {
-  struct jit_struct* p_jit = (struct jit_struct*) p;
-  return (p_jit->p_jit_trampolines + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
 }
 
 static uint16_t
@@ -106,7 +101,7 @@ jit_6502_block_addr_from_host(struct jit_struct* p_jit,
   uint8_t* p_jit_base = p_jit->p_jit_base;
 
   block_addr_6502 = (p_host_cpu_ip - p_jit_base);
-  block_addr_6502 /= K_BBC_JIT_BYTES_PER_BYTE;
+  block_addr_6502 /= K_JIT_BYTES_PER_BYTE;
 
   assert(block_addr_6502 < k_6502_addr_space_size);
 
@@ -123,14 +118,21 @@ jit_invalidate_host_block_address(struct jit_struct* p_jit,
                                   uint16_t addr_6502) {
   uint8_t* p_jit_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
 
-  jit_invalidate_host_address(p_jit, p_jit_ptr);
+  asm_jit_invalidate_code_at(p_jit_ptr);
+}
+
+static inline void*
+jit_get_host_jit_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  uintptr_t p_host_jit_ptr = p_jit->jit_ptrs[addr_6502];
+  p_host_jit_ptr |= (uintptr_t) p_jit->p_jit_base;
+  return (void*) p_host_jit_ptr;
 }
 
 static inline void
 jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_host_cpu_ip = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
+  void* p_host_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
 
-  jit_invalidate_host_address(p_jit, p_host_cpu_ip);
+  asm_jit_invalidate_code_at(p_host_jit_ptr);
 }
 
 static int
@@ -154,11 +156,18 @@ jit_interp_instruction_callback(void* p,
 
   opmem = p_jit->p_opcode_mem[done_opcode];
 
-  if (opmem & k_opmem_write_flag) {
-    /* Any memory writes executed by the interpreter need to invalidate
-     * compiled JIT code if they're self-modifying writes.
-     */
-    jit_invalidate_code_at_address(p_jit, done_addr);
+  /* Any memory writes executed by the interpreter need to invalidate
+   * compiled JIT code if they're self-modifying writes.
+   */
+  if ((opmem & k_opmem_write_flag) &&
+      jit_is_6502_pc_in_code_block(p_jit, done_addr)) {
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, done_addr);
+    if ((p_jit_ptr != p_jit->p_jit_ptr_no_code) &&
+        (p_jit_ptr != p_jit->p_jit_ptr_dynamic_operand)) {
+      asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
+      asm_jit_invalidate_code_at(p_jit_ptr);
+      asm_jit_finish_code_updates(p_jit->p_asm);
+    }
   }
 
   if (p_jit->counter_stay_in_interp > 0) {
@@ -210,7 +219,7 @@ static void
 jit_enter_interp(struct jit_struct* p_jit,
                  struct jit_enter_interp_ret* p_ret,
                  int64_t countdown,
-                 uint64_t intel_rflags) {
+                 uint64_t host_flags) {
   uint32_t cpu_driver_flags;
 
   struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
@@ -232,7 +241,7 @@ jit_enter_interp(struct jit_struct* p_jit,
   countdown = jit_compiler_fixup_state(p_compiler,
                                        p_state_6502,
                                        countdown,
-                                       intel_rflags);
+                                       host_flags);
 
   p_jit->counter_stay_in_interp = 0;
 
@@ -253,7 +262,13 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
       (struct cpu_driver*) p_jit->p_inturbo;
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
-  p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
+  asm_jit_destroy(p_jit->p_asm);
+
+  os_alloc_free_mapping(p_jit->p_mapping_no_code_ptr);
+
+  if (p_inturbo_cpu_driver != NULL) {
+    p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
+  }
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
   util_buffer_destroy(p_jit->p_temp_buf);
@@ -261,7 +276,6 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   jit_compiler_destroy(p_jit->p_compiler);
 
   os_alloc_free_mapping(p_jit->p_mapping_jit);
-  os_alloc_free_mapping(p_jit->p_mapping_trampolines);
 
   os_alloc_free_aligned(p_cpu_driver);
 }
@@ -269,17 +283,14 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
 static int
 jit_enter(struct cpu_driver* p_cpu_driver) {
   int exited;
-  uint32_t uint_start_addr;
   int64_t countdown;
 
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint8_t* p_start_addr = jit_get_jit_block_host_address(p_jit, addr_6502);
   void* p_mem_base = (void*) K_BBC_MEM_READ_IND_ADDR;
-
-  uint_start_addr = (uint32_t) (size_t) p_start_addr;
 
   countdown = timing_get_countdown(p_timing);
 
@@ -288,7 +299,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
    */
   assert(((uintptr_t) p_mem_base & 0xff) == 0);
 
-  exited = asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
+  exited = asm_jit_enter(p_jit, p_start_addr, countdown, p_mem_base);
   assert(exited == 1);
 
   return exited;
@@ -377,12 +388,17 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
 
   assert(addr_end >= addr);
 
+  /* TODO: only invalidate the relevant subsection of the JIT region. */
+  asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
+
   for (i = addr; i < addr_end; ++i) {
     jit_invalidate_code_at_address(p_jit, i);
     jit_invalidate_host_block_address(p_jit, i);
-    p_jit->jit_ptrs[i] = p_jit->jit_ptr_no_code;
+    p_jit->jit_ptrs[i] = (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
     p_jit->code_blocks[i] = -1;
   }
+
+  asm_jit_finish_code_updates(p_jit->p_asm);
 
   jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr, len);
 }
@@ -412,6 +428,122 @@ jit_get_custom_counters(struct cpu_driver* p_cpu_driver,
   *p_c2 = p_jit->counter_num_interps;
 }
 
+static void
+jit_check_code_block(struct jit_struct* p_jit, uint16_t block_addr_6502) {
+  int32_t code_block = p_jit->code_blocks[block_addr_6502];
+  int has_invalidations = 0;
+  uint16_t addr_6502;
+  void* p_block_ptr;
+
+  assert(code_block == block_addr_6502);
+  /* TODO: can't assert this, because the current block split code does not
+   * clear code_blocks[] for the old block.
+   * assert(!asm_jit_is_invalidated_code_at(
+   *    jit_get_jit_block_host_address(p_jit, block_addr_6502)));
+   */
+
+  addr_6502 = block_addr_6502;
+  while (code_block == block_addr_6502) {
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
+      /* No action. */
+    } else if (asm_jit_is_invalidated_code_at(p_jit_ptr)) {
+      has_invalidations = 1;
+      break;
+    }
+    addr_6502++;
+    code_block = p_jit->code_blocks[addr_6502];
+  }
+
+  if (!has_invalidations) {
+    return;
+  }
+
+  if (p_jit->log_compile) {
+    log_do_log(k_log_jit,
+               k_log_info,
+               "stale code block at $%.4X",
+               block_addr_6502);
+  }
+
+  /* Clear out jit pointers and the code block metadata. */
+  addr_6502 = block_addr_6502;
+  code_block = p_jit->code_blocks[addr_6502];
+  while (code_block == block_addr_6502) {
+    void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
+      /* No action. */
+    } else if (asm_jit_is_invalidated_code_at(p_jit_ptr)) {
+      /* This stopgap measure attempts to prevent write invalidation faults on
+       * ARM64. If we get here, and there's an invalidated code address, it's
+       * probably because that code isn't ever being executed. If it was
+       * being executed, it would typically get compiled to a dynamic operand
+       * or dynamic opcode.
+       * We tag the address so that a dynamic opcode will be compiled, and this
+       * will prevent write invalidation faults.
+       * Examples: Thurst, Galaforce.
+       */
+      jit_compiler_tag_address_as_dynamic(p_jit->p_compiler, addr_6502);
+    }
+    p_jit->jit_ptrs[addr_6502] =
+        (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
+    p_jit->code_blocks[addr_6502] = -1;
+    /* TODO: clear compiler metadata? */
+    addr_6502++;
+    code_block = p_jit->code_blocks[addr_6502];
+  }
+
+  /* Disable the code block itself. */
+  p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
+  asm_jit_start_code_updates(p_jit->p_asm, p_block_ptr, 4);
+  asm_jit_invalidate_code_at(p_block_ptr);
+  asm_jit_finish_code_updates(p_jit->p_asm);
+}
+
+static void
+jit_cleanup_stale_code(struct jit_struct* p_jit) {
+  uint32_t i;
+  int32_t curr_code_block = -1;
+
+  if (p_jit->log_compile) {
+    log_do_log(k_log_jit, k_log_info, "starting stale code sweep");
+  }
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    int32_t next_code_block = p_jit->code_blocks[i];
+    if (next_code_block == curr_code_block) {
+      continue;
+    }
+    if (next_code_block != -1) {
+      jit_check_code_block(p_jit, i);
+    }
+    curr_code_block = next_code_block;
+  }
+}
+
+static void
+jit_housekeeping_tick(struct cpu_driver* p_cpu_driver) {
+  static const uint64_t k_cycles_threshold = (2000000 * 60 * 5);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  uint64_t cycles = state_6502_get_cycles(p_state_6502);
+
+  /* Some time after 6502 reset (currently 5 minutes of virtual time), sweep
+   * the JIT code space and clear out any code blocks containing invalidations.
+   * Such code blocks are likely no longer active, but contribute an overhead,
+   * especially on ARM64, where writing a code invalidation pointer faults.
+   */
+  if (p_jit->last_housekeeping_cycles < k_cycles_threshold) {
+    if (cycles >= k_cycles_threshold) {
+      jit_cleanup_stale_code(p_jit);
+    }
+  }
+
+  p_jit->last_housekeeping_cycles = cycles;
+}
+
 struct jit_host_ip_details {
   int exact_match;
   int32_t pc_6502;
@@ -427,7 +559,6 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
   int32_t code_block_6502;
   uint16_t i_pc_6502;
   uint16_t pc_6502;
-  uint32_t jit_ptr;
   void* p_jit_ptr;
   void* p_last_jit_ptr;
   int exact_match = -1;
@@ -440,7 +571,7 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
   host_block_6502 = jit_6502_block_addr_from_host(p_jit, p_host_ip);
   code_block_6502 = p_jit->code_blocks[host_block_6502];
 
-  if (((uintptr_t) p_host_ip & (K_BBC_JIT_BYTES_PER_BYTE - 1)) == 0) {
+  if (((uintptr_t) p_host_ip & (K_JIT_BYTES_PER_BYTE - 1)) == 0) {
     /* A block compile request. Still need to check if this splits an existing
      * block.
      */
@@ -460,10 +591,9 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
     if (p_jit->code_blocks[i_pc_6502] != code_block_6502) {
       break;
     }
-    jit_ptr = p_jit->jit_ptrs[i_pc_6502];
-    assert(jit_ptr != p_jit->jit_ptr_no_code);
-    p_jit_ptr = (void*) (uintptr_t) jit_ptr;
-    if (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
+    p_jit_ptr = jit_get_host_jit_ptr(p_jit, i_pc_6502);
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
       /* Just continue. */
     } else if (p_jit_ptr == p_host_ip) {
       pc_6502 = i_pc_6502;
@@ -492,12 +622,14 @@ static int64_t
 jit_compile(struct jit_struct* p_jit,
             uint8_t* p_host_cpu_ip,
             int64_t countdown,
-            uint64_t intel_rflags) {
+            uint64_t host_flags) {
   struct jit_host_ip_details details;
   uint32_t bytes_6502_compiled;
   uint16_t addr_6502;
   uint16_t addr_6502_next;
   uint16_t clear_ptrs_addr_6502;
+  void* p_jit_block;
+  void* p_jit_block_end;
 
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
@@ -510,7 +642,11 @@ jit_compile(struct jit_struct* p_jit,
   jit_get_6502_details_from_host_ip(p_jit, &details, p_host_cpu_ip);
 
   if (details.p_invalidation_code_block) {
-    jit_invalidate_host_address(p_jit, details.p_invalidation_code_block);
+    asm_jit_start_code_updates(p_jit->p_asm,
+                               details.p_invalidation_code_block,
+                               4);
+    asm_jit_invalidate_code_at(details.p_invalidation_code_block);
+    asm_jit_finish_code_updates(p_jit->p_asm);
   }
 
   if (details.pc_6502 != -1) {
@@ -524,12 +660,12 @@ jit_compile(struct jit_struct* p_jit,
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
-  p_state_6502->reg_pc = addr_6502;
+  p_state_6502->abi_state.reg_pc = addr_6502;
   if (is_invalidation) {
     countdown = jit_compiler_fixup_state(p_compiler,
                                          p_state_6502,
                                          countdown,
-                                         intel_rflags);
+                                         host_flags);
   }
 
   if ((addr_6502 < 0xFF) &&
@@ -558,14 +694,28 @@ jit_compile(struct jit_struct* p_jit,
   }
 
   if (p_jit->log_compile) {
-    has_6502_code = jit_has_6502_code(p_jit, addr_6502);
+    has_6502_code = jit_is_6502_pc_in_code_block(p_jit, addr_6502);
     is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
                                                                addr_6502);
   }
 
+  p_jit_block = jit_get_jit_block_host_address(p_jit, addr_6502);
+  p_jit_block_end = (p_jit_block + (256 * K_JIT_BYTES_PER_BYTE));
+  if (p_jit_block_end > (void*) K_JIT_ADDR_END) {
+    p_jit_block_end = (void*) K_JIT_ADDR_END;
+  }
+  /* TODO: this 256 constant must match k_max_addr_space_per_compile in
+   * jit_compiler.c.
+   */
+  asm_jit_start_code_updates(p_jit->p_asm,
+                             p_jit_block,
+                             (p_jit_block_end - p_jit_block));
+
   bytes_6502_compiled = jit_compiler_compile_block(p_compiler,
                                                    is_invalidation,
                                                    addr_6502);
+
+  asm_jit_finish_code_updates(p_jit->p_asm);
 
   /* Clear any leftover JIT pointers from a previous block at the same
    * location. Also clean out subsequent block metadata if that block was
@@ -579,7 +729,8 @@ jit_compile(struct jit_struct* p_jit,
       break;
     }
     p_jit->code_blocks[clear_ptrs_addr_6502] = -1;
-    p_jit->jit_ptrs[clear_ptrs_addr_6502] = p_jit->jit_ptr_no_code;
+    p_jit->jit_ptrs[clear_ptrs_addr_6502] =
+        (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
     clear_ptrs_addr_6502++;
   }
 
@@ -597,11 +748,12 @@ jit_compile(struct jit_struct* p_jit,
     }
     log_do_log(k_log_jit,
                k_log_info,
-               "compile @$%.4X-$%.4X [rip @%p], %s",
+               "compile @$%.4X-$%.4X [pc @%p], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
                p_host_cpu_ip,
-               p_text);
+               p_text,
+               timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));
   }
 
   return countdown;
@@ -634,164 +786,121 @@ jit_safe_hex_convert(char* p_buf, void* p_ptr) {
 }
 
 static void
-fault_reraise(void* p_rip, void* p_addr) {
+fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
   int ret;
   char hex_buf[16];
+  char digit;
 
-  static const char* p_msg = "FAULT: rip ";
+  static const char* p_msg = "FAULT: pc ";
   static const char* p_msg2 = ", addr ";
-  static const char* p_msg3 = "\n";
+  static const char* p_msg3 = ", write ";
+  static const char* p_msg4 = ", exec ";
+  static const char* p_msg5 = "\n";
 
   ret = write(2, p_msg, strlen(p_msg));
-  jit_safe_hex_convert(&hex_buf[0], p_rip);
+  jit_safe_hex_convert(&hex_buf[0], p_pc);
   ret = write(2, hex_buf, sizeof(hex_buf));
   ret = write(2, p_msg2, strlen(p_msg2));
   jit_safe_hex_convert(&hex_buf[0], p_addr);
   ret = write(2, hex_buf, sizeof(hex_buf));
   ret = write(2, p_msg3, strlen(p_msg3));
+  if (is_write == -1) {
+    digit = '?';
+  } else {
+    digit = ('0' + is_write);
+  }
+  ret = write(2, &digit, 1);
+  ret = write(2, p_msg4, strlen(p_msg4));
+  if (is_exec == -1) {
+    digit = '?';
+  } else {
+    digit = ('0' + is_exec);
+  }
+  ret = write(2, &digit, 1);
+  ret = write(2, p_msg5, strlen(p_msg5));
+
   (void) ret;
 
   os_fault_bail();
 }
 
 static void
-jit_handle_fault(uintptr_t* p_host_rip,
+jit_handle_fault(uintptr_t* p_host_pc,
                  uintptr_t host_fault_addr,
                  int is_exec,
                  int is_write,
-                 uintptr_t host_rdi) {
-  int inaccessible_indirect_page;
-  int ff_fault_fixup;
-  int bcd_fault_fixup;
-  int stack_wrap_fault_fixup;
-  int wrap_indirect_read;
-  int wrap_indirect_write;
+                 uintptr_t host_context) {
   struct jit_struct* p_jit;
   struct jit_host_ip_details details;
-  uint16_t addr_6502;
+  int32_t addr_6502 = -1;
+  uintptr_t new_pc = *p_host_pc;
+  int is_inturbo = 0;
 
-  void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
-                     (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
-  void* p_fault_rip = (void*) *p_host_rip;
+  void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
-  /* Crash unless the faulting instruction is in the JIT region. */
-  if ((p_fault_rip < (void*) K_BBC_JIT_ADDR) || (p_fault_rip >= p_jit_end)) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+  /* Fail unless the faulting instruction is in the JIT or inturbo region. */
+  if ((p_fault_pc >= (void*) K_JIT_ADDR) &&
+      (p_fault_pc < (void*) K_JIT_ADDR_END)) {
+    /* JIT code. Continue. */
+  } else if ((p_fault_pc >= (void*) K_INTURBO_ADDR) &&
+             (p_fault_pc < (void*) K_INTURBO_ADDR_END)) {
+    /* Inturbo code. Continue. */
+    is_inturbo = 1;
+  } else {
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
   /* Fault in instruction fetch would be bad! */
-  if (is_exec) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+  if (is_exec == 1) {
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+  }
+
+  if (!is_inturbo) {
+    p_jit = (struct jit_struct*) host_context;
+  } else {
+    /* Inturbo stores a pointer to JIT pointers in it's private member. */
+    void** p_inturbo = (void**) host_context;
+    void* p_jit_ptrs = *p_inturbo;
+    p_jit = (struct jit_struct*) (p_jit_ptrs - K_JIT_CONTEXT_OFFSET_JIT_PTRS);
+  }
+  /* Sanity check it is really a jit struct. */
+  if (p_jit->p_compile_callback != jit_compile) {
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+  }
+
+  if (!is_inturbo) {
+    /* NOTE -- may call assert() which isn't async safe but faulting context is
+     * raw asm, shouldn't be a disaster.
+     */
+    jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_pc);
+    assert(details.block_6502 != -1);
+    assert(details.pc_6502 != -1);
+
+    addr_6502 = details.pc_6502;
   }
 
   /* Bail unless it's a clearly recognized fault. */
-  /* The indirect page fault occurs when an indirect addressing mode is used
-   * to access 0xF000 - 0xFFFF, primarily of interest due to the hardware
-   * registers. Using a fault + fixup here is a good performance boost for the
-   * common case.
-   * This fault is also encountered in the Windows port, which needs to use it
-   * for ROM writes.
-   */
-  inaccessible_indirect_page = 0;
-  /* The 0xFF page wrap fault occurs when a word fetch is performed at the end
-   * of a page, where that page wraps. e.g. idx mode fetching the address from
-   * 0xFF. Using a fault + fixup here makes the code footprint for idx mode
-   * addressing smaller.
-   */
-  ff_fault_fixup = 0;
-  /* The BCD fault occurs when the BCD flag is unknown and set at the start of
-   * a block with ADC / SBC instructions.
-   */
-  bcd_fault_fixup = 0;
-  /* The stack wrap fault occurs if a 16-bit stack access wraps the S
-   * register.
-   */
-  stack_wrap_fault_fixup = 0;
-  /* The address space indirect wrap faults occurs if an indirect 16-bit access
-   * crosses the 0xFFFF address space boundary.
-   */
-  wrap_indirect_read = 0;
-  wrap_indirect_write = 0;
-
-  /* TODO: more checks, etc. */
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_OS_ROM_OFFSET)) &&
-      (p_fault_addr <
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
-    if (is_write) {
-      inaccessible_indirect_page = 1;
-    }
-  }
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
-      (p_fault_addr <=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
-    if (is_write) {
-      wrap_indirect_write = 1;
-    }
+  if (!asm_jit_handle_fault(p_jit->p_asm,
+                            &new_pc,
+                            is_inturbo,
+                            addr_6502,
+                            p_fault_addr,
+                            is_write)) {
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
-  /* From this point on, nothing else is a write fault. */
-  if (!inaccessible_indirect_page && !wrap_indirect_write && is_write) {
-    fault_reraise(p_fault_rip, p_fault_addr);
-  }
-
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_fault_addr <
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
-    inaccessible_indirect_page = 1;
-  }
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
-      (p_fault_addr <=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
-    wrap_indirect_read = 1;
-  }
-  if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
-    ff_fault_fixup = 1;
-  }
-  if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
-    /* D flag alone. */
-    bcd_fault_fixup = 1;
-  }
-  if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
-    /* D flag and I flag. */
-    bcd_fault_fixup = 1;
-  }
-  if ((p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
-      (p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
-    /* Wrap via pushing (decrementing). */
-    stack_wrap_fault_fixup = 1;
-  }
-  if ((p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
-      (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 1))) {
-    /* Wrap via pulling (incrementing). */
-    stack_wrap_fault_fixup = 1;
-  }
-
-  if (!inaccessible_indirect_page &&
-      !ff_fault_fixup &&
-      !bcd_fault_fixup &&
-      !stack_wrap_fault_fixup &&
-      !wrap_indirect_read &&
-      !wrap_indirect_write) {
-    fault_reraise(p_fault_rip, p_fault_addr);
-  }
-
-  p_jit = (struct jit_struct*) host_rdi;
-  /* Sanity check it is really a jit struct. */
-  if (p_jit->p_compile_callback != jit_compile) {
-    fault_reraise(p_fault_rip, p_fault_addr);
-  }
-  if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+  if (p_jit->log_fault) {
+    /* Not the cleverest thing to do in a fault context, but it should be ok
+     * because it's a fault in JIT code; it's also a debug option that needs to
+     * be turned on.
+     */
+    log_do_log(k_log_jit,
+               k_log_info,
+               "JIT faulting at 6502 $%.4X pc %p fault addr %p",
+               addr_6502,
+               p_fault_pc,
+               p_fault_addr);
   }
 
   if ((p_jit->counter_num_faults % 10000) == 0) {
@@ -802,39 +911,29 @@ jit_handle_fault(uintptr_t* p_host_rip,
   }
   p_jit->counter_num_faults++;
 
-  /* NOTE -- may call assert() which isn't async safe but faulting context is
-   * raw asm, shouldn't be a disaster.
-   */
-  jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_rip);
-  assert(details.block_6502 != -1);
-  assert(details.pc_6502 != -1);
-
-  /* Bounce into the interpreter via the trampolines. */
-  addr_6502 = details.pc_6502;
-  *p_host_rip =
-      (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
+  *p_host_pc = new_pc;
 }
 
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
-  struct inturbo_struct* p_inturbo;
-  size_t i;
-  size_t mapping_size;
   uint8_t* p_jit_base;
-  uint8_t* p_jit_trampolines;
   struct util_buffer* p_temp_buf;
+  void* p_no_code_mapping_addr;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
-  struct bbc_options* p_options = p_cpu_driver->p_options;
-  void* p_debug_object = p_options->p_debug_object;
-  int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
+  struct memory_access* p_memory_access =
+      p_cpu_driver->p_extra->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
+  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
+  struct debug_struct* p_debug = p_options->p_debug_object;
+  int debug = debug_subsystem_active(p_debug);
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
+  struct inturbo_struct* p_inturbo = NULL;
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
+  p_jit->log_fault = util_has_option(p_options->p_log_flags, "jit:fault");
   p_funcs->get_opcode_maps(p_cpu_driver,
                            &p_jit->p_opcode_types,
                            &p_jit->p_opcode_modes,
@@ -852,9 +951,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
   p_funcs->get_custom_counters = jit_get_custom_counters;
+  p_funcs->housekeeping_tick = jit_housekeeping_tick;
 
-  p_cpu_driver->abi.p_util_private = asm_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;
+  p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
+  p_cpu_driver->abi.p_interp_asm = asm_jit_interp_trampoline;
 
   /* The JIT mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.
@@ -865,67 +966,79 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                                       p_memory_access,
                                                       p_timing,
                                                       p_options);
-  if (p_interp == NULL) {
-    util_bail("couldn't allocate interp_struct");
-  }
+  assert(((struct cpu_driver*) p_interp)->p_extra->type == k_cpu_mode_interp);
   cpu_driver_init((struct cpu_driver*) p_interp);
   p_jit->p_interp = p_interp;
 
   /* The JIT mode uses an inturbo to handle opcodes that are self-modified
    * continually.
    */
-  p_inturbo = (struct inturbo_struct*) cpu_driver_alloc(k_cpu_mode_inturbo,
-                                                        0,
-                                                        p_state_6502,
-                                                        p_memory_access,
-                                                        p_timing,
-                                                        p_options);
-  if (p_inturbo == NULL) {
-    util_bail("couldn't allocate inturbo_struct");
+  if (asm_inturbo_is_enabled()) {
+    struct cpu_driver* p_inturbo_driver;
+    p_inturbo = (struct inturbo_struct*) cpu_driver_alloc(k_cpu_mode_inturbo,
+                                                          0,
+                                                          p_state_6502,
+                                                          p_memory_access,
+                                                          p_timing,
+                                                          p_options);
+    p_inturbo_driver = (struct cpu_driver*) p_inturbo;
+    assert(p_inturbo_driver->p_extra->type == k_cpu_mode_inturbo);
+    inturbo_set_interp(p_inturbo, p_interp);
+    /* Enable inturbo ret mode, which means we can call it to interpret a single
+     * instruction and it will ret right back to us after every instruction.
+     */
+    inturbo_set_ret_mode(p_inturbo);
+    inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
+    cpu_driver_init(p_inturbo_driver);
   }
-  inturbo_set_interp(p_inturbo, p_interp);
-  /* Enable inturbo ret mode, which means we can call it to interpret a single
-   * instruction and it will ret right back to us after every instruction.
-   */
-  inturbo_set_ret_mode(p_inturbo);
-  inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
-  cpu_driver_init((struct cpu_driver*) p_inturbo);
   p_jit->p_inturbo = p_inturbo;
 
   p_jit->driver.abi.p_interp_callback = jit_enter_interp;
   p_jit->driver.abi.p_interp_object = p_jit;
 
-  /* This is the mapping that holds the dynamically JIT'ed code. */
-  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
-  p_jit->p_mapping_jit = os_alloc_get_mapping((void*) K_BBC_JIT_ADDR,
-                                              mapping_size);
-  p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
-  os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
-  /* Fill with int3. */
-  (void) memset(p_jit_base, '\xcc', mapping_size);
-
-  /* This is the mapping that holds trampolines to jump out of JIT. These
-   * one-per-6502-address trampolines enable the core JIT code to be simpler
-   * and smaller, at the expense of more complicated bridging between JIT and
-   * interp.
+  /* This is the mapping that holds the dynamically JIT'ed code.
+   * Directly after creation, it will be read-write.
    */
-  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_TRAMPOLINE_BYTES);
-  p_jit->p_mapping_trampolines =
-      os_alloc_get_mapping((void*) K_BBC_JIT_TRAMPOLINES_ADDR, mapping_size);
-  p_jit_trampolines = os_alloc_get_mapping_addr(p_jit->p_mapping_trampolines);
-  os_alloc_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
-  /* Fill with int3. */
-  (void) memset(p_jit_trampolines, '\xcc', mapping_size);
+  p_jit->p_mapping_jit = os_alloc_get_mapping((void*) K_JIT_ADDR, K_JIT_SIZE);
+  p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
+  p_temp_buf = util_buffer_create();
+  p_jit->p_temp_buf = p_temp_buf;
+  util_buffer_setup(p_temp_buf, p_jit_base, K_JIT_SIZE);
+  asm_fill_with_trap(p_temp_buf);
 
   p_jit->p_jit_base = p_jit_base;
-  p_jit->p_jit_trampolines = p_jit_trampolines;
+
+  p_jit->p_mapping_no_code_ptr =
+      os_alloc_get_mapping((void*) K_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
+  p_no_code_mapping_addr =
+      os_alloc_get_mapping_addr(p_jit->p_mapping_no_code_ptr);
+  p_jit->p_jit_ptr_no_code = p_no_code_mapping_addr;
+  p_jit->p_jit_ptr_dynamic_operand = (p_no_code_mapping_addr + 4);
+
+  /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
+   * optimizations by using faults for very uncommon conditions, such that the
+   * fast path doesn't need certain checks.
+   */
+  os_fault_register_handler(jit_handle_fault);
+
+  /* Anything the specific asm driver (x64 or ARM64) needs to get its job
+   * done. This includes setting up initial mapping permissions on the JIT
+   * mapping.
+   */
+  p_jit->p_asm = asm_jit_create(p_jit_base,
+                                p_memory_access->memory_is_always_ram,
+                                p_memory_access->p_callback_obj);
+  p_cpu_driver->abi.p_util_private = asm_jit_get_private(p_jit->p_asm);
+
   p_jit->p_compiler = jit_compiler_create(
+      p_jit->p_asm,
       p_timing,
       p_memory_access,
       jit_get_block_host_address_callback,
-      jit_get_trampoline_host_address_callback,
       p_jit,
       &p_jit->jit_ptrs[0],
+      p_jit->p_jit_ptr_no_code,
+      p_jit->p_jit_ptr_dynamic_operand,
       &p_jit->code_blocks[0],
       p_options,
       debug,
@@ -933,32 +1046,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit->p_opcode_modes,
       p_jit->p_opcode_mem,
       p_jit->p_opcode_cycles);
-  p_temp_buf = util_buffer_create();
-  p_jit->p_temp_buf = p_temp_buf;
-  p_jit->jit_ptr_no_code =
-      (uint32_t) (size_t) jit_get_jit_block_host_address(
-          p_jit, (k_6502_addr_space_size - 1));
-  p_jit->jit_ptr_dynamic_operand =
-      (uint32_t) (size_t) jit_get_jit_block_host_address(
-          p_jit, (k_6502_addr_space_size - 2));
-
-  util_buffer_setup(p_temp_buf, &p_jit->jit_invalidation_sequence[0], 2);
-  asm_emit_jit_call_compile_trampoline(p_temp_buf);
-
-  for (i = 0; i < k_6502_addr_space_size; ++i) {
-    /* Initialize JIT trampoline. */
-    util_buffer_setup(
-        p_temp_buf,
-        (p_jit_trampolines + (i * K_BBC_JIT_TRAMPOLINE_BYTES)),
-        K_BBC_JIT_TRAMPOLINE_BYTES);
-    asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
-  }
-
-  /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
-   * optimizations by using faults for very uncommon conditions, such that the
-   * fast path doesn't need certain checks.
-   */
-  os_fault_register_handler(jit_handle_fault);
 
   /* NOTE: the JIT code space hasn't been set up with the invalidation markers.
    * Power-on reset has the responsibility of marking the entire address space

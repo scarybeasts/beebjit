@@ -5,6 +5,12 @@ asm_inturbo_is_enabled(void) {
   return 0;
 }
 
+void asm_inturbo_init(void) {
+}
+
+void asm_inturbo_destroy(void) {
+}
+
 void
 asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                        uint16_t special_addr_above) {
@@ -13,16 +19,24 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+asm_emit_inturbo_start_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
   (void) p_buf;
   (void) opcycles;
 }
 
 void
-asm_emit_inturbo_check_countdown_with_page_crossing(struct util_buffer* p_buf,
-                                                    uint8_t opcycles) {
+asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf) {
   (void) p_buf;
-  (void) opcycles;
+}
+
+void
+asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_commit_branch(struct util_buffer* p_buf) {
+  (void) p_buf;
 }
 
 void
@@ -43,6 +57,13 @@ asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 }
 
 void
+asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
+                                    uint8_t advance) {
+  (void) p_buf;
+  (void) advance;
+}
+
+void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
   (void) p_buf;
 }
@@ -54,6 +75,11 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_mode_rel(struct util_buffer* p_buf) {
   (void) p_buf;
 }
 
@@ -415,4 +441,21 @@ asm_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf) {
 void
 asm_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf) {
   (void) p_buf;
+}
+
+/* asm aymbols. */
+uint32_t
+asm_inturbo_enter(void* p_context,
+                  void* p_start_address,
+                  int64_t countdown,
+                  void* p_mem_base) {
+  (void) p_context;
+  (void) p_start_address;
+  (void) countdown;
+  (void) p_mem_base;
+  return 0;
+}
+
+void
+asm_inturbo_interp_trampoline(void) {
 }

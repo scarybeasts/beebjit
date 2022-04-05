@@ -7,10 +7,18 @@ struct memory_access;
 struct state_6502;
 
 struct asm_abi {
+  /* This private member is at offset zero so that asm backends can reference
+   * it efficiently (particularly x64).
+   */
   void* p_util_private;
 
   struct state_6502* p_state_6502;
 
+  /* asm functions (often trampolines to C functions). */
+  void* p_debug_asm;
+  void* p_interp_asm;
+
+  /* C functions called out to. */
   void* p_debug_callback;
   struct debug_struct* p_debug_object;
 

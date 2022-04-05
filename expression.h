@@ -5,16 +5,19 @@
 
 struct expression_struct;
 
-struct expression_struct* expression_create(int64_t (*p_variable_read_callback)
-                                                (void* p,
-                                                 const char* p_name,
-                                                 uint32_t index),
-                                            void (*p_variable_write_callback)
-                                                (void* p,
-                                                 const char* p_name,
-                                                 uint32_t index,
-                                                 int64_t value),
-                                            void* p_variable_object);
+typedef int64_t (*expression_var_read_func_t)(void* p, uint32_t index);
+typedef void (*expression_var_write_func_t)(void* p,
+                                            uint32_t index,
+                                            int64_t value);
+typedef expression_var_read_func_t (*expression_var_read_lookup_func_t)(
+    void* p, const char* p_name);
+typedef expression_var_write_func_t (*expression_var_write_lookup_func_t)(
+    void* p, const char* p_name);
+
+struct expression_struct* expression_create(
+    expression_var_read_lookup_func_t var_read_lookup_func,
+    expression_var_write_lookup_func_t var_write_lookup_func,
+    void* p_variable_object);
 void expression_destroy(struct expression_struct* p_expression);
 
 int64_t expression_parse(struct expression_struct* p_expression,

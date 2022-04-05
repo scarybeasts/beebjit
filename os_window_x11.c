@@ -109,6 +109,11 @@ store_error_event_error_handler(Display* display, XErrorEvent* event) {
   return 0;
 }
 
+void
+os_window_main_thread_start(void (*p_beebjit_main)(void)) {
+  p_beebjit_main();
+}
+
 struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
   struct os_window_struct* p_window;

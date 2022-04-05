@@ -2,6 +2,7 @@
 
 #include "../../util.h"
 #include "../asm_common.h"
+#include "asm_helper_arm64.h"
 
 #include <assert.h>
 /* For ssize_t. */
@@ -24,103 +25,6 @@ asm_patch_arm64_imm9(struct util_buffer* p_buf, int32_t val) {
   insn = *p_insn;
   insn &= ~(0x1FF << 12);
   insn |= ((val & 0x1FF) << 12);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm12(struct util_buffer* p_buf, uint32_t val) {
-  uint8_t* p_raw;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  assert(val <= 4095);
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0xFFF << 10);
-  insn |= ((val & 0xFFF) << 10);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, uint8_t* p_target) {
-  uint8_t* p_raw;
-  uint8_t* p_src;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  intptr_t delta;
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-
-  p_src = util_buffer_get_base_address(p_buf);
-  p_src += pos;
-  delta = (p_target - p_src);
-  delta /= 4;
-  assert((delta <= 16383) && (delta >= -16384));
-
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0x3FFF << 5);
-  insn |= ((delta & 0x3FFF) << 5);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf, uint8_t* p_target) {
-  uint8_t* p_raw;
-  uint8_t* p_src;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  intptr_t delta;
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-
-  p_src = util_buffer_get_base_address(p_buf);
-  p_src += pos;
-  delta = (p_target - p_src);
-  delta /= 4;
-  /* Not the correct range for imm19 but too lazy to fix it for now. */
-  assert((delta <= 16383) && (delta >= -16384));
-
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0x7FFFF << 5);
-  insn |= ((delta & 0x7FFFF) << 5);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val) {
-  uint8_t* p_raw;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  assert(val <= 0xFFFF);
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0xFFFF << 5);
-  insn |= ((val & 0xFFFF) << 5);
   *p_insn = insn;
 }
 
@@ -167,19 +71,26 @@ asm_inturbo_is_enabled(void) {
 }
 
 void
-asm_emit_inturbo_save_countdown(struct util_buffer* p_buf) {
-  void asm_inturbo_save_countdown(void);
-  void asm_inturbo_save_countdown_END(void);
-  asm_copy(p_buf, asm_inturbo_save_countdown, asm_inturbo_save_countdown_END);
+asm_inturbo_init(void) {
+}
+
+void
+asm_inturbo_destroy(void) {
+}
+
+void
+asm_emit_inturbo_start_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+  void asm_inturbo_start_countdown(void);
+  void asm_inturbo_start_countdown_END(void);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_inturbo_start_countdown,
+                             asm_inturbo_start_countdown_END,
+                             opcycles);
 }
 
 void
 asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
-  void asm_inturbo_jump_call_interp(void);
-  void asm_inturbo_jump_call_interp_END(void);
-  asm_copy(p_buf,
-           asm_inturbo_jump_call_interp,
-           asm_inturbo_jump_call_interp_END);
+  asm_emit_inturbo_call_interp(p_buf);
 }
 
 void
@@ -204,23 +115,22 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf) {
   uint8_t* p_dest;
-  void asm_inturbo_check_countdown_sub(void);
-  void asm_inturbo_check_countdown_sub_END(void);
-  void asm_inturbo_check_countdown_tbnz(void);
-  void asm_inturbo_check_countdown_tbnz_END(void);
+  void asm_inturbo_check_and_commit_countdown_tbnz(void);
+  void asm_inturbo_check_and_commit_countdown_tbnz_END(void);
+  void asm_inturbo_check_and_commit_countdown_mov(void);
+  void asm_inturbo_check_and_commit_countdown_mov_END(void);
   asm_copy(p_buf,
-           asm_inturbo_check_countdown_sub,
-           asm_inturbo_check_countdown_sub_END);
-  asm_patch_arm64_imm12(p_buf, opcycles);
-  asm_copy(p_buf,
-           asm_inturbo_check_countdown_tbnz,
-           asm_inturbo_check_countdown_tbnz_END);
+           asm_inturbo_check_and_commit_countdown_tbnz,
+           asm_inturbo_check_and_commit_countdown_tbnz_END);
   p_dest = util_buffer_get_base_address(p_buf);
   p_dest += util_buffer_get_length(p_buf);
   p_dest -= 4;
   asm_patch_arm64_imm14_pc_rel(p_buf, p_dest);
+  asm_copy(p_buf,
+           asm_inturbo_check_and_commit_countdown_mov,
+           asm_inturbo_check_and_commit_countdown_mov_END);
 }
 
 void
@@ -277,29 +187,38 @@ asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 void
 asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
                                     uint8_t advance) {
-  (void) p_buf;
-  (void) advance;
+  void asm_inturbo_advance_pc(void);
+  void asm_inturbo_advance_pc_END(void);
+  void asm_inturbo_ret(void);
+  void asm_inturbo_ret_END(void);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_inturbo_advance_pc,
+                             asm_inturbo_advance_pc_END,
+                             advance);
+  asm_copy(p_buf, asm_inturbo_ret, asm_inturbo_ret_END);
 }
 
 void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
-  void asm_inturbo_enter_debug(void);
-  void asm_inturbo_enter_debug_END(void);
-  asm_copy(p_buf, asm_inturbo_enter_debug, asm_inturbo_enter_debug_END);
+  void asm_inturbo_call_debug(void);
+  void asm_inturbo_call_debug_END(void);
+  asm_copy(p_buf, asm_inturbo_call_debug, asm_inturbo_call_debug_END);
 }
 
 void
 asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
-  void asm_inturbo_jump_call_interp(void);
-  void asm_inturbo_jump_call_interp_END(void);
-  asm_copy(p_buf,
-           asm_inturbo_jump_call_interp,
-           asm_inturbo_jump_call_interp_END);
+  void asm_inturbo_jump_interp(void);
+  void asm_inturbo_jump_interp_END(void);
+  asm_copy(p_buf, asm_inturbo_jump_interp, asm_inturbo_jump_interp_END);
 }
 
 void
 asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_do_write_invalidation(void);
+  void asm_inturbo_do_write_invalidation_END(void);
+  asm_copy(p_buf,
+           asm_inturbo_do_write_invalidation,
+           asm_inturbo_do_write_invalidation_END);
 }
 
 void
@@ -515,7 +434,7 @@ asm_emit_instruction_BIT_interp(struct util_buffer* p_buf) {
   void asm_instruction_BIT_interp(void);
   void asm_instruction_BIT_interp_END(void);
   asm_copy(p_buf, asm_instruction_BIT_interp, asm_instruction_BIT_interp_END);
-  asm_emit_instruction_BIT_common(p_buf);
+  asm_emit_instruction_BIT_value(p_buf);
 }
 
 void
@@ -679,6 +598,19 @@ asm_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_DEX(struct util_buffer* p_buf) {
+  asm_emit_instruction_DEX(p_buf);
+  asm_emit_instruction_X_NZ_flags(p_buf);
+}
+
+void
+asm_emit_inturbo_DEY(struct util_buffer* p_buf) {
+  asm_emit_instruction_DEY(p_buf);
+  asm_emit_instruction_Y_NZ_flags(p_buf);
+}
+
+
+void
 asm_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf) {
   asm_emit_inturbo_mode_imm(p_buf);
   asm_emit_instruction_EOR_scratch_interp_common(p_buf);
@@ -697,6 +629,18 @@ asm_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf) {
   asm_copy(p_buf,
            asm_instruction_INC_scratch_interp,
            asm_instruction_INC_scratch_interp_END);
+}
+
+void
+asm_emit_inturbo_INX(struct util_buffer* p_buf) {
+  asm_emit_instruction_INX(p_buf);
+  asm_emit_instruction_X_NZ_flags(p_buf);
+}
+
+void
+asm_emit_inturbo_INY(struct util_buffer* p_buf) {
+  asm_emit_instruction_INY(p_buf);
+  asm_emit_instruction_Y_NZ_flags(p_buf);
 }
 
 void

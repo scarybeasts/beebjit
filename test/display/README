@@ -1,0 +1,58 @@
+These discs are interesting in some way for emulator display testing.
+Behavior of the 6845 CRTC, SAA5050 Teletext chip and BBC Micro video ULA are
+tested pretty extensively.
+Copyrights remain with their respective authors.
+
+
+- LinearTTX.ssd
+By VectorEyes.
+Renders an animation in 2MHz bitmapped + linear addressing mode. Requires
+emulation of the MA6 XOR documented here:
+https://beebwiki.mdfs.net/Address_translation
+
+- mode1+7.ssd
+Unearthed by !FOZ! and posted to Stardot here:
+https://stardot.org.uk/forums/viewtopic.php?f=54&t=23941
+Does a split screen MODE1 / MODE7. Tests tons of corner cases such as 2MHz
+teletext mode, non-interlaced teletext, accurate teletext scanline tracking,
+and more.
+
+- mode7-75.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/126
+By Kieran Connell.
+Messes with CRTC R9 in MODE 7.
+
+- mode7-bug.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/141
+By Kieran Connell.
+Triggers interesting MODE 7 character states.
+
+- Music2.ssd
+From http://mdfs.net/Mirror/Image/JGH/Music2.ssd
+The Doctor Who song playback displays MODE 8.
+
+- raster-c.ssd
+By Kieran Connell.
+Excellent test case of Hitachi CRTC corner cases.
+
+- rvi-working.ssd
+By Rich Talbot-Watkins.
+Uses the video ULA teletext on/off toggle to perform per-line display blanking
+at 2MHz. Very sensitive to timing of when video ULA writes take effect.
+(Note that the correct rendering does feature 2 pixels of nonsense at the
+start of every scanline.)
+
+- teletest_v1.ssd
+Various teletext tests.
+Includes the famous Teletext engineering test page.
+And a test by me that tests additional things.
+
+- upside-doom.ssd
+By Kieran Connell.
+CRTC test case that uses a multiple frames per horizontal line, and illustrates
+the CRTC quirk of "no display on last horizontal character".
+
+- upside-doom-no-skew.ssd
+By Kieran Connell.
+As above but uses a strange skew trick to avoid the problem of "no display on
+last horizontal character".

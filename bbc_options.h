@@ -15,8 +15,6 @@ struct bbc_options {
 
   /* Internal options, callbacks, etc. */
   struct debug_struct* p_debug_object;
-  int (*debug_subsystem_active)(void* p);
-  int (*debug_active_at_addr)(void* p, uint16_t addr);
   void* (*debug_callback)(struct cpu_driver* p_cpu_driver, int do_irq);
 };
 

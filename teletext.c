@@ -47,7 +47,11 @@ static uint8_t s_teletext_generated_glyphs[96 * 16 * 20];
 static uint8_t s_teletext_generated_gfx[96 * 16 * 20];
 static uint8_t s_teletext_generated_sep_gfx[96 * 16 * 20];
 
+static struct render_character_1MHz s_render_character_1MHz_black;
+
 struct teletext_struct {
+  uint8_t data_pipeline[3];
+  uint8_t dispen_pipeline[2];
   uint32_t palette[8];
   uint32_t flash_count;
   int flash_visible_this_frame;
@@ -63,7 +67,12 @@ struct teletext_struct {
   uint32_t bg_color;
   int is_hold_graphics;
   uint8_t* p_held_character;
-  int do_character_rounding;
+  int crtc_ra0;
+  int is_isv;
+  int curr_dispen;
+  int incoming_dispen;
+  uint8_t* p_render_character;
+  uint32_t render_fg_color;
 };
 
 static void
@@ -154,7 +163,7 @@ teletext_smooth_diagonals(uint8_t* p_dest, uint8_t* p_src) {
 }
 
 static void
-teletext_generate() {
+teletext_generate(void) {
   uint32_t i;
 
   s_teletext_was_generated = 1;
@@ -229,7 +238,12 @@ teletext_generate() {
                               &doubled_gfx_glyph[0]);
 
     teletext_double_up_pixels(&doubled_gfx_glyph[0], &sep_gfx_buf[0]);
-    teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],                               &doubled_gfx_glyph[0]);
+    teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],
+                              &doubled_gfx_glyph[0]);
+  }
+
+  for (i = 0; i < 16; ++i) {
+    s_render_character_1MHz_black.host_pixels[i] = 0xff000000;
   }
 }
 
@@ -286,12 +300,10 @@ teletext_new_frame_started(struct teletext_struct* p_teletext) {
 }
 
 struct teletext_struct*
-teletext_create() {
+teletext_create(void) {
   uint32_t i;
   struct teletext_struct* p_teletext;
 
-  (void) teletext_graphics;
-  (void) teletext_separated_graphics;
   if (!s_teletext_was_generated) {
     teletext_generate();
   }
@@ -328,7 +340,6 @@ teletext_destroy(struct teletext_struct* p_teletext) {
 
 static inline void
 teletext_handle_control_character(struct teletext_struct* p_teletext,
-                                  uint32_t* p_fg_color,
                                   uint8_t src_char) {
   switch (src_char) {
   case 0:
@@ -379,7 +390,7 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
      */
     p_teletext->fg_color = p_teletext->bg_color;
     /* This control code is set-at, unlike other changes to foreground color. */
-    *p_fg_color = p_teletext->fg_color;
+    p_teletext->render_fg_color = p_teletext->fg_color;
     break;
   case 25:
     p_teletext->is_separated_active = 0;
@@ -404,28 +415,20 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   teletext_set_active_characters(p_teletext);
 }
 
-void
-teletext_render_data(struct teletext_struct* p_teletext,
-                     int do_deinterlace,
-                     struct render_character_1MHz* p_out,
-                     struct render_character_1MHz* p_next_out,
-                     uint8_t data) {
-  uint32_t i;
-  uint32_t bg_color;
-  uint32_t src_data_scanline;
-
+static inline void
+teletext_do_data_byte(struct teletext_struct* p_teletext, uint8_t data) {
   /* Foreground color and active characters are set-after so load them before
    * potentially processing a control code.
    */
-  uint32_t fg_color = p_teletext->fg_color;
   int is_hold_graphics = p_teletext->is_hold_graphics;
-  /* Selects space, 0x20. */
-  uint8_t* p_src_data = p_teletext->p_active_characters;
+  p_teletext->render_fg_color = p_teletext->fg_color;
 
   data &= 0x7F;
 
   if (data >= 0x20) {
-    p_src_data += (320 * (data - 0x20));
+    uint8_t* p_render_character = p_teletext->p_active_characters;
+    p_render_character += (320 * (data - 0x20));
+    p_teletext->p_render_character = p_render_character;
     /* EMU NOTE: from the Teletext spec, "the "Held-Mosaic" character inserted
      * is the most recent mosaics character with bit 6 = '1' in its code on
      * that row".
@@ -437,7 +440,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
      */
     if (p_teletext->is_graphics_active) {
       if (data & 0x20) {
-        p_teletext->p_held_character = p_src_data;
+        p_teletext->p_held_character = p_render_character;
       }
     } else {
       p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
@@ -447,19 +450,76 @@ teletext_render_data(struct teletext_struct* p_teletext,
     int is_graphics_active = p_teletext->is_graphics_active;
     int is_double_active = p_teletext->double_active;
 
-    teletext_handle_control_character(p_teletext, &fg_color, data);
+    teletext_handle_control_character(p_teletext, data);
     /* Hold on is set-at and hold off is set-after. */
     is_hold_graphics |= p_teletext->is_hold_graphics;
     if (is_graphics_active &&
         is_hold_graphics &&
         (p_teletext->double_active == is_double_active)) {
-      p_src_data = p_held_character;
+      p_teletext->p_render_character = p_held_character;
     } else {
+      p_teletext->p_render_character = &s_teletext_generated_glyphs[0];
       p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
     }
   }
+}
 
-  if (p_out == NULL) {
+void
+teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
+  /* This function handles the pipelining of incoming signals, which is to say
+   * that in real hardware, incoming signals have their visible effect some
+   * number of cycles after initial receipt.
+   * There are two components potentially involved in the pipelining: the
+   * IC15 latch (between the 6845 and SAA5050) and the SAA5050 chip itself.
+   * In addition to the pipelining, the beeb teletext mode also uses 6845
+   * "skew", which delays the 6845 DISPEN signal by 1 clock.
+   * All together, the data bytes appear to hit the screen 3 clocks after the
+   * 6845 selects them, and the display enable triggers after 1 clock of 6845
+   * skew and 2 clocks of pipeline latency.
+   */
+  uint8_t queue_data = p_teletext->data_pipeline[0];
+  int is_dispen = p_teletext->dispen_pipeline[0];
+
+  /* A logic gate in IC37 and IC36 is used to set bit 6 in the data if DISPEN
+   * is low. This has the effect of avoiding control codes.
+   * We can get the same effect, a bit faster, by only sending data along if
+   * display is enabled.
+   */
+  if (is_dispen) {
+    teletext_do_data_byte(p_teletext, queue_data);
+  }
+  p_teletext->data_pipeline[0] = p_teletext->data_pipeline[1];
+  p_teletext->data_pipeline[1] = p_teletext->data_pipeline[2];
+  p_teletext->data_pipeline[2] = data;
+
+  /* The chip increments its scanline counter on the falling edge of display
+   * enable from the 6845.
+   */
+  if ((is_dispen == 0) && (p_teletext->curr_dispen == 1)) {
+    teletext_scanline_ended(p_teletext);
+  }
+  p_teletext->curr_dispen = is_dispen;
+
+  p_teletext->dispen_pipeline[0] = p_teletext->dispen_pipeline[1];
+  p_teletext->dispen_pipeline[1] = p_teletext->incoming_dispen;
+}
+
+void
+teletext_render(struct teletext_struct* p_teletext,
+                struct render_character_1MHz* p_out,
+                struct render_character_1MHz* p_next_out) {
+  uint32_t i;
+  uint32_t src_data_scanline;
+  int do_render_rounded_scanline;
+  uint8_t* p_src_data = p_teletext->p_render_character;
+  uint32_t render_fg_color = p_teletext->render_fg_color;
+  uint32_t bg_color = p_teletext->bg_color;
+
+  if (!p_teletext->curr_dispen) {
+    *p_out = s_render_character_1MHz_black;
+    if (p_next_out) {
+      *p_next_out = s_render_character_1MHz_black;
+    }
     return;
   }
 
@@ -479,22 +539,37 @@ teletext_render_data(struct teletext_struct* p_teletext,
     }
   }
 
-  if (!do_deinterlace &&
-      p_teletext->do_character_rounding &&
+  /* Handle non-interlaced teletext (the glyphs end up weird because character
+   * rounded scanline rows aren't selected correctly).
+   */
+  do_render_rounded_scanline = 0;
+  if (!p_teletext->is_isv &&
+      p_teletext->crtc_ra0 &&
       !p_teletext->double_active) {
+    do_render_rounded_scanline = 1;
+  }
+
+  /* Handle interlaced rendering. This is a non-default configuration where
+   * the renderer only rasters every other line in the canvas.
+   */
+  if ((p_next_out == NULL) &&
+      p_teletext->crtc_ra0 &&
+      !p_teletext->double_active) {
+    do_render_rounded_scanline = 1;
+  }
+
+  if (do_render_rounded_scanline) {
     src_data_scanline++;
   }
 
   assert(src_data_scanline < 20);
   p_src_data += (src_data_scanline * 16);
 
-  bg_color = p_teletext->bg_color;
-
   for (i = 0; i < 16; ++i) {
     uint32_t color;
     uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
+    color = (val * render_fg_color);
     color += ((255 - val) * bg_color);
 
     p_out->host_pixels[i] = (color | 0xff000000);
@@ -504,9 +579,9 @@ teletext_render_data(struct teletext_struct* p_teletext,
   if (p_out == NULL) {
     return;
   }
-  assert(do_deinterlace);
 
-  if (!p_teletext->double_active) {
+  /* Another condition to handle non-interlaced teletext. */
+  if (p_teletext->is_isv && !p_teletext->double_active) {
     p_src_data += 16;
   }
 
@@ -514,7 +589,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     uint32_t color;
     uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
+    color = (val * render_fg_color);
     color += ((255 - val) * bg_color);
 
     p_out->host_pixels[i] = (color | 0xff000000);
@@ -522,16 +597,20 @@ teletext_render_data(struct teletext_struct* p_teletext,
 }
 
 void
-teletext_RA_changed(struct teletext_struct* p_teletext, uint8_t ra) {
-  p_teletext->do_character_rounding = (ra & 1);
+teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
+                        uint8_t ra,
+                        int is_isv) {
+  p_teletext->crtc_ra0 = (ra & 1);
+  p_teletext->is_isv = is_isv;
 }
 
 void
-teletext_DISPMTG_changed(struct teletext_struct* p_teletext, int value) {
-  /* TODO: we've currently only wired this up to HSYNC but it will suffice. */
-  (void) value;
-
-  teletext_scanline_ended(p_teletext);
+teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value) {
+  /* The DISPEN signal is pipelined, just like the data bytes are pipelined.
+   * The affects of a changing DISPEN are committed in teletext_data() as they
+   * hit the head of the pipeline.
+   */
+  p_teletext->incoming_dispen = value;
 }
 
 void

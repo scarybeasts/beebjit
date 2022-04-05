@@ -8,9 +8,10 @@
 #include "os_sound.h"
 #include "os_time.h"
 #include "os_terminal.h"
+#include "os_thread.h"
 #include "os_window.h"
 #include "render.h"
-#include "serial.h"
+#include "serial_ula.h"
 #include "sound.h"
 #include "state.h"
 #include "test.h"
@@ -19,6 +20,9 @@
 #include "video.h"
 #include "wd_fdc.h"
 #include "rocket/rocket.h"
+
+/* For asm_jit_is_default(). */
+#include "asm/asm_jit.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -33,6 +37,9 @@ enum {
   k_max_discs_per_drive = 4,
   k_max_tapes = 4,
 };
+
+static int s_argc;
+static const char** s_argv;
 
 static void
 main_save_frame(const char* p_frames_dir,
@@ -58,8 +65,8 @@ main_save_frame(const char* p_frames_dir,
   util_file_close(p_file);
 }
 
-int
-main(int argc, const char* argv[]) {
+static void
+beebjit_main(void) {
   int i_args;
   size_t read_ret;
   uint8_t os_rom[k_bbc_rom_size];
@@ -80,6 +87,7 @@ main(int argc, const char* argv[]) {
   intptr_t handle_channel_write_ui;
   char* p_opt_flags;
   char* p_log_flags;
+  int mode;
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
@@ -121,9 +129,7 @@ main(int argc, const char* argv[]) {
   int is_master_flag = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
-  int32_t debug_stop_addr = -1;
   int32_t pc = -1;
-  int mode = k_cpu_mode_jit;
   uint64_t cycles = 0;
   uint32_t expect = 0;
   int window_open = 0;
@@ -136,23 +142,29 @@ main(int argc, const char* argv[]) {
   uint32_t max_frames = 1;
   int is_exit_on_max_frames_flag = 0;
 
+  if (asm_jit_is_default()) {
+    mode = k_cpu_mode_jit;
+  } else {
+    mode = k_cpu_mode_interp;
+  }
+
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
 
-  for (i_args = 1; i_args < argc; ++i_args) {
-    const char* arg = argv[i_args];
+  for (i_args = 1; i_args < s_argc; ++i_args) {
+    const char* arg = s_argv[i_args];
     int has_1 = 0;
     int has_2 = 0;
     const char* val1 = NULL;
     const char* val2 = NULL;
 
-    if ((i_args + 1) < argc) {
+    if ((i_args + 1) < s_argc) {
       has_1 = 1;
-      val1 = argv[i_args + 1];
+      val1 = s_argv[i_args + 1];
     }
-    if ((i_args + 2) < argc) {
+    if ((i_args + 2) < s_argc) {
       has_2 = 1;
-      val2 = argv[i_args + 2];
+      val2 = s_argv[i_args + 2];
     }
 
     if (has_2 && !strcmp(arg, "-rom")) {
@@ -222,9 +234,6 @@ main(int argc, const char* argv[]) {
       p_old_log_flags = p_log_flags;
       p_log_flags = util_strdup2(p_log_flags, val1);
       util_free(p_old_log_flags);
-      ++i_args;
-    } else if (has_1 && !strcmp(arg, "-stopat")) {
-      (void) sscanf(val1, "%"PRIx32, &debug_stop_addr);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-pc")) {
       (void) sscanf(val1, "%"PRIx32, &pc);
@@ -382,6 +391,15 @@ main(int argc, const char* argv[]) {
     }
   }
 
+  if (util_has_option(p_log_flags, "os:addrs")) {
+    log_do_log(k_log_misc,
+               k_log_info,
+               "binary %p stack %p heap %p",
+               beebjit_main,
+               &i_args,
+               p_opt_flags);
+  }
+
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
@@ -433,15 +451,14 @@ main(int argc, const char* argv[]) {
                      fasttape_flag,
                      test_map_flag,
                      p_opt_flags,
-                     p_log_flags,
-                     debug_stop_addr);
+                     p_log_flags);
   if (p_bbc == NULL) {
     util_bail("bbc_create failed");
   }
 
   if (test_flag) {
     test_do_tests(p_bbc);
-    return 0;
+    exit(0);
   }
 
   if (cycles != 0) {
@@ -604,13 +621,13 @@ main(int argc, const char* argv[]) {
   }
 
   if (terminal_flag) {
-    struct serial_struct* p_serial = bbc_get_serial(p_bbc);
+    struct serial_ula_struct* p_serial_ula = bbc_get_serial_ula(p_bbc);
     intptr_t stdin_handle = os_terminal_get_stdin_handle();
     intptr_t stdout_handle = os_terminal_get_stdout_handle();
 
     os_terminal_setup(stdin_handle);
 
-    serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
+    serial_ula_set_io_handles(p_serial_ula, stdin_handle, stdout_handle);
   }
 
   os_channel_get_handles(&handle_channel_read_ui,
@@ -650,6 +667,7 @@ main(int argc, const char* argv[]) {
       int do_clear_after_paint;
       int save_frame;
       uint64_t cycles;
+      int do_ack_rendered;
 
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
@@ -660,6 +678,8 @@ main(int argc, const char* argv[]) {
       do_full_render = message.data[1];
       do_clear_after_paint = message.data[2];
       cycles = message.data[3];
+      do_ack_rendered = message.data[4];
+
       save_frame = 0;
       if ((frame_cycles > 0) &&
           (cycles >= frame_cycles) &&
@@ -685,7 +705,7 @@ main(int argc, const char* argv[]) {
           render_clear_buffer(p_render);
         }
       }
-      if (bbc_get_vsync_wait_for_render(p_bbc)) {
+      if (do_ack_rendered) {
         message.data[0] = k_message_render_done;
         bbc_client_send_message(p_bbc, &message);
       }
@@ -735,5 +755,20 @@ main(int argc, const char* argv[]) {
   util_free(p_opt_flags);
   util_free(p_log_flags);
 
+  exit(0);
+}
+
+int
+main(int argc, const char* argv[]) {
+  s_argc = argc;
+  s_argv = argv;
+  /* The beebjit_main function calls exit() and should not return.
+   * The OS window function can launch beebjit_main on a new thread if it needs
+   * the main thread for itself. This is the case on MacOS. For other OS's,
+   * beebjit_main is simply called on the main thread.
+   */
+  os_window_main_thread_start(beebjit_main);
+  /* Not reached. */
+  assert(0);
   return 0;
 }

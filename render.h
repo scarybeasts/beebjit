@@ -8,17 +8,6 @@ struct render_struct;
 struct bbc_options;
 struct teletext_struct;
 
-enum {
-  k_render_mode0 = 0,
-  k_render_mode1 = 1,
-  k_render_mode2 = 2,
-  k_render_mode4 = 3,
-  k_render_mode5 = 4,
-  k_render_mode7 = 5,
-  k_render_mode8 = 6,
-  k_render_num_modes = 7,
-};
-
 struct render_character_2MHz {
   uint32_t host_pixels[8];
 };
@@ -54,7 +43,10 @@ uint32_t* render_get_buffer(struct render_struct* p_render);
 void render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer);
 void render_create_internal_buffer(struct render_struct* p_render);
 
-void render_set_mode(struct render_struct* p_render, int mode);
+void render_set_mode(struct render_struct* p_render,
+                     int clock_speed,
+                     int chars_per_line,
+                     int is_teletext);
 
 void render_set_palette(struct render_struct* p_render,
                         uint8_t index,
@@ -64,12 +56,17 @@ void render_set_cursor_segments(struct render_struct* p_render,
                                 int s1,
                                 int s2,
                                 int s3);
+void render_set_DISPEN(struct render_struct* p_render, int is_enabled);
 void render_set_RA(struct render_struct* p_render, uint32_t row_address);
 
-void (*render_get_render_data_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t);
-void (*render_get_render_blank_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t);
+/* Call render_prepare() before a sequence of render_render() to ensure that
+ * all pending pixel table rebuilds are taken care of.
+ */
+void render_prepare(struct render_struct* p_render);
+void render_render(struct render_struct* p_render,
+                   uint8_t data,
+                   uint16_t addr,
+                   uint64_t ticks);
 
 void render_clear_buffer(struct render_struct* p_render);
 void render_process_full_buffer(struct render_struct* p_render);

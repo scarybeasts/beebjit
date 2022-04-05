@@ -28,3 +28,4 @@ Shift and then press and release Break while the Shift key remains pressed.
 Break is mapped to the F12 key on a modern keyboard, which requires Fn + F12 to
 be pressed on many systems. So the full gymnastics would be: hold down Shift and
 Fn simultaneously and while holding them down, tap and release F12.
+Note that you'll need to use the right shift on Apple Macs -- see KEYS.

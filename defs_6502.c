@@ -46,6 +46,20 @@ uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+uint8_t g_optype_uses_overflow[k_6502_op_num_types] = {
+  0, 0, 0, 0, 0, 1, 0, 0, /* PHP */
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 1, 0, 0, 0, /* BVC */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BVS */
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+};
+
 uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 1, 0, 0, 1, /* ASL, CLC */
   0, 0, 0, 1, 1, 0, 1, 1, /* PLP, ROL, SEC, RTI */
@@ -324,6 +338,10 @@ defs_6502_calculate_opmem(uint8_t optype, uint8_t opmode) {
     case k_trb:
       opmem = (k_opmem_read_flag | k_opmem_write_flag);
       break;
+    case k_jmp:
+    case k_jsr:
+      opmem = 0;
+      break;
     default:
       opmem = k_opmem_read_flag;
       break;
@@ -485,7 +503,7 @@ defs_6502_setup_65c12(void) {
     if (optype == k_kil) {
       continue;
     }
-    if (optype > k_last_6502_documented) {
+    if (optype >= k_first_6502_undocumented) {
       continue;
     }
     if ((optype == k_nop) &&

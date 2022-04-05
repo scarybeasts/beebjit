@@ -5,35 +5,70 @@
 
 #include <signal.h>
 #include <string.h>
-#include <ucontext.h>
 #include <unistd.h>
 
 static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);
 
 static void
-linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
+posix_fault_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   uintptr_t host_fault_addr;
-  uintptr_t host_exception_flags;
-  uintptr_t host_rip;
-  uintptr_t host_rdi;
+  uintptr_t host_pc;
+  uintptr_t host_context;
+  int is_exec_fault;
+  int is_write_fault;
+  int si_code = p_siginfo->si_code;
 
   /* Crash unless it's fault type we expected. */
-  if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
+  if ((signum == SIGSEGV) && (si_code == SEGV_ACCERR)) {
+    /* OK. */
+  } else if (signum == SIGBUS) {
+    if ((si_code == BUS_ADRALN) || (si_code == BUS_ADRERR)) {
+      /* TODO: this should be abstracted into a platform specific file. */
+      /* OK; hits on macOS.
+       * Note that it's definitely not a bad alignment; that's just the code
+       * that comes through on macOS ARM64.
+       */
+    } else {
+      os_fault_bail();
+    }
+  } else {
     os_fault_bail();
   }
 
   host_fault_addr = (uintptr_t) p_siginfo->si_addr;
-  host_exception_flags = os_fault_get_eflags(p_void);
-  host_rip = os_fault_get_pc(p_void);
-  host_rdi = os_fault_get_jit_context(p_void);
+  host_pc = os_fault_get_pc(p_void);
+  host_context = os_fault_get_jit_context(p_void);
+  is_exec_fault = os_fault_is_exec_fault(p_void);
+  is_write_fault = os_fault_is_write_fault(p_void);
 
-  s_p_fault_callback(&host_rip,
+  s_p_fault_callback(&host_pc,
                      host_fault_addr,
-                     !!(host_exception_flags & 16),
-                     !!(host_exception_flags & 2),
-                     host_rdi);
+                     is_exec_fault,
+                     is_write_fault,
+                     host_context);
 
-  os_fault_set_pc(p_void, host_rip);
+  os_fault_set_pc(p_void, host_pc);
+}
+
+static void
+install_handler(int signal) {
+  struct sigaction sa;
+  struct sigaction sa_prev;
+  int ret;
+
+  (void) memset(&sa, '\0', sizeof(sa));
+  (void) memset(&sa_prev, '\0', sizeof(sa_prev));
+
+  sa.sa_sigaction = posix_fault_handler;
+  sa.sa_flags = (SA_SIGINFO | SA_NODEFER);
+  ret = sigaction(signal, &sa, &sa_prev);
+  if (ret != 0) {
+    util_bail("sigaction failed");
+  }
+  if ((sa_prev.sa_sigaction != NULL) &&
+      (sa_prev.sa_sigaction != posix_fault_handler)) {
+    util_bail("conflicting fault handler");
+  }
 }
 
 void
@@ -43,25 +78,11 @@ os_fault_register_handler(
                              int is_exec,
                              int is_write,
                              uintptr_t host_rdi)) {
-  struct sigaction sa;
-  struct sigaction sa_prev;
-  int ret;
-
   s_p_fault_callback = p_fault_callback;
 
-  (void) memset(&sa, '\0', sizeof(sa));
-  (void) memset(&sa_prev, '\0', sizeof(sa_prev));
-
-  sa.sa_sigaction = linux_sigsegv_handler;
-  sa.sa_flags = (SA_SIGINFO | SA_NODEFER);
-  ret = sigaction(SIGSEGV, &sa, &sa_prev);
-  if (ret != 0) {
-    util_bail("sigaction failed");
-  }
-  if ((sa_prev.sa_sigaction != NULL) &&
-      (sa_prev.sa_sigaction != linux_sigsegv_handler)) {
-    util_bail("conflicting SIGSEGV handler");
-  }
+  install_handler(SIGSEGV);
+  /* On macOS, a write fault to our JIT mapping comes in as SIGBUS. */
+  install_handler(SIGBUS);
 }
 
 void

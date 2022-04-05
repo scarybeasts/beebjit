@@ -6,7 +6,12 @@
 struct util_buffer;
 
 int asm_inturbo_is_enabled(void);
-void asm_emit_inturbo_save_countdown(struct util_buffer* p_buf);
+void asm_inturbo_init(void);
+void asm_inturbo_destroy(void);
+
+void asm_emit_inturbo_start_countdown(struct util_buffer* p_buf,
+                                      uint8_t opcycles);
+void asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf);
 void asm_emit_inturbo_epilog(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                             uint16_t special_mode_above);
@@ -69,9 +74,13 @@ void asm_emit_instruction_CPX_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_CPY_imm_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_CPY_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf);
+void asm_emit_inturbo_DEX(struct util_buffer* p_buf);
+void asm_emit_inturbo_DEY(struct util_buffer* p_buf);
 void asm_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_EOR_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf);
+void asm_emit_inturbo_INX(struct util_buffer* p_buf);
+void asm_emit_inturbo_INY(struct util_buffer* p_buf);
 void asm_emit_instruction_JMP_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_JSR_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_LDA_imm_interp(struct util_buffer* p_buf);
@@ -99,18 +108,16 @@ void asm_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
+uint32_t asm_inturbo_enter(void* p_context,
+                           void* p_start_address,
+                           int64_t countdown,
+                           void* p_mem_base);
+void asm_inturbo_interp_trampoline(void);
+
 void asm_inturbo_check_special_address();
 void asm_inturbo_check_special_address_END();
 void asm_inturbo_check_special_address_lea_patch();
 void asm_inturbo_check_special_address_jb_patch();
-void asm_inturbo_check_countdown();
-void asm_inturbo_check_countdown_END();
-void asm_inturbo_check_countdown_lea_patch();
-void asm_inturbo_check_countdown_jb_patch();
-void asm_inturbo_check_countdown_with_page_crossing();
-void asm_inturbo_check_countdown_with_page_crossing_END();
-void asm_inturbo_check_countdown_with_page_crossing_lea_patch();
-void asm_inturbo_check_countdown_with_page_crossing_jb_patch();
 void asm_inturbo_check_decimal();
 void asm_inturbo_check_decimal_END();
 void asm_inturbo_check_decimal_jb_patch();
@@ -129,8 +136,6 @@ void asm_inturbo_load_pc_from_pc();
 void asm_inturbo_load_pc_from_pc_END();
 void asm_inturbo_call_interp();
 void asm_inturbo_call_interp_countdown();
-void asm_inturbo_enter_debug();
-void asm_inturbo_enter_debug_END();
 void asm_inturbo_check_interrupt();
 void asm_inturbo_check_interrupt_END();
 void asm_inturbo_check_interrupt_jae_patch();

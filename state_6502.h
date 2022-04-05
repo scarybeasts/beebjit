@@ -4,10 +4,10 @@
 #include <stdint.h>
 
 enum {
-  k_state_6502_irq_via_1 = 0,
-  k_state_6502_irq_via_2 = 1,
-  k_state_6502_irq_serial_acia = 2,
-  k_state_6502_irq_nmi = 3,
+  k_state_6502_irq_via_1 = 1,
+  k_state_6502_irq_via_2 = 2,
+  k_state_6502_irq_serial_acia = 4,
+  k_state_6502_irq_nmi = 8,
 };
 
 enum {
@@ -20,23 +20,31 @@ enum {
   k_state_6502_offset_reg_irq_fire =   24,
   k_state_6502_offset_reg_host_pc =    28,
   k_state_6502_offset_reg_host_flags = 32,
+  k_state_6502_offset_reg_host_value = 36,
 };
 
 struct state_6502 {
-  uint32_t reg_a;
-  uint32_t reg_x;
-  uint32_t reg_y;
-  uint32_t reg_s;
-  uint32_t reg_pc;
-  uint32_t reg_flags;
-  uint32_t irq_fire;
-  uint32_t reg_host_pc;
-  uint32_t reg_host_flags;
-  uint32_t irq_high;
+  /* Fields in the asm ABI. */
+  struct {
+    uint32_t reg_a;
+    uint32_t reg_x;
+    uint32_t reg_y;
+    uint32_t reg_s;
+    uint32_t reg_pc;
+    uint32_t reg_flags;
+    uint32_t irq_fire;
+    uint32_t reg_host_pc;
+    uint32_t reg_host_flags;
+    uint32_t reg_host_value;
+  } abi_state;
 
-  uint8_t* p_mem_read;
+  /* Fields not in the asm ABI. */
   struct timing_struct* p_timing;
-  uint64_t ticks_baseline;
+  uint8_t* p_mem_read;
+  struct {
+    uint32_t irq_high;
+    uint64_t ticks_baseline;
+  } state;
 };
 
 struct state_6502* state_6502_create(struct timing_struct* p_timing,
@@ -77,5 +85,8 @@ void state_6502_set_irq_level(struct state_6502* p_state_6502,
 int state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq);
 void state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502,
                                          int irq);
+
+int state_6502_has_irq_high(struct state_6502* p_state_6502);
+int state_6502_has_nmi_high(struct state_6502* p_state_6502);
 
 #endif /* BEEBJIT_STATE_6502_H */

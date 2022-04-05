@@ -21,6 +21,7 @@ extern const char* g_p_opnames[k_6502_op_num_types];
 extern uint8_t g_opmodelens[k_6502_op_num_modes];
 extern uint8_t g_opbranch[k_6502_op_num_types];
 extern uint8_t g_optype_uses_carry[k_6502_op_num_types];
+extern uint8_t g_optype_uses_overflow[k_6502_op_num_types];
 extern uint8_t g_optype_changes_nz_flags[k_6502_op_num_types];
 extern uint8_t g_optype_changes_carry[k_6502_op_num_types];
 extern uint8_t g_optype_changes_overflow[k_6502_op_num_types];
@@ -85,7 +86,7 @@ enum {
   k_inc = 55,
   k_beq = 56,
   k_sed = 57,
-  k_last_6502_documented = 57,
+  k_first_6502_undocumented = 58,
   k_sax = 58, /* Undocumented. */
   k_alr = 59, /* Undocumented. */
   k_slo = 60, /* Undocumented. */
@@ -104,6 +105,7 @@ enum {
   k_tas = 73, /* Undocumented. */
   k_las = 74, /* Undocumented. */
   k_shx = 75, /* Undocumented. */
+  k_last_6502_undocumented = 75,
   k_tsb = 80, /* 65c12. */
   k_trb = 81, /* 65c12. */
   k_stz = 82, /* 65c12. */

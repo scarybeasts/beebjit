@@ -5,7 +5,7 @@
 #include <assert.h>
 
 enum {
-  k_timing_num_timers = 16,
+  k_timing_num_timers = 24,
 };
 
 struct timer_struct {

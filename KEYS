@@ -4,14 +4,30 @@ how to use some important features of beebjit.
 General notes on modern keyboards
 =================================
 
-- To press a function key, such as F1, you often need to press Fn + F1.
+- To press a function key, such as F1, you typically need to press Fn + F1.
+
+Mac-style keyboards
+===================
+
+This guide is currently written with a PC-style keyboard in mind. A Mac-style
+keyboard has significant differences:
+- What is called "Backspace" on PC-style is "delete" on Mac-style. A Mac-style
+may not have a "Delete", so the nice shortcut below for BBC Break may not be
+available if you're on a Mac.
+- Keys mentioned below such as "PgUp", "Home", etc. may not directly exist on
+a Mac.
+- !! Left shift is mapped to BBC Caps Lock. This is because the Mac caps lock
+key is handled poorly in macOS itself.
+- !! Right shift is mapped BBC Shift.
+- The PC-style Alt key is the option key on Mac-style. When reading a key
+combination such as Alt-F below, use option-F on a Mac.
 
 
 BBC keys
 ========
 
-- BBC Break is mapped to F12 and Delete
-  You may have better luck for BBC Ctrl+Break with Ctrl+Delete
+- BBC Break is mapped to both F12 and Delete (PC-style, not Mac-style)
+  On a PC-style, you may prefer to use Delete, to avoid Fn+F12 gymnastics
 - BBC F0 is mapped to F10
 - BBC @ is mapped to `
 - BBC Copy is mapped to End
