@@ -12,6 +12,7 @@
 #include "asm_defs_registers_x64.h"
 
 #include <assert.h>
+#include <limits.h>
 
 #define K_JIT_TRAMPOLINE_BYTES             16
 #define K_JIT_TRAMPOLINES_ADDR             0x80000000
@@ -319,10 +320,18 @@ void
 asm_jit_test_preconditions(void) {
   void asm_jit_BEQ_8bit(void);
   void asm_jit_BEQ_8bit_END(void);
+  void asm_jit_interp(void);
+  int64_t delta;
+
   if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
     util_bail("JIT assembly miscompiled (%p %p) clang issue? try opt build",
               asm_jit_BEQ_8bit,
               asm_jit_BEQ_8bit_END);
+  }
+
+  delta = ((void*) asm_jit_interp - (void*) K_JIT_ADDR);
+  if ((delta > INT_MAX) || (delta < INT_MIN)) {
+    util_bail("Binary bad location? (%p)", asm_jit_interp);
   }
 }
 
