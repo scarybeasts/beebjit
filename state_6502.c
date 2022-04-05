@@ -25,13 +25,21 @@ state_6502_destroy(struct state_6502* p_state_6502) {
 void
 state_6502_reset(struct state_6502* p_state_6502) {
   uint16_t init_pc;
+  uint32_t reg_s;
 
   uint8_t* p_mem_read = p_state_6502->p_mem_read;
+
+  /* Preserve the upper bits of S, in case the asm backend uses a pointer value
+   * there.
+   */
+  reg_s = p_state_6502->abi_state.reg_s;
 
   (void) memset(&p_state_6502->abi_state,
                 '\0',
                 sizeof(p_state_6502->abi_state));
   (void) memset(&p_state_6502->state, '\0', sizeof(p_state_6502->state));
+
+  p_state_6502->abi_state.reg_s = reg_s;
 
   /* EMU: from https://www.pagetable.com/?p=410, initial 6502 state is not all
    * zero. Also, see http://www.visual6502.org/JSSim/expert.html.
