@@ -730,8 +730,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    p_video->scanline_counter += p_video->scanline_stride;
-    p_video->scanline_counter &= p_video->scanline_mask;
+    if (r0 !=0) {
+      p_video->scanline_counter += p_video->scanline_stride;
+      p_video->scanline_counter &= p_video->scanline_mask;
+    }
     /* The saved counter will have been advanced at r1 hit if r9 was hit. */
     p_video->address_counter = p_video->address_counter_saved;
 
