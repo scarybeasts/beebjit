@@ -493,6 +493,50 @@ jit_test_dynamic_operand_2(void) {
 }
 
 static void
+jit_test_dynamic_operand_3(void) {
+  /* Test dynamic operand handling that needs history to work in order to create
+   * dynamic operands.
+   */
+  uint32_t i;
+  struct util_buffer* p_buf = util_buffer_create();
+
+  s_p_mem[0xF0] = 0x00;
+  s_p_mem[0xF1] = 0x10;
+
+  util_buffer_setup(p_buf, (s_p_mem + 0x1000), 0x100);
+  emit_LDX(p_buf, k_abs, 0x1000);
+  emit_LDY(p_buf, k_imm, 0);      /* Optimizes away. */
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_LDY(p_buf, k_imm, 1);
+  emit_INC(p_buf, k_abs, 0x1004); /* Increment operand for LDY imm. */
+  emit_EXIT(p_buf);
+
+  for (i = 0; i < 16; ++i) {
+    state_6502_set_pc(s_p_state_6502, 0x1000);
+    jit_enter(s_p_cpu_driver);
+    interp_testing_unexit(s_p_interp);
+    if (i == 0) {
+      /* We expect the optimzied away opcode to flag as invalidated, if the
+       * opcode it was merged into is invalidated.
+       */
+      test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1000));
+      test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1003));
+    }
+  }
+
+  /* The compiler should have been able to settle the above code to dynamic
+   * operands, even though the self-modify target is optimized out.
+   */
+  test_expect_u32(0, jit_has_invalidated_code(s_p_compiler, 0x1000));
+  test_expect_u32(0, jit_has_invalidated_code(s_p_compiler, 0x1003));
+  /* The compiler should also have been able to only use dynamic operands for
+   * the one affected opcode.
+   */
+  test_expect_u32(0, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1001));
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1004));
+}
+
+static void
 jit_test_dynamic_opcode(void) {
   uint64_t num_compiles;
   uint64_t ticks;
@@ -1129,7 +1173,6 @@ jit_test_compile_binary(void) {
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
-
   /* Check the output for ROL zpg. It's a performance hot spot in a BASIC math
    * routine.
    */
@@ -1356,8 +1399,14 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_test_dynamic_operand();
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 2);
   jit_test_dynamic_operand_2();
+  jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 4);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 1);
+  jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
+  jit_test_dynamic_operand_3();
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+  jit_compiler_testing_set_max_ops(s_p_compiler, 4);
 
   jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 1);
   jit_test_dynamic_opcode();

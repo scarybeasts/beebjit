@@ -101,12 +101,6 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   asm_jit_invalidate_code_at(p_host_ptr);
 }
 
-static int32_t
-jit_compiler_get_current_opcode(struct jit_compiler* p_compiler,
-                                uint16_t addr_6502) {
-  return p_compiler->history[addr_6502].opcode;
-}
-
 int
 jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   void* p_host_ptr =
@@ -120,13 +114,6 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
 
   (void) p_host_ptr;
   assert(p_jit_ptr != p_host_ptr);
-
-  /* TODO: this shouldn't be necessary. Is invalidating a range not clearing
-   * JIT pointers properly?
-   */
-  if (jit_compiler_get_current_opcode(p_compiler, addr_6502) == -1) {
-    return 0;
-  }
 
   if (p_jit_ptr == p_compiler->p_jit_ptr_no_code) {
     return 0;
@@ -1592,6 +1579,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
           p_compiler->p_jit_ptrs[addr_6502] =
               (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
         }
+        /* TODO: is this correct? Shouldn't it add history always? */
         jit_compiler_add_history(p_compiler,
                                  addr_6502,
                                  opcode_6502,

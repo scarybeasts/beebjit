@@ -740,6 +740,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     int32_t imm_value = -1;
     struct asm_uop* p_load_uop = NULL;
     struct asm_uop* p_load_flags_uop = NULL;
+    int is_self_modify_invalidated = p_opcode->self_modify_invalidated;
 
     if (p_opcode->ends_block) {
       continue;
@@ -873,6 +874,18 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
         }
         break;
       }
+    }
+
+    /* This is subtle, but if we're in the middle of resolving self-modification
+     * on a merged (or merged into) opcode, don't eliminate the merged opcode.
+     * This will enable the self-modification detector to emit a dynamic
+     * operand for the correct opcode. After this, the resulting recompile
+     * will still retain the elimination optimization if appropriate.
+     */
+    if (is_self_modify_invalidated) {
+      p_load_a_uop = NULL;
+      p_load_x_uop = NULL;
+      p_load_y_uop = NULL;
     }
 
     /* Replace loads of immediate #0 + flags setting with a single uopcode. */
