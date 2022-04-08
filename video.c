@@ -1556,8 +1556,11 @@ video_power_on_reset(struct video_struct* p_video) {
   /* This is checking for bad state, particularly if power-on resetting for
    * rewind purposes.
    */
-  assert(timing_get_timer_value(p_video->p_timing, p_video->timer_id) == 35840);
   assert(p_video->frame_crtc_ticks == 20000);
+  if (!p_video->externally_clocked) {
+    assert(timing_get_timer_value(p_video->p_timing, p_video->timer_id) ==
+           35840);
+  }
 }
 
 uint64_t
