@@ -377,11 +377,11 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
                     (struct render_character_1MHz*) p_next_render_pos);
     render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
     p_render->p_render_pos += 16;
-  } else {
-    if ((p_render->horiz_beam_pos & ~15) ==
-        p_render->horiz_beam_window_start_pos) {
-      render_reset_render_pos(p_render);
-    }
+  } else if ((p_render->horiz_beam_pos & ~15) ==
+              p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -430,6 +430,8 @@ render_function_teletext_interlaced(struct render_struct* p_render,
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
+    } else if (p_render->horiz_beam_pos >= 1536) {
+      render_hsync(p_render, 0);
     }
   }
 }
@@ -457,6 +459,8 @@ render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -487,6 +491,8 @@ render_function_1MHz_data_interlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -514,6 +520,8 @@ render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -545,6 +553,8 @@ render_function_1MHz_blank_interlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -571,6 +581,8 @@ render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -601,6 +613,8 @@ render_function_2MHz_data_interlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -628,6 +642,8 @@ render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
@@ -659,6 +675,8 @@ render_function_2MHz_blank_interlaced(struct render_struct* p_render,
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
   }
 }
 
