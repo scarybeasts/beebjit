@@ -127,6 +127,9 @@ void bbc_get_address_details(struct bbc_struct* p_bbc,
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 
+int bbc_get_fast_flag(struct bbc_struct* p_bbc);
+void bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast);
+
 void bbc_set_channel_handles(struct bbc_struct* p_bbc,
                              intptr_t handle_channel_read_bbc,
                              intptr_t handle_channel_write_bbc,

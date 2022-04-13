@@ -1978,6 +1978,11 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
       (void) printf("print now: %d\n", p_debug->debug_running_print);
+    } else if (!strcmp(p_command, "fast")) {
+      int is_fast = bbc_get_fast_flag(p_bbc);
+      is_fast = !is_fast;
+      bbc_set_fast_flag(p_bbc, is_fast);
+      (void) printf("fast now: %d\n", is_fast);
     } else if (!strcmp(p_command, "stats")) {
       p_debug->stats = !p_debug->stats;
       (void) printf("stats now: %d\n", p_debug->stats);
@@ -2374,6 +2379,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "keydown <k>        : simulate key press <k>\n"
   "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
+  "fast               : toggle fast mode on/off\n"
   );
     } else {
       (void) printf("???\n");

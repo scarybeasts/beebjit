@@ -1236,7 +1236,7 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
 }
 
 static void
-bbc_set_fast_mode(void* p, int is_fast) {
+bbc_set_fast_mode_callback(void* p, int is_fast) {
   struct cpu_driver* p_cpu_driver;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   void (*p_memory_written_callback)(void* p) = NULL;
@@ -1260,6 +1260,16 @@ bbc_set_fast_mode(void* p, int is_fast) {
   p_cpu_driver->p_funcs->set_memory_written_callback(p_cpu_driver,
                                                      p_memory_written_callback,
                                                      p_bbc->p_video);
+}
+
+int
+bbc_get_fast_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->fast_flag;
+}
+
+void
+bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast) {
+  bbc_set_fast_mode_callback((void*) p_bbc, is_fast);
 }
 
 static void
@@ -1552,7 +1562,9 @@ bbc_create(int mode,
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
                                         bbc_virtual_keyboard_updated_callback,
                                         p_bbc);
-  keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
+  keyboard_set_fast_mode_callback(p_bbc->p_keyboard,
+                                  bbc_set_fast_mode_callback,
+                                  (void*) p_bbc);
 
   p_bbc->p_adc = adc_create(externally_clocked_adc,
                             p_timing,
@@ -1609,8 +1621,8 @@ bbc_create(int mode,
                                           fasttape_flag,
                                           &p_bbc->options);
   serial_ula_set_fast_mode_callback(p_bbc->p_serial_ula,
-                                    bbc_set_fast_mode,
-                                    p_bbc);
+                                    bbc_set_fast_mode_callback,
+                                    (void*) p_bbc);
 
   p_debug = debug_create(p_bbc, debug_flag, &p_bbc->options);
 
@@ -2197,7 +2209,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
 
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
-    bbc_set_fast_mode(p_bbc, !p_bbc->fast_flag);
+    bbc_set_fast_flag(p_bbc, !p_bbc->fast_flag);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
     if (keyboard_is_replaying(p_keyboard)) {
@@ -2378,7 +2390,7 @@ bbc_cpu_thread(void* p) {
   bbc_start_timer_tick(p_bbc);
 
   /* Set up initial fast mode correctly. */
-  bbc_set_fast_mode(p_bbc, p_bbc->fast_flag);
+  bbc_set_fast_flag(p_bbc, p_bbc->fast_flag);
 
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;
