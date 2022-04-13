@@ -122,6 +122,7 @@ beebjit_main(void) {
   int wd_1770_type = 0;
   int watford_flag = 0;
   int opus_flag = 0;
+  int dfs12_flag = 0;
   int is_master_flag = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
@@ -310,6 +311,8 @@ beebjit_main(void) {
       watford_flag = 1;
     } else if (!strcmp(arg, "-opus")) {
       opus_flag = 1;
+    } else if (!strcmp(arg, "-dfs12")) {
+      dfs12_flag = 1;
     } else if (!strcmp(arg, "-autoboot")) {
       autoboot_flag = 1;
     } else if (!strcmp(arg, "-extended-roms")) {
@@ -371,6 +374,7 @@ beebjit_main(void) {
 "-frames-dir     <d>: directory for frame files, default '.'.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
+"-dfs12             : for a model B with an 8271, load newer DFS v1.2 ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
 "");
       exit(0);
@@ -479,6 +483,8 @@ beebjit_main(void) {
     } else {
       if (watford_flag) {
         p_dfs_rom_name = "roms/WDFS144";
+      } else if (dfs12_flag) {
+        p_dfs_rom_name = "roms/acorn_dnfs.rom";
       } else {
         p_dfs_rom_name = "roms/DFS-0.9.rom";
       }
