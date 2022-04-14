@@ -1004,6 +1004,20 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   keyboard_put_key_in_queue(p_keyboard, key, 0);
 }
 
+static int
+keyboard_is_emulator_internal_key(struct keyboard_state* p_state, uint8_t key) {
+  (void) p_state;
+
+  if (key == k_keyboard_key_home) {
+    /* Enter debugger. */
+    return 1;
+  }
+  /* TODO: should some of the Alt+key combos be considered "internal" and not
+   * appear in capture files?
+   */
+  return 0;
+}
+
 static void
 keyboard_apply_physical_keys(struct keyboard_struct* p_keyboard,
                              uint8_t* p_keys,
@@ -1026,15 +1040,19 @@ keyboard_apply_physical_keys(struct keyboard_struct* p_keyboard,
       continue;
     }
 
-    filtered_keys[num_keys_filtered] = key;
-    filtered_is_downs[num_keys_filtered] = is_down;
-    num_keys_filtered++;
-
     if (is_down) {
       keyboard_key_pressed(p_state, key);
     } else {
       keyboard_key_released(p_state, key);
     }
+
+    if (keyboard_is_emulator_internal_key(p_state, key)) {
+      continue;
+    }
+
+    filtered_keys[num_keys_filtered] = key;
+    filtered_is_downs[num_keys_filtered] = is_down;
+    num_keys_filtered++;
   }
 
   if (num_keys_filtered == 0) {
