@@ -806,6 +806,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_IMM19(check_pending_irq_cbnz);
     break;
   case k_opcode_countdown:
+  case k_opcode_countdown_no_preserve_nz_flags:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
     value1 = value2;
     ASM_IMM12(countdown_sub);

@@ -1331,9 +1331,9 @@ jit_test_compile_binary(void) {
   p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3A00);
 #if defined(__x86_64__)
   /* je     0x61d0180
-   * lea    r15, [r15-0x7]
+   * sub    r15, 0x7
    */
-  p_expect = "\x0f\x84\x6b\x01\x00\x00" "\x4d\x8d\x7f\xf9";
+  p_expect = "\x0f\x84\x6b\x01\x00\x00" "\x49\x83\xef\x07";
   expect_len = 10;
 #elif defined(__aarch64__)
   /* b.eq  0x61d0180
@@ -1364,7 +1364,7 @@ jit_test_compile_binary(void) {
    * jb     0x61d8380
    */
   p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
-             "\x0f\x82\x61\x03\x00\x00";
+             "\x0f\x82\x66\x03\x00\x00";
   expect_len = 16;
 #elif defined(__aarch64__)
   /* ldrb  w0, [x27, #69]

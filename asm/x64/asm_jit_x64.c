@@ -559,53 +559,39 @@ asm_emit_jit_invalidated(struct util_buffer* p_buf) {
 }
 
 static void
-asm_emit_jit_check_countdown(struct util_buffer* p_buf,
-                             struct util_buffer* p_buf_epilog,
+asm_emit_jit_check_countdown(struct util_buffer* p_dest_buf,
+                             struct util_buffer* p_dest_buf_epilog,
+                             int can_trash_flags,
                              uint32_t count,
                              uint16_t addr,
                              void* p_trampoline) {
-  void asm_jit_check_countdown_8bit(void);
-  void asm_jit_check_countdown_8bit_count_patch(void);
-  void asm_jit_check_countdown_8bit_jump_patch(void);
-  void asm_jit_check_countdown_8bit_END(void);
-  void asm_jit_check_countdown(void);
-  void asm_jit_check_countdown_count_patch(void);
-  void asm_jit_check_countdown_jump_patch(void);
-  void asm_jit_check_countdown_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
+  void* p_code;
+  uint32_t value1;
 
-  (void) p_buf_epilog;
+  (void) p_dest_buf_epilog;
   (void) addr;
 
-  if (count <= 128) {
-    asm_copy(p_buf,
-             asm_jit_check_countdown_8bit,
-             asm_jit_check_countdown_8bit_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_check_countdown_8bit,
-                   asm_jit_check_countdown_8bit_count_patch,
-                   -count);
-    asm_patch_jump(p_buf,
-                   offset,
-                   asm_jit_check_countdown_8bit,
-                   asm_jit_check_countdown_8bit_jump_patch,
-                   p_trampoline);
+  if (can_trash_flags) {
+    value1 = count;
+    if (count <= 127) {
+      ASM_U8(check_countdown_sub_8bit);
+    } else {
+      ASM_U32(check_countdown_sub);
+    }
   } else {
-    asm_copy(p_buf,
-             asm_jit_check_countdown,
-             asm_jit_check_countdown_END);
-    asm_patch_int(p_buf,
-                  offset,
-                  asm_jit_check_countdown,
-                  asm_jit_check_countdown_count_patch,
-                  -count);
-    asm_patch_jump(p_buf,
-                   offset,
-                   asm_jit_check_countdown,
-                   asm_jit_check_countdown_jump_patch,
-                   p_trampoline);
+    value1 = -count;
+    if (count <= 128) {
+      ASM_U8(check_countdown_lea_8bit);
+    } else {
+      ASM_U32(check_countdown_lea);
+    }
+    ASM(check_countdown_bt);
   }
+  p_code = util_buffer_get_base_address(p_dest_buf);
+  p_code += util_buffer_get_pos(p_dest_buf);
+  value1 = (p_trampoline - p_code);
+  value1 -= 6;
+  ASM_U32(check_countdown_jb);
 }
 
 static void
@@ -1602,6 +1588,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
   case k_opcode_countdown:
+  case k_opcode_countdown_no_preserve_nz_flags:
   case k_opcode_check_pending_irq:
     p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
     p_trampoline_addr = (p_trampolines + (value1 * K_JIT_TRAMPOLINE_BYTES));
@@ -1624,6 +1611,15 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_countdown:
     asm_emit_jit_check_countdown(p_dest_buf,
                                  p_dest_buf_epilog,
+                                 0,
+                                 (uint32_t) value2,
+                                 (uint16_t) value1,
+                                 p_trampoline_addr);
+    break;
+  case k_opcode_countdown_no_preserve_nz_flags:
+    asm_emit_jit_check_countdown(p_dest_buf,
+                                 p_dest_buf_epilog,
+                                 1,
                                  (uint32_t) value2,
                                  (uint16_t) value1,
                                  p_trampoline_addr);

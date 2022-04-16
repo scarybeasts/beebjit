@@ -740,6 +740,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     int32_t imm_value = -1;
     struct asm_uop* p_load_uop = NULL;
     struct asm_uop* p_load_flags_uop = NULL;
+    struct asm_uop* p_countdown_uop = NULL;
     int is_self_modify_invalidated = p_opcode->self_modify_invalidated;
 
     if (p_opcode->ends_block) {
@@ -853,13 +854,21 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
           p_load_y_uop = NULL;
         }
         break;
+      case k_opcode_flags_nz_value:
+      case k_opcode_flags_nz_mem:
+        p_load_flags_uop = p_uop;
+        break;
       case k_opcode_add_cycles:
         p_add_cycles_uop = p_uop;
         break;
       case k_opcode_countdown:
+        /* Merge any branch-not-taken countdown fixup into the countdown check
+         * subtraction itself.
+         */
+        p_countdown_uop = p_uop;
         if (p_add_cycles_uop != NULL) {
-          if (p_uop->value2 >= p_add_cycles_uop->value1) {
-            p_uop->value2 -= p_add_cycles_uop->value1;
+          if (p_countdown_uop->value2 >= p_add_cycles_uop->value1) {
+            p_countdown_uop->value2 -= p_add_cycles_uop->value1;
             p_add_cycles_uop->is_eliminated = 1;
             p_add_cycles_uop->is_merged = 1;
           }
@@ -874,6 +883,17 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
         }
         break;
       }
+    }
+
+    if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {
+      /* If the opcode immediately following a countdown check sets the NZ
+       * flags, then we can safely use a faster countdown check that clobbers
+       * the NZ flags.
+       * Even if the countdown check fires, and an IRQ is raised, the IRQ won't
+       * trigger until after the opcode immediately following the countdown
+       * check.
+       */
+      p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
     }
 
     /* This is subtle, but if we're in the middle of resolving self-modification

@@ -136,33 +136,57 @@ ASM_SYM(asm_jit_jump_interp_trampoline_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_check_countdown)
-.globl ASM_SYM(asm_jit_check_countdown_count_patch)
-.globl ASM_SYM(asm_jit_check_countdown_jump_patch)
-.globl ASM_SYM(asm_jit_check_countdown_END)
-ASM_SYM(asm_jit_check_countdown):
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
-ASM_SYM(asm_jit_check_countdown_count_patch):
-  bt REG_COUNTDOWN, 63
-  jb ASM_SYM(asm_unpatched_branch_target)
-ASM_SYM(asm_jit_check_countdown_jump_patch):
+.globl ASM_SYM(asm_jit_check_countdown_lea_8bit)
+.globl ASM_SYM(asm_jit_check_countdown_lea_8bit_END)
+ASM_SYM(asm_jit_check_countdown_lea_8bit):
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 
-ASM_SYM(asm_jit_check_countdown_END):
+ASM_SYM(asm_jit_check_countdown_lea_8bit_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_check_countdown_8bit)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_count_patch)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_jump_patch)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_END)
-ASM_SYM(asm_jit_check_countdown_8bit):
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
-ASM_SYM(asm_jit_check_countdown_8bit_count_patch):
-  bt REG_COUNTDOWN, 63
-  jb ASM_SYM(asm_unpatched_branch_target)
-ASM_SYM(asm_jit_check_countdown_8bit_jump_patch):
+.globl ASM_SYM(asm_jit_check_countdown_lea)
+.globl ASM_SYM(asm_jit_check_countdown_lea_END)
+ASM_SYM(asm_jit_check_countdown_lea):
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 
-ASM_SYM(asm_jit_check_countdown_8bit_END):
+ASM_SYM(asm_jit_check_countdown_lea_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_bt)
+.globl ASM_SYM(asm_jit_check_countdown_bt_END)
+ASM_SYM(asm_jit_check_countdown_bt):
+  bt REG_COUNTDOWN, 63
+
+ASM_SYM(asm_jit_check_countdown_bt_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_sub_8bit)
+.globl ASM_SYM(asm_jit_check_countdown_sub_8bit_END)
+ASM_SYM(asm_jit_check_countdown_sub_8bit):
+  sub REG_COUNTDOWN, 0x7f
+
+ASM_SYM(asm_jit_check_countdown_sub_8bit_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_sub)
+.globl ASM_SYM(asm_jit_check_countdown_sub_END)
+ASM_SYM(asm_jit_check_countdown_sub):
+  sub REG_COUNTDOWN, 0x7fffffff
+
+ASM_SYM(asm_jit_check_countdown_sub_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_jb)
+.globl ASM_SYM(asm_jit_check_countdown_jb_END)
+ASM_SYM(asm_jit_check_countdown_jb):
+  jb ASM_SYM(asm_unpatched_branch_target)
+
+ASM_SYM(asm_jit_check_countdown_jb_END):
   ret
 
 

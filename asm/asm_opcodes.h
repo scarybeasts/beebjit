@@ -23,6 +23,7 @@ enum {
   k_opcode_check_page_crossing_n,
   k_opcode_check_pending_irq,
   k_opcode_countdown,
+  k_opcode_countdown_no_preserve_nz_flags,
   k_opcode_debug,
   k_opcode_interp,
   k_opcode_inturbo,
