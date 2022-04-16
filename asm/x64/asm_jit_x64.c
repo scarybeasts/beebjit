@@ -566,9 +566,9 @@ asm_emit_jit_check_countdown(struct util_buffer* p_dest_buf,
                              uint16_t addr,
                              void* p_trampoline) {
   void* p_code;
+  void* p_epilog;
   uint32_t value1;
 
-  (void) p_dest_buf_epilog;
   (void) addr;
 
   if (can_trash_flags) {
@@ -589,9 +589,15 @@ asm_emit_jit_check_countdown(struct util_buffer* p_dest_buf,
   }
   p_code = util_buffer_get_base_address(p_dest_buf);
   p_code += util_buffer_get_pos(p_dest_buf);
-  value1 = (p_trampoline - p_code);
-  value1 -= 6;
-  ASM_U32(check_countdown_jb);
+  p_epilog = util_buffer_get_base_address(p_dest_buf_epilog);
+  value1 = (p_epilog - p_code);
+  value1 -= 2;
+  ASM_U8(check_countdown_jb);
+
+  p_dest_buf = p_dest_buf_epilog;
+  value1 = (p_trampoline - p_epilog);
+  value1 -= 5;
+  ASM_U32(JMP);
 }
 
 static void

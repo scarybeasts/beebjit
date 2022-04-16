@@ -184,7 +184,9 @@ ASM_SYM(asm_jit_check_countdown_sub_END):
 .globl ASM_SYM(asm_jit_check_countdown_jb)
 .globl ASM_SYM(asm_jit_check_countdown_jb_END)
 ASM_SYM(asm_jit_check_countdown_jb):
-  jb ASM_SYM(asm_unpatched_branch_target)
+  # Force short jump encoding for "jb".
+  .byte 0x72
+  .byte 0x00
 
 ASM_SYM(asm_jit_check_countdown_jb_END):
   ret
