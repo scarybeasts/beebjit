@@ -1180,8 +1180,22 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
     opcode_6502 = p_details->opcode_6502;
     if (jit_has_invalidated_code(p_compiler, addr_6502)) {
       is_self_modify_invalidated = 1;
-      p_details->self_modify_invalidated = 1;
     }
+    /* Also consider the opcode self-modified if it is already a dynamic
+     * operand. The dynamic opcode case is handled by jit_has_invalidated_code()
+     * above.
+     * This is needed to avoid losing dynamic operand status if there are a
+     * lot of recompiles going on for the block (i.e. block splits and
+     * invalidations due to other self-modifying code in the same block).
+     */
+    if (p_details->num_bytes_6502 > 1) {
+      uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502 + 1];
+      void* p_jit_ptr = (void*) (uintptr_t) jit_ptr;
+      if (p_jit_ptr == p_compiler->p_jit_ptr_dynamic_operand) {
+        is_self_modify_invalidated = 1;
+      }
+    }
+    p_details->self_modify_invalidated = is_self_modify_invalidated;
 
     jit_compiler_get_dynamic_history(p_compiler,
                                      &new_opcode_count,

@@ -494,12 +494,13 @@ jit_test_dynamic_operand_2(void) {
 
 static void
 jit_test_dynamic_operand_3(void) {
-  /* Test dynamic operand handling that needs history to work in order to create
-   * dynamic operands.
+  /* Test dynamic operand handling where it is tricky for the compiler to
+   * settle to a stable state.
    */
   uint32_t i;
   struct util_buffer* p_buf = util_buffer_create();
 
+  /* Test 1: The dynamic operand opcode starts off optimized away. */
   s_p_mem[0xF0] = 0x00;
   s_p_mem[0xF1] = 0x10;
 
@@ -534,6 +535,37 @@ jit_test_dynamic_operand_3(void) {
    */
   test_expect_u32(0, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1001));
   test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1004));
+
+  /* Test 2: Based on the Exile sprite unpack loop.
+   * Within a single block, there are a series of self-modifications that
+   * modify the instruction immediately following.
+   * This caused a failure to retain dynamic operand status, because the opcodes
+   * later in the block get recompiled multiple times -- and they won't appear
+   * self-modified for many of the recompiles.
+   */
+  s_p_mem[0xF0] = 0x00;
+
+  util_buffer_setup(p_buf, (s_p_mem + 0x1100), 0x100);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_STA(p_buf, k_abs, 0x1108);
+  /* 0x1107 */
+  emit_LDA(p_buf, k_zpg, 0xFF);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_STA(p_buf, k_abs, 0x110F);
+  /* 0x110E */
+  emit_LDA(p_buf, k_zpg, 0xFF);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -17);
+  emit_EXIT(p_buf);
+
+  state_6502_set_pc(s_p_state_6502, 0x1100);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1108));
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x110F));
+  jit_test_expect_block_invalidated(0, 0x1102);
 }
 
 static void
