@@ -748,7 +748,7 @@ jit_compile(struct jit_struct* p_jit,
     }
     log_do_log(k_log_jit,
                k_log_info,
-               "compile @$%.4X-$%.4X [pc @%p], %s at ticks %"PRIu64,
+               "compile @$%.4X-$%.4X [host %p], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
                p_host_cpu_ip,
