@@ -152,7 +152,6 @@ struct video_struct {
 
   /* 6845 state. */
   uint64_t crtc_frames;
-  int is_even_interlace_frame;
   int is_odd_interlace_frame;
   uint8_t horiz_counter;
   uint8_t scanline_counter;
@@ -476,8 +475,6 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
 
 static inline void
 video_update_odd_even_frame(struct video_struct* p_video) {
-  p_video->is_even_interlace_frame = (p_video->is_interlace &&
-                                      !(p_video->crtc_frames & 1));
   p_video->is_odd_interlace_frame = (p_video->is_interlace &&
                                      (p_video->crtc_frames & 1));
 }
@@ -1497,7 +1494,6 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
 
   /* CRTC non-register state. */
   p_video->crtc_frames = 0;
-  p_video->is_even_interlace_frame = 1;
   p_video->is_odd_interlace_frame = 0;
   p_video->horiz_counter = 0;
   p_video->scanline_counter = 0;
