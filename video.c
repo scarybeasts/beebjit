@@ -2132,13 +2132,19 @@ video_get_crtc_state(struct video_struct* p_video,
                      uint8_t* p_horiz_counter,
                      uint8_t* p_scanline_counter,
                      uint8_t* p_vert_counter,
-                     uint16_t* p_address_counter) {
+                     uint16_t* p_address_counter,
+                     uint64_t* p_crtc_frames,
+                     int* p_is_in_vert_adjust,
+                     int* p_is_in_dummy_raster) {
   video_advance_crtc_timing(p_video);
 
   *p_horiz_counter = p_video->horiz_counter;
   *p_scanline_counter = p_video->scanline_counter;
   *p_vert_counter = p_video->vert_counter;
   *p_address_counter = (uint16_t) p_video->address_counter;
+  *p_crtc_frames = p_video->crtc_frames;
+  *p_is_in_vert_adjust = p_video->is_in_vert_adjust;
+  *p_is_in_dummy_raster = p_video->in_dummy_raster;
 }
 
 #include "test-video.c"
