@@ -516,7 +516,9 @@ teletext_render(struct teletext_struct* p_teletext,
   uint32_t bg_color = p_teletext->bg_color;
 
   if (!p_teletext->curr_dispen) {
-    *p_out = s_render_character_1MHz_black;
+    if (p_out) {
+      *p_out = s_render_character_1MHz_black;
+    }
     if (p_next_out) {
       *p_next_out = s_render_character_1MHz_black;
     }
