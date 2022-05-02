@@ -1019,6 +1019,30 @@ video_test_inactive_advance() {
   test_expect_u32(0, g_p_video->in_vsync);
 }
 
+static void
+video_test_no_dummy_raster() {
+  /* Test that the dummy raster scanline doesn't happen if interlace is turned
+   * off part-way through an even field.
+   * Confirmed on real hardware.
+   */
+  uint64_t ticks = (k_ticks_mode7_per_frame - k_ticks_mode7_per_scanline);
+
+  /* Advance to half a scanline before the dummy raster. */
+  (void) timing_advance_time_delta(g_p_timing, ticks);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+
+  /* Turn off interlace. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+
+  /* Advance half a scanline -- should not enter dummy raster. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode7_per_scanline / 2));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+}
+
 void
 video_test() {
   video_test_init();
@@ -1091,5 +1115,9 @@ video_test() {
 
   video_test_init();
   video_test_inactive_advance();
+  video_test_end();
+
+  video_test_init();
+  video_test_no_dummy_raster();
   video_test_end();
 }

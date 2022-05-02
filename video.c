@@ -243,8 +243,7 @@ video_start_new_frame(struct video_struct* p_video) {
   assert(!p_video->is_vert_adjust_pending);
   p_video->is_in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
-  p_video->do_dummy_raster = (p_video->is_interlace &&
-                              p_video->is_odd_interlace_frame);
+  p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
@@ -422,8 +421,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   p_video->in_vsync = 1;
   p_video->had_vsync_this_row = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
-  p_video->do_dummy_raster = (p_video->is_interlace &&
-                              p_video->is_odd_interlace_frame);
+  p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   if (p_system_via) {
     via_set_CA1(p_system_via, 1);
   }
@@ -754,7 +752,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->is_vert_adjust_pending = 0;
       p_video->is_in_vert_adjust = 1;
     } else if (p_video->is_end_of_frame_latched) {
-      if (p_video->do_dummy_raster) {
+      if (p_video->is_interlace && p_video->do_dummy_raster) {
         p_video->in_dummy_raster = 1;
       } else {
         video_start_new_frame(p_video);
@@ -862,7 +860,7 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
   if (p_video->horiz_counter != (is_odd_field * p_video->half_r0)) {
     return 0;
   }
-  if (p_video->do_dummy_raster != is_odd_field) {
+  if (p_video->do_dummy_raster != p_video->is_odd_interlace_frame) {
     return 0;
   }
   if (p_video->is_end_of_main_latched) {
