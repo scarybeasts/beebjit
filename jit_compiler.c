@@ -1679,11 +1679,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
-  /* 3) Walk the opcode list; add countdown checks and calculate cycle counts.
-   */
-  jit_compiler_setup_cycle_counts(p_compiler);
-
-  /* 4) Run the pre-rewrite optimizer across the list of opcodes. */
+  /* 3) Run the pre-rewrite optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
     struct jit_opcode_details* p_last_details =
         jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
@@ -1691,6 +1687,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       jit_compiler_make_last_opcode(p_compiler, p_last_details);
     }
   }
+
+  /* 4) Walk the opcode list; add countdown checks and calculate cycle counts.
+   * This must be done after the pre-rewrite optimized path above, which might
+   * adjust cycle counts to be more concrete.
+   */
+  jit_compiler_setup_cycle_counts(p_compiler);
 
   /* 5) Offer the asm backend the chance to rewrite. Most significantly,
    * this is used as a coalesce pass. For example, the CISC-y x64 can take our

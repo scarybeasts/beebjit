@@ -863,8 +863,21 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 15);
   emit_JMP(p_buf, k_abs, 0xCC40);
 
-  /* Exit sequence. */
+  /* Check instruction timings with "known Y" optimization, part 3. */
   set_new_index(p_buf, 0x0C40);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_JMP(p_buf, k_abs, 0xCC52);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 18);
+  emit_JMP(p_buf, k_abs, 0xCC80);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0C80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

@@ -865,6 +865,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
         /* Merge any branch-not-taken countdown fixup into the countdown check
          * subtraction itself.
          */
+        assert(p_opcode->cycles_run_start >= 0);
         p_countdown_uop = p_uop;
         if (p_add_cycles_uop != NULL) {
           if (p_countdown_uop->value2 >= p_add_cycles_uop->value1) {
