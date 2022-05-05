@@ -799,7 +799,7 @@ check_r7:
        */
       teletext_RA_ISV_changed(p_video->p_teletext,
                               p_video->is_odd_interlace_frame,
-                              1);
+                              (r4 >= r6));
     } else {
       teletext_RA_ISV_changed(p_video->p_teletext,
                               p_video->scanline_counter,
