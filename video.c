@@ -654,29 +654,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           p_video->hsync_tick_counter = p_video->hsync_pulse_width;
         }
       }
-      if (!p_video->cursor_disabled) {
-        if ((address_counter == cursor_addr) &&
-            p_video->has_hit_cursor_line_start &&
-            !p_video->has_hit_cursor_line_end &&
-            (!p_video->cursor_flashing || (p_video->crtc_frames &
-                                           p_video->cursor_flash_mask))) {
-          p_video->cursor_skew_counter = p_video->cursor_skew;
-        }
-        if (p_video->cursor_skew_counter >= 0) {
-          p_video->cursor_skew_counter--;
-          if (p_video->cursor_skew_counter == -1) {
-            /* EMU: cursor _does_ display if master display enable is off, but
-             * it's within the horiz / vert border.
-             * Also note, the horiz / vert enable must be checked at the time
-             * the skew counter expires and not the time we trigger the cursor
-             * address match.
-             */
-            if (p_video->display_enable_bits == k_video_display_enable_all) {
-              render_cursor(p_render);
-            }
-          }
-        }
-      }
 
       /* Handle maintaining the DISPEN history for skew. */
       p_video->dispen_shifts[2] = p_video->dispen_shifts[1];
@@ -695,6 +672,30 @@ video_advance_crtc_timing(struct video_struct* p_video) {
          */
         this_external_dispen &= !!(address_counter & 0x2000);
         teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
+      }
+
+      if (!p_video->cursor_disabled) {
+        if ((address_counter == cursor_addr) &&
+            p_video->has_hit_cursor_line_start &&
+            !p_video->has_hit_cursor_line_end &&
+            (!p_video->cursor_flashing || (p_video->crtc_frames &
+                                           p_video->cursor_flash_mask))) {
+          p_video->cursor_skew_counter = p_video->cursor_skew;
+        }
+        if (p_video->cursor_skew_counter >= 0) {
+          p_video->cursor_skew_counter--;
+          if (p_video->cursor_skew_counter == -1) {
+            /* EMU: cursor _does_ display if master display enable is off, but
+             * it's within the horiz / vert border.
+             * Also note, the horiz / vert enable must be checked at the time
+             * the skew counter expires and not the time we trigger the cursor
+             * address match.
+             */
+            if (p_video->dispen_shifts[p_video->cursor_skew]) {
+              render_cursor(p_render);
+            }
+          }
+        }
       }
 
       data = video_read_data_byte(p_video,
