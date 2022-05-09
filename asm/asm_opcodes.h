@@ -50,6 +50,7 @@ enum {
   k_opcode_addr_end,
 
   /* Value opcodes, 0x300 - 0x3FF. */
+  k_opcode_value_begin = 0x300,
   k_opcode_flags_nz_a,
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,
