@@ -2440,8 +2440,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xE300);
 
-  /* End of test. */
+  /* Test a dynamic operand attempt on BIT zpg. */
   set_new_index(p_buf, 0x2300);
+  emit_LDA(p_buf, k_imm, 0x24);   /* BIT $00 */
+  emit_STA(p_buf, k_abs, 0x5300);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5301);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5302);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x5301);
+  emit_JSR(p_buf, 0x5300);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_STX(p_buf, k_zpg, 0xA1);
+  emit_LDX(p_buf, k_imm, 0xA1);
+  emit_STX(p_buf, k_abs, 0x5301);
+  emit_CLV(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x5300);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE340);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2340);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
