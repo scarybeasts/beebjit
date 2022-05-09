@@ -426,7 +426,6 @@ render_function_teletext_interlaced(struct render_struct* p_render,
     }
     p_render->p_render_pos += 16;
   } else {
-    teletext_render(p_teletext, NULL, NULL);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
