@@ -367,10 +367,6 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->crtc_frames);
-  /* is_odd_frame should be 0 at the start of a new frame, when interlace is
-   * off.
-   */
-  test_expect_u32(0, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
 
   countdown = timing_advance_time(g_p_timing, (countdown - (15 * 128)));
@@ -463,7 +459,6 @@ video_test_6845_corner_cases() {
   test_expect_u32(9, g_p_video->scanline_counter);
   test_expect_u32(30, g_p_video->vert_counter);
   test_expect_u32(4, g_p_video->crtc_frames);
-  test_expect_u32(1, g_p_video->is_odd_frame);
   /* Advance to mid-line because latch occurs at C0=2. */
   countdown = timing_advance_time(g_p_timing, (countdown - 64));
   video_advance_crtc_timing(g_p_video);
@@ -487,26 +482,25 @@ video_test_6845_corner_cases() {
   video_crtc_write(g_p_video, 1, 50);
   countdown = timing_get_countdown(g_p_timing);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_odd_frame);
-  countdown = timing_advance_time(g_p_timing, (countdown - (311 * 128)));
-  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+  countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   /* Frame counter didn't advance because R6 wasn't hit. */
   test_expect_u32(4, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_odd_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
 
   /* Test R6=0. */
   countdown = timing_advance_time(g_p_timing, (countdown - (32 * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(2, g_p_video->scanline_counter);
-  /* R6 to 0. */
+  /* R6 to 0 and interlace off. */
   video_crtc_write(g_p_video, 0, 6);
   video_crtc_write(g_p_video, 1, 0);
   countdown = timing_get_countdown(g_p_timing);
-  countdown = timing_advance_time(g_p_timing, (countdown - (279 * 128)));
+  countdown = timing_advance_time(g_p_timing, (countdown - (278 * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);

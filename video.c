@@ -421,18 +421,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   p_video->in_vsync = 1;
   p_video->had_vsync_this_row = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
-
-  /* If interlace is off, the frame bit is held at 0.
-   * This enables determinstic launch into interlace mode, with the frames
-   * starting even / odd / even / odd....
-   * We discovered this in the Stardot thread:
-   * https://stardot.org.uk/forums/viewtopic.php?f=54&t=24636
-   */
-  if (!p_video->is_interlace) {
-    p_video->is_odd_frame = 0;
-  }
   p_video->do_dummy_raster = p_video->is_odd_frame;
-
   if (p_system_via) {
     via_set_CA1(p_system_via, 1);
   }
