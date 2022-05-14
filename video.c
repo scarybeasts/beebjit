@@ -152,7 +152,7 @@ struct video_struct {
 
   /* 6845 state. */
   uint64_t crtc_frames;
-  int is_odd_frame;
+  int is_odd_interlace_frame;
   uint8_t horiz_counter;
   uint8_t scanline_counter;
   uint8_t vert_counter;
@@ -243,7 +243,7 @@ video_start_new_frame(struct video_struct* p_video) {
   assert(!p_video->is_vert_adjust_pending);
   p_video->is_in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
-  p_video->do_dummy_raster = p_video->is_odd_frame;
+  p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
@@ -382,7 +382,7 @@ video_check_go_active(struct video_struct* p_video) {
   /* Wrestle the renderer to match the current odd or even interlace frame
    * state.
    */
-  if (p_video->is_interlace && p_video->is_odd_frame) {
+  if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
     render_set_horiz_beam_pos(p_render, 512);
   } else {
     render_set_horiz_beam_pos(p_render, 0);
@@ -421,7 +421,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   p_video->in_vsync = 1;
   p_video->had_vsync_this_row = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
-  p_video->do_dummy_raster = p_video->is_odd_frame;
+  p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   if (p_system_via) {
     via_set_CA1(p_system_via, 1);
   }
@@ -460,7 +460,7 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
   if (!p_video->is_interlace) {
     return 0;
   }
-  if (!p_video->is_odd_frame) {
+  if (!p_video->is_odd_interlace_frame) {
     return 0;
   }
   if (p_video->in_vsync && (p_video->vsync_scanline_counter == 0)) {
@@ -719,7 +719,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->vsync_scanline_counter--;
       }
       if (p_video->vsync_scanline_counter == 0) {
-        if (!p_video->is_interlace || !p_video->is_odd_frame) {
+        if (!p_video->is_interlace || !p_video->is_odd_interlace_frame) {
           assert(!check_vsync_at_half_r0);
           video_set_vsync_lower_state(p_video);
         }
@@ -774,14 +774,14 @@ check_r6:
       p_video->display_enable_bits &= ~k_video_display_enable_vert;
       /* On the Hitachi 6845, frame counting is done on R6 hit. */
       p_video->crtc_frames++;
-      p_video->is_odd_frame = !p_video->is_odd_frame;
+      p_video->is_odd_interlace_frame = (p_video->crtc_frames & 1);
     }
 
 check_r7:
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
     r7_hit = (p_video->vert_counter == r7);
     if (r7_hit && !p_video->in_vsync && !p_video->had_vsync_this_row) {
-      if (!p_video->is_interlace || !p_video->is_odd_frame) {
+      if (!p_video->is_interlace || !p_video->is_odd_interlace_frame) {
         assert(!check_vsync_at_half_r0);
         video_set_vsync_raise_state(p_video);
       }
@@ -799,7 +799,7 @@ check_r7:
        * for interlace odd frames.
        */
       teletext_RA_ISV_changed(p_video->p_teletext,
-                              p_video->is_odd_frame,
+                              p_video->is_odd_interlace_frame,
                               (r4 >= r6));
     } else {
       teletext_RA_ISV_changed(p_video->p_teletext,
@@ -844,7 +844,7 @@ video_get_flash(struct video_struct* p_video) {
 
 static int
 video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
-  int is_odd_field = (p_video->is_interlace && p_video->is_odd_frame);
+  int is_odd_field = (p_video->is_interlace && p_video->is_odd_interlace_frame);
   assert(p_video->in_vsync == is_raise);
   if (p_video->vert_counter !=
       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
@@ -861,7 +861,7 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
   if (p_video->horiz_counter != (is_odd_field * p_video->half_r0)) {
     return 0;
   }
-  if (p_video->do_dummy_raster != p_video->is_odd_frame) {
+  if (p_video->do_dummy_raster != p_video->is_odd_interlace_frame) {
     return 0;
   }
   if (p_video->is_end_of_main_latched) {
@@ -1032,8 +1032,8 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   assert(p_video->has_sane_framing_parameters);
   /* Jump from previous state (vsync end) to new state (vsync start). */
   p_video->crtc_frames++;
-  p_video->is_odd_frame = !p_video->is_odd_frame;
-  if (p_video->is_interlace && p_video->is_odd_frame) {
+  p_video->is_odd_interlace_frame = (p_video->crtc_frames & 1);
+  if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
     p_video->horiz_counter = p_video->half_r0;
   } else {
     p_video->horiz_counter = 0;
@@ -1490,7 +1490,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
 
   /* CRTC non-register state. */
   p_video->crtc_frames = 0;
-  p_video->is_odd_frame = 0;
+  p_video->is_odd_interlace_frame = 0;
   p_video->horiz_counter = 0;
   p_video->scanline_counter = 0;
   p_video->vert_counter = 0;
@@ -2129,7 +2129,6 @@ video_get_crtc_state(struct video_struct* p_video,
                      uint8_t* p_vert_counter,
                      uint16_t* p_address_counter,
                      uint64_t* p_crtc_frames,
-                     int* p_is_odd_frame,
                      int* p_is_in_vert_adjust,
                      int* p_is_in_dummy_raster) {
   video_advance_crtc_timing(p_video);
@@ -2139,7 +2138,6 @@ video_get_crtc_state(struct video_struct* p_video,
   *p_vert_counter = p_video->vert_counter;
   *p_address_counter = (uint16_t) p_video->address_counter;
   *p_crtc_frames = p_video->crtc_frames;
-  *p_is_odd_frame = p_video->is_odd_frame;
   *p_is_in_vert_adjust = p_video->is_in_vert_adjust;
   *p_is_in_dummy_raster = p_video->in_dummy_raster;
 }

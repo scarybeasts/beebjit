@@ -72,7 +72,6 @@ void video_get_crtc_state(struct video_struct* p_video,
                           uint8_t* p_vert_counter,
                           uint16_t* p_address_counter,
                           uint64_t* p_crtc_frames,
-                          int* p_is_odd_frame,
                           int* p_is_in_vert_adjust,
                           int* p_is_in_dummy_raster);
 

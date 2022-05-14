@@ -591,7 +591,6 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
   uint8_t vert_counter;
   uint16_t address_counter;
   uint64_t crtc_frames;
-  int is_odd_frame;
   int is_in_vert_adjust;
   int is_in_dummy_raster;
   uint8_t regs[k_video_crtc_num_registers];
@@ -610,19 +609,17 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                        &vert_counter,
                        &address_counter,
                        &crtc_frames,
-                       &is_odd_frame,
                        &is_in_vert_adjust,
                        &is_in_dummy_raster);
   video_get_crtc_registers(p_video, &regs[0]);
 
   (void) printf("horiz %"PRId8" scanline %"PRId8" vert %"PRId8
-                " addr $%.4"PRIX16" frames %"PRIu64" is_odd_frame %d\n",
+                " addr $%.4"PRIX16" frames %"PRIu64"\n",
                 horiz_counter,
                 scanline_counter,
                 vert_counter,
                 address_counter,
-                crtc_frames,
-                is_odd_frame);
+                crtc_frames);
   (void) printf("is_in_vert_adjust %d is_in_dummy_raster %d\n",
                 is_in_vert_adjust,
                 is_in_dummy_raster);
@@ -1194,7 +1191,6 @@ debug_read_variable_crtc_c0(void* p, uint32_t index) {
   uint8_t vert_counter;
   uint16_t addr_counter;
   uint64_t crtc_frames;
-  int is_odd_frame;
   int is_in_vert_adjust;
   int is_in_dummy_raster;
   (void) index;
@@ -1204,7 +1200,6 @@ debug_read_variable_crtc_c0(void* p, uint32_t index) {
                        &vert_counter,
                        &addr_counter,
                        &crtc_frames,
-                       &is_odd_frame,
                        &is_in_vert_adjust,
                        &is_in_dummy_raster);
   return horiz_counter;
@@ -1218,7 +1213,6 @@ debug_read_variable_crtc_c4(void* p, uint32_t index) {
   uint8_t vert_counter;
   uint16_t addr_counter;
   uint64_t crtc_frames;
-  int is_odd_frame;
   int is_in_vert_adjust;
   int is_in_dummy_raster;
   (void) index;
@@ -1228,7 +1222,6 @@ debug_read_variable_crtc_c4(void* p, uint32_t index) {
                        &vert_counter,
                        &addr_counter,
                        &crtc_frames,
-                       &is_odd_frame,
                        &is_in_vert_adjust,
                        &is_in_dummy_raster);
   return vert_counter;
@@ -1242,7 +1235,6 @@ debug_read_variable_crtc_c9(void* p, uint32_t index) {
   uint8_t vert_counter;
   uint16_t addr_counter;
   uint64_t crtc_frames;
-  int is_odd_frame;
   int is_in_vert_adjust;
   int is_in_dummy_raster;
   (void) index;
@@ -1252,7 +1244,6 @@ debug_read_variable_crtc_c9(void* p, uint32_t index) {
                        &vert_counter,
                        &addr_counter,
                        &crtc_frames,
-                       &is_odd_frame,
                        &is_in_vert_adjust,
                        &is_in_dummy_raster);
   return scanline_counter;
@@ -1266,7 +1257,6 @@ debug_read_variable_crtc_ma(void* p, uint32_t index) {
   uint8_t vert_counter;
   uint16_t addr_counter;
   uint64_t crtc_frames;
-  int is_odd_frame;
   int is_in_vert_adjust;
   int is_in_dummy_raster;
   (void) index;
@@ -1276,7 +1266,6 @@ debug_read_variable_crtc_ma(void* p, uint32_t index) {
                        &vert_counter,
                        &addr_counter,
                        &crtc_frames,
-                       &is_odd_frame,
                        &is_in_vert_adjust,
                        &is_in_dummy_raster);
   return addr_counter;
