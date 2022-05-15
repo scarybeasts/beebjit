@@ -453,34 +453,12 @@ video_set_vsync_lower_state(struct video_struct* p_video) {
       timing_get_total_timer_ticks(p_video->p_timing);
 }
 
-static inline int
-video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
-  if (!p_video->is_interlace) {
-    return 0;
-  }
-  if (p_video->is_odd_frame) {
-    return 0;
-  }
-  if (p_video->in_vsync && (p_video->vsync_scanline_counter == 0)) {
-    return 1;
-  }
-  if ((p_video->vert_counter ==
-       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) &&
-      (p_video->scanline_counter == 0) &&
-      !p_video->had_vsync_this_row &&
-      !p_video->in_vsync) {
-    return 1;
-  }
-  return 0;
-}
-
 void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t data;
   uint64_t ticks;
   uint64_t ticks_target;
   uint64_t ticks_inc;
-  int check_vsync_at_half_r0;
 
   int r0_hit;
   int r1_hit;
@@ -607,14 +585,19 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Wraps 0xFF -> 0; uint8_t type. */
     p_video->horiz_counter++;
 
-    if (check_vsync_at_half_r0 &&
-        (p_video->horiz_counter == p_video->half_r0)) {
-      if (p_video->in_vsync) {
-        video_set_vsync_lower_state(p_video);
-      } else {
-        video_set_vsync_raise_state(p_video);
+    if (r7_hit || p_video->in_vsync) {
+      if (p_video->is_interlace &&
+          !p_video->is_odd_frame &&
+          (p_video->horiz_counter == p_video->half_r0)) {
+        if (!p_video->had_vsync_this_row &&
+            !p_video->in_vsync &&
+            (p_video->scanline_counter == 0)) {
+          video_set_vsync_raise_state(p_video);
+        } else if (p_video->in_vsync &&
+                   (p_video->vsync_scanline_counter == 0)) {
+          video_set_vsync_lower_state(p_video);
+        }
       }
-      check_vsync_at_half_r0 = 0;
     }
 
     if (p_video->is_rendering_active) {
@@ -718,7 +701,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
       if (p_video->vsync_scanline_counter == 0) {
         if (!p_video->is_interlace || p_video->is_odd_frame) {
-          assert(!check_vsync_at_half_r0);
           video_set_vsync_lower_state(p_video);
         }
       }
@@ -775,11 +757,9 @@ check_r6:
     }
 
 check_r7:
-    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
     r7_hit = (p_video->vert_counter == r7);
     if (r7_hit && !p_video->in_vsync && !p_video->had_vsync_this_row) {
       if (!p_video->is_interlace || p_video->is_odd_frame) {
-        assert(!check_vsync_at_half_r0);
         video_set_vsync_raise_state(p_video);
       }
     }
