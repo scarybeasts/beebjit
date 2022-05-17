@@ -164,9 +164,12 @@ struct video_struct {
   int is_vert_adjust_pending;
   int is_in_vert_adjust;
   int in_vsync;
+  int is_even_vsync;
+  int is_odd_vsync;
   int in_hsync;
   int in_dummy_raster;
-  int had_vsync_this_row;
+  int had_odd_vsync_this_row;
+  int had_even_vsync_this_row;
   uint32_t display_enable_bits;
   int has_hit_cursor_line_start;
   int has_hit_cursor_line_end;
@@ -238,7 +241,8 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->vert_counter = 0;
   p_video->vert_adjust_counter = 0;
 
-  p_video->had_vsync_this_row = 0;
+  p_video->had_odd_vsync_this_row = 0;
+  p_video->had_even_vsync_this_row = 0;
   assert(!p_video->is_vert_adjust_pending);
   p_video->is_in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
@@ -409,48 +413,45 @@ video_flyback_callback(void* p) {
 }
 
 static void
-video_set_vsync_raise_state(struct video_struct* p_video) {
-  struct via_struct* p_system_via = p_video->p_system_via;
+video_update_VSYNC(struct video_struct* p_video) {
+  struct via_struct* p_system_via;
+  int is_new_vsync;
 
-  assert(!p_video->in_vsync);
-  assert(!p_video->had_vsync_this_row);
-  assert(p_video->vsync_scanline_counter == 0);
+  if (p_video->is_interlace && !p_video->is_odd_frame) {
+    is_new_vsync = p_video->is_even_vsync;
+  } else {
+    is_new_vsync = p_video->is_odd_vsync;
+  }
 
-  p_video->num_vsyncs++;
-  p_video->in_vsync = 1;
-  p_video->had_vsync_this_row = 1;
-  p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
+  if (is_new_vsync == p_video->in_vsync) {
+    return;
+  }
+
+  p_video->in_vsync = is_new_vsync;
+
+  p_system_via = p_video->p_system_via;
   if (p_system_via) {
-    via_set_CA1(p_system_via, 1);
+    via_set_CA1(p_system_via, is_new_vsync);
   }
 
-  if (p_video->is_rendering_active) {
-    /* Painting occurs in the renderer's flyback callback;
-     * see video_flyback_callback().
-     */
-    render_vsync(p_video->p_render);
+  if (is_new_vsync) {
+    p_video->num_vsyncs++;
+
+    if (p_video->is_rendering_active) {
+      /* Painting occurs in the renderer's flyback callback;
+       * see video_flyback_callback().
+       */
+      render_vsync(p_video->p_render);
+    }
+
+    p_video->last_vsync_raise_ticks =
+        timing_get_total_timer_ticks(p_video->p_timing);
+  } else {
+    teletext_VSYNC_changed(p_video->p_teletext, 0);
+
+    p_video->last_vsync_lower_ticks =
+        timing_get_total_timer_ticks(p_video->p_timing);
   }
-
-  p_video->last_vsync_raise_ticks =
-      timing_get_total_timer_ticks(p_video->p_timing);
-}
-
-static void
-video_set_vsync_lower_state(struct video_struct* p_video) {
-  struct via_struct* p_system_via = p_video->p_system_via;
-
-  assert(p_video->in_vsync);
-  assert(p_video->vsync_scanline_counter == 0);
-
-  p_video->in_vsync = 0;
-  if (p_system_via) {
-    via_set_CA1(p_system_via, 0);
-  }
-
-  teletext_VSYNC_changed(p_video->p_teletext, 0);
-
-  p_video->last_vsync_lower_ticks =
-      timing_get_total_timer_ticks(p_video->p_timing);
 }
 
 void
@@ -585,18 +586,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Wraps 0xFF -> 0; uint8_t type. */
     p_video->horiz_counter++;
 
-    if (r7_hit || p_video->in_vsync) {
-      if (p_video->is_interlace &&
-          !p_video->is_odd_frame &&
-          (p_video->horiz_counter == p_video->half_r0)) {
-        if (!p_video->had_vsync_this_row &&
-            !p_video->in_vsync &&
-            (p_video->scanline_counter == 0)) {
-          video_set_vsync_raise_state(p_video);
-        } else if (p_video->in_vsync &&
-                   (p_video->vsync_scanline_counter == 0)) {
-          video_set_vsync_lower_state(p_video);
+    if (r7_hit || p_video->is_even_vsync) {
+      if (p_video->horiz_counter == p_video->half_r0) {
+        if (!p_video->had_even_vsync_this_row) {
+          p_video->had_even_vsync_this_row = 1;
+          p_video->is_even_vsync = 1;
+        } else if (p_video->vsync_scanline_counter == 0) {
+          p_video->is_even_vsync = 0;
         }
+        video_update_VSYNC(p_video);
       }
     }
 
@@ -700,9 +698,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->vsync_scanline_counter--;
       }
       if (p_video->vsync_scanline_counter == 0) {
-        if (!p_video->is_interlace || p_video->is_odd_frame) {
-          video_set_vsync_lower_state(p_video);
-        }
+        p_video->is_odd_vsync = 0;
+        video_update_VSYNC(p_video);
       }
     }
 
@@ -719,7 +716,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (r9_hit && !p_video->is_in_vert_adjust) {
       p_video->has_hit_cursor_line_start = 0;
       p_video->has_hit_cursor_line_end = 0;
-      p_video->had_vsync_this_row = 0;
+      p_video->had_odd_vsync_this_row = 0;
+      p_video->had_even_vsync_this_row = 0;
 
       p_video->scanline_counter = 0;
       p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
@@ -758,10 +756,13 @@ check_r6:
 
 check_r7:
     r7_hit = (p_video->vert_counter == r7);
-    if (r7_hit && !p_video->in_vsync && !p_video->had_vsync_this_row) {
-      if (!p_video->is_interlace || p_video->is_odd_frame) {
-        video_set_vsync_raise_state(p_video);
+    if (r7_hit && !p_video->had_odd_vsync_this_row) {
+      p_video->had_odd_vsync_this_row = 1;
+      p_video->is_odd_vsync = 1;
+      if (!p_video->in_vsync) {
+        p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
       }
+      video_update_VSYNC(p_video);
     }
 
     if (p_video->scanline_counter == p_video->cursor_start_line) {
@@ -1008,16 +1009,34 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   /* Jump from previous state (vsync end) to new state (vsync start). */
   p_video->is_odd_frame = (p_video->crtc_frames & 1);
   p_video->crtc_frames++;
-  if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
-    p_video->horiz_counter = p_video->half_r0;
+  assert(!p_video->is_odd_vsync);
+  assert(p_video->had_odd_vsync_this_row);
+  assert(p_video->had_even_vsync_this_row);
+  p_video->is_odd_vsync = 1;
+  if (p_video->is_interlace) {
+    if (p_video->crtc_frames & 1) {
+      /* Jump to interlace even frame. */
+      assert(p_video->horiz_counter == 0);
+      assert(p_video->is_even_vsync);
+      p_video->horiz_counter = p_video->half_r0;
+    } else {
+      /* Jump to interlace odd frame. */
+      assert(p_video->horiz_counter == p_video->half_r0);
+      assert(!p_video->is_even_vsync);
+      p_video->horiz_counter = 0;
+    }
   } else {
-    p_video->horiz_counter = 0;
+    /* Non-interlace. */
+    assert(p_video->horiz_counter == 0);
+    assert(p_video->is_even_vsync);
+    p_video->is_even_vsync = 0;
+    p_video->had_even_vsync_this_row = 0;
   }
+  p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   p_video->scanline_counter = 0;
   p_video->prev_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  p_video->had_vsync_this_row = 0;
-  video_set_vsync_raise_state(p_video);
+  video_update_VSYNC(p_video);
 
   p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
 
@@ -1035,7 +1054,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
   uint32_t r0;
 
   assert(p_video->has_sane_framing_parameters);
-  assert(p_video->had_vsync_this_row);
+  assert(p_video->had_odd_vsync_this_row);
   assert(p_video->scanline_counter == 0);
   assert(p_video->vsync_scanline_counter == p_video->vsync_pulse_width);
   assert(p_video->vert_counter ==
@@ -1046,7 +1065,17 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
   p_video->vsync_scanline_counter = 0;
   p_video->prev_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  video_set_vsync_lower_state(p_video);
+  p_video->is_odd_vsync = 0;
+  if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
+    assert(p_video->horiz_counter == p_video->half_r0);
+    assert(p_video->had_even_vsync_this_row);
+    p_video->is_even_vsync = 0;
+  } else {
+    assert(p_video->horiz_counter == 0);
+    p_video->had_even_vsync_this_row = 1;
+    p_video->is_even_vsync = 1;
+  }
+  video_update_VSYNC(p_video);
 
   p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
 
@@ -1477,9 +1506,12 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->is_vert_adjust_pending = 0;
   p_video->is_in_vert_adjust = 0;
   p_video->in_vsync = 0;
+  p_video->is_even_vsync = 0;
+  p_video->is_odd_vsync = 0;
   p_video->in_hsync = 0;
   p_video->in_dummy_raster = 0;
-  p_video->had_vsync_this_row = 0;
+  p_video->had_odd_vsync_this_row = 0;
+  p_video->had_even_vsync_this_row = 0;
   p_video->display_enable_bits = k_video_display_enable_vert;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
@@ -2003,6 +2035,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       p_video->scanline_mask = 0x1F;
     }
     video_update_cursor_disabled(p_video);
+    video_update_VSYNC(p_video);
     break;
   case k_crtc_reg_cursor_start:
     p_video->cursor_flashing = !!(val & 0x40);
