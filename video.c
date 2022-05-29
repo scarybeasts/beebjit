@@ -96,6 +96,7 @@ struct video_struct {
 
   int log_timer;
   int opt_do_show_frame_boundaries;
+  int opt_do_hack_legacy_quest_cap;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -421,6 +422,14 @@ video_update_VSYNC(struct video_struct* p_video) {
     is_new_vsync = p_video->is_even_vsync;
   } else {
     is_new_vsync = p_video->is_odd_vsync;
+  }
+
+  if (p_video->opt_do_hack_legacy_quest_cap) {
+    if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
+      is_new_vsync = p_video->is_even_vsync;
+    } else {
+      is_new_vsync = p_video->is_odd_vsync;
+    }
   }
 
   if (is_new_vsync == p_video->in_vsync) {
@@ -1320,6 +1329,8 @@ video_create(uint8_t* p_bbc_mem,
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
   p_video->opt_do_show_frame_boundaries = util_has_option(
       p_options->p_opt_flags, "video:frame-boundaries");
+  p_video->opt_do_hack_legacy_quest_cap = util_has_option(
+      p_options->p_opt_flags, "video:hack-legacy-quest-cap");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
