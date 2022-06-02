@@ -1,4 +1,5 @@
 #include "../asm_defs_host.h"
+#include "../asm_tables_defs.h"
 #include "asm_calling_convention_x64.h"
 #include "asm_defs_registers_x64.h"
 

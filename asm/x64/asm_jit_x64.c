@@ -7,6 +7,7 @@
 #include "../asm_defs_host.h"
 #include "../asm_jit_defs.h"
 #include "../asm_opcodes.h"
+#include "../asm_tables_defs.h"
 #include "../asm_util.h"
 /* For REG_MEM_OFFSET. */
 #include "asm_defs_registers_x64.h"
@@ -15,7 +16,6 @@
 #include <limits.h>
 
 #define K_JIT_TRAMPOLINE_BYTES             16
-#define K_JIT_TRAMPOLINES_ADDR             0x80000000
 
 enum {
   k_opcode_x64_check_page_crossing_ABX = 0x1000,

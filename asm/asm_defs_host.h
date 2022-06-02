@@ -47,17 +47,4 @@
 #define K_STATE_6502_OFFSET_REG_HOST_FLAGS      32
 #define K_STATE_6502_OFFSET_REG_HOST_VALUE      36
 
-/* TODO: these are x64 backend specific, and don't belong here. */
-#define K_ASM_TABLE_ADDR                        0x50000000
-#define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
-#define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100
-#define K_ASM_TABLE_X64_FLAGS_TO_6502           0x50000200
-#define K_ASM_TABLE_PAGE_WRAP_CYCLE_INV         0x50000300
-#define K_ASM_TABLE_OF_TO_6502                  0x50000500
-#define K_ASM_TABLE_6502_FLAGS_TO_X64_OFFSET    0
-#define K_ASM_TABLE_6502_FLAGS_TO_MASK_OFFSET   0x100
-#define K_ASM_TABLE_X64_FLAGS_TO_6502_OFFSET    0x200
-#define K_ASM_TABLE_PAGE_WRAP_CYCLE_INV_OFFSET  0x300
-#define K_ASM_TABLE_OF_TO_6502_OFFSET           0x500
-
 #endif /* BEEBJIT_ASM_DEFS_HOST_H */
