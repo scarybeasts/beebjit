@@ -1033,6 +1033,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
       assert(p_video->horiz_counter == p_video->half_r0);
       assert(!p_video->is_even_vsync);
       p_video->horiz_counter = 0;
+      p_video->had_even_vsync_this_row = 0;
     }
   } else {
     /* Non-interlace. */
