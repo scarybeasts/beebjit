@@ -757,7 +757,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v = p_mem_read[addr];                                                       \
   INSTR;                                                                      \
   p_mem_write[addr] = v;                                                      \
-  cycles_this_instruction = 5;
+  cycles_this_instruction = 6;
 
 #define INTERP_LOAD_NZ_FLAGS(reg_name)                                        \
   nf = !!(reg_name & 0x80);                                                   \
