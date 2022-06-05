@@ -2464,8 +2464,31 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE340);
 
-  /* End of test. */
+  /* Test for a loss of flags with the countdown sub optimization and
+   * self-modifying code.
+   */
   set_new_index(p_buf, 0x2340);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_PHA(p_buf);
+  emit_PLP(p_buf);                /* I only. */
+  emit_LDA(p_buf, k_imm, 0xA9);   /* LDA #0 */
+  emit_STA(p_buf, k_abs, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5341);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5342);
+  emit_JSR(p_buf, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x08);   /* PHP */
+  emit_STA(p_buf, k_abs, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x68);   /* PLA */
+  emit_STA(p_buf, k_abs, 0x5341);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Set Z flag. */
+  emit_JSR(p_buf, 0x5340);
+  emit_REQUIRE_EQ(p_buf, 0x36);   /* Check Z flag wasn't trashed. */
+  emit_JMP(p_buf, k_abs, 0xE380);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2380);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

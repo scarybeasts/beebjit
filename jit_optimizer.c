@@ -894,7 +894,11 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
        * trigger until after the opcode immediately following the countdown
        * check.
        */
-      p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
+      /* Disabled: buggy, hit by Exile.
+       * Optimization is worthwhile, and can likely be re-enabled but this
+       * will require some work.
+       * p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
+       */
     }
 
     /* This is subtle, but if we're in the middle of resolving self-modification
