@@ -831,7 +831,7 @@ video_get_flash(struct video_struct* p_video) {
 
 static int
 video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
-  int is_odd_field = (p_video->is_interlace && (p_video->crtc_frames & 1));
+  int is_even_field = (p_video->is_interlace && (p_video->crtc_frames & 1));
   assert(p_video->in_vsync == is_raise);
   assert(p_video->has_sane_framing_parameters);
   if (p_video->vert_counter !=
@@ -846,12 +846,14 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
       (is_raise * p_video->vsync_pulse_width)) {
     return 0;
   }
-  if (p_video->horiz_counter != (is_odd_field * p_video->half_r0)) {
+  if (p_video->horiz_counter != (is_even_field * p_video->half_r0)) {
     return 0;
   }
   if (p_video->is_end_of_main_latched) {
     return 0;
   }
+  assert(!p_video->is_end_of_vert_adjust_latched);
+  assert(!p_video->is_end_of_frame_latched);
   assert(!p_video->is_vert_adjust_pending);
   assert(!p_video->is_in_vert_adjust);
   assert(!p_video->in_dummy_raster);
