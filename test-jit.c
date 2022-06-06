@@ -1364,8 +1364,10 @@ jit_test_compile_binary(void) {
 #if defined(__x86_64__)
   /* je     0x61d0180
    * sub    r15, 0x7
+   * TODO: it's currently lea, not sub, due to reverting an optimization.
+   * p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x49\x83\xef\x07";
    */
-  p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x49\x83\xef\x07";
+  p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x4d\x8d\x7f\xf9";
   expect_len = 10;
 #elif defined(__aarch64__)
   /* b.eq  0x61d0180
@@ -1396,7 +1398,7 @@ jit_test_compile_binary(void) {
    * jb     0x61d8380
    */
   p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
-             "\x0f\x82\x6a\x03\x00\x00";
+             "\x0f\x82\x65\x03\x00\x00";
   expect_len = 16;
 #elif defined(__aarch64__)
   /* ldrb  w0, [x27, #69]
