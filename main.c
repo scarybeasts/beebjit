@@ -663,6 +663,7 @@ beebjit_main(void) {
 
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
+        log_do_log(k_log_misc, k_log_info, "BBC thread exited");
         break;
       }
 
@@ -690,6 +691,7 @@ beebjit_main(void) {
           main_save_frame(p_frames_dir, save_frame_count, p_render);
           save_frame_count++;
           if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
+            log_do_log(k_log_misc, k_log_info, "save frame count exit");
             exit(0);
           }
         }
@@ -707,6 +709,7 @@ beebjit_main(void) {
       os_window_process_events(p_window);
       if (os_window_is_closed(p_window)) {
         struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+        log_do_log(k_log_misc, k_log_info, "OS window closed");
         window_open = 0;
         if (!(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) &
               k_cpu_flag_exited)) {

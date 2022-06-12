@@ -505,7 +505,16 @@ os_window_process_events(struct os_window_struct* p_window) {
       }
       break;
     case ClientMessage:
+      assert(event.xclient.type == ClientMessage);
+      if (event.xclient.window != p_window->w) {
+        break;
+      }
       if ((Atom) event.xclient.data.l[0] == p_window->atom_delete_message) {
+        log_do_log(k_log_misc,
+                   k_log_info,
+                   "WM_DELETE_WINDOW message_type %d format %d",
+                   (int) event.xclient.message_type,
+                   (int) event.xclient.format);
         p_window->is_deleted = 1;
       }
       break;
