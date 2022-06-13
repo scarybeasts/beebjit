@@ -2071,6 +2071,7 @@ debug_callback_common(struct debug_struct* p_debug,
       uint64_t ticks_delta;
       struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
+      /* TODO: should probably be system ticks, not 6502 cycles. */
       uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
       if (timing_timer_is_running(p_timing, timer_id)) {
         (void) timing_stop_timer(p_timing, timer_id);
@@ -2079,6 +2080,10 @@ debug_callback_common(struct debug_struct* p_debug,
         ticks_delta = (parse_u64 - curr_cycles);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
+    } else if (!strcmp(p_command, "seek")) {
+      (void) bbc_replay_seek(p_bbc, (parse_int * 2000000ull));
+      p_debug->debug_running = 1;
+      break;
     } else if (!strcmp(p_command, "b") || !strcmp(p_command, "break")) {
       debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bm")) {
@@ -2414,6 +2419,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
   "fast               : toggle fast mode on/off\n"
+  "seek <s>           : seek a replay file to <s> seconds\n"
   );
     } else {
       (void) printf("???\n");

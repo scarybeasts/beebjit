@@ -90,6 +90,7 @@ void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 uint32_t bbc_get_run_result(struct bbc_struct* p_bbc);
 int bbc_check_do_break(struct bbc_struct* p_bbc);
+int bbc_replay_seek(struct bbc_struct* p_bbc, uint64_t seek_target);
 
 struct state_6502* bbc_get_6502(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);

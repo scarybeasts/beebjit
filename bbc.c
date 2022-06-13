@@ -2172,21 +2172,15 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
-static int
-bbc_try_queue_rewind(struct bbc_struct* p_bbc, uint64_t rewind_cycles) {
-  uint64_t rewind_to_cycles;
-  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+int
+bbc_replay_seek(struct bbc_struct* p_bbc, uint64_t seek_target) {
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   if (!keyboard_can_rewind(p_bbc->p_keyboard)) {
     return 0;
   }
 
-  rewind_to_cycles = 0;
-  if (cycles > rewind_cycles) {
-    rewind_to_cycles = (cycles - rewind_cycles);
-  }
-  p_bbc->rewind_to_cycles = rewind_to_cycles;
+  p_bbc->rewind_to_cycles = seek_target;
 
   p_cpu_driver->p_funcs->apply_flags(
       p_cpu_driver,
@@ -2227,9 +2221,15 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
      */
     p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
+    int64_t seek_target = timing_get_total_timer_ticks(p_bbc->p_timing);
     /* "undo" -- go back 5 seconds if there is a current capture or replay. */
     /* TODO: not correct for non-2MHz tick rates. */
-    (void) bbc_try_queue_rewind(p_bbc, (5 * 2000000));
+    seek_target -= (5 * 2000000);
+    if (seek_target < 0) {
+      seek_target = 0;
+    }
+
+    (void) bbc_replay_seek(p_bbc, seek_target);
   }
 }
 
