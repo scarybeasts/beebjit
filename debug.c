@@ -1047,17 +1047,19 @@ debug_print_registers(uint8_t reg_a,
                       const char* flags_buf,
                       uint16_t reg_pc,
                       uint64_t cycles,
+                      uint64_t ticks,
                       uint64_t countdown) {
-  (void) printf("[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
-                "F=%s PC=%.4"PRIX16" "
-                "cycles=%"PRIu64" countdown=%"PRIu64"]\n",
+  (void) printf("6502 [A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
+                "F=%s PC=%.4"PRIX16" cycles=%"PRIu64"]\n",
                 reg_a,
                 reg_x,
                 reg_y,
                 reg_s,
                 flags_buf,
                 reg_pc,
-                cycles,
+                cycles);
+  (void) printf("sys  [ticks=%"PRIu64" countdown=%"PRIu64"]\n",
+                ticks,
                 countdown);
 }
 
@@ -2226,6 +2228,7 @@ debug_callback_common(struct debug_struct* p_debug,
       char flags_buf[9];
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
       struct timing_struct* p_timing = p_debug->p_timing;
+      uint64_t ticks = timing_get_total_timer_ticks(p_timing);
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
       debug_print_flags_buf(&flags_buf[0], p_debug->reg_flags);
@@ -2236,6 +2239,7 @@ debug_callback_common(struct debug_struct* p_debug,
                             flags_buf,
                             p_debug->reg_pc,
                             cycles,
+                            ticks,
                             countdown);
     } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0) &&
