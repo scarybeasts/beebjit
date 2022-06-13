@@ -2073,13 +2073,12 @@ debug_callback_common(struct debug_struct* p_debug,
       uint64_t ticks_delta;
       struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
-      /* TODO: should probably be system ticks, not 6502 cycles. */
-      uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
+      uint64_t ticks = timing_get_total_timer_ticks(p_timing);
       if (timing_timer_is_running(p_timing, timer_id)) {
         (void) timing_stop_timer(p_timing, timer_id);
       }
-      if (parse_u64 > curr_cycles) {
-        ticks_delta = (parse_u64 - curr_cycles);
+      if (parse_u64 > ticks) {
+        ticks_delta = (parse_u64 - ticks);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
     } else if (!strcmp(p_command, "seek")) {
