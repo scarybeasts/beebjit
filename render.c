@@ -71,11 +71,14 @@ struct render_struct {
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
-  int do_deinterlace_teletext;
-  int do_deinterlace_bitmap;
   int32_t cursor_segment_index;
   int cursor_segments[4];
+  int is_crt_grayscale_fakeout;
+
+  /* Options. */
   int is_double_size;
+  int do_deinterlace_teletext;
+  int do_deinterlace_bitmap;
 };
 
 static void
@@ -1055,6 +1058,15 @@ render_process_full_buffer(struct render_struct* p_render) {
 
 void
 render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
+  /* Another CRT + PAL mystery!
+   * Fire Track manages to achieve a black and white display on a color TV by
+   * having a very "late" HSYNC directly after the VSYNC. (Hold F5 as you
+   * start the game!)
+   * This somehow confuses the TV into ignoring the color signal.
+   */
+  if ((p_render->horiz_beam_pos >= 1536) && (p_render->vert_beam_pos <= 8)) {
+    p_render->is_crt_grayscale_fakeout = 1;
+  }
   /* A real CRT appears to sync to the middle of the hsync pulse?!! This
    * permits half-character horizontal scrolling.
    * Used by tricky's RallyX demo.
@@ -1078,13 +1090,51 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
   render_reset_render_pos(p_render);
 }
 
+static void
+render_convert_to_grayscale(struct render_struct* p_render) {
+  uint32_t width;
+  uint32_t height;
+  uint32_t* p_buffer = p_render->p_buffer;
+
+  if (p_buffer == NULL) {
+    return;
+  }
+
+  for (height = 0; height < p_render->height; ++height) {
+    for (width = 0; width < p_render->width; ++width) {
+      uint32_t pixel = *p_buffer;
+      uint8_t r = (pixel >> 16);
+      uint8_t g = (pixel >> 8);
+      uint8_t b = pixel;
+      uint8_t grey;
+      /* These constants are from: https://en.wikipedia.org/wiki/Grayscale
+       * "Luma coding in video systems", for PAL.
+       */
+      r = (r * 0.29);
+      g = (g * 0.58);
+      b = (b * 0.11);
+      grey = (r + g + b);
+      pixel = (grey | (grey << 8) | (grey << 16));
+      /* Merge alpha back in. */
+      pixel |= 0xff000000;
+      *p_buffer = pixel;
+
+      p_buffer++;
+    }
+  }
+}
+
 void
 render_vsync(struct render_struct* p_render) {
   if (p_render->p_flyback_callback) {
+    if (p_render->is_crt_grayscale_fakeout) {
+      render_convert_to_grayscale(p_render);
+    }
     p_render->p_flyback_callback(p_render->p_flyback_callback_object);
   }
 
   p_render->vert_beam_pos = 0;
+  p_render->is_crt_grayscale_fakeout = 0;
 
   if (p_render->horiz_beam_pos >= 512) {
     /* We're transitioning from the even to the odd interlace frame. */
