@@ -1354,7 +1354,7 @@ jit_test_compile_binary(void) {
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, (s_p_mem + 0x3A00), 0x100);
   emit_BEQ(p_buf, 1);
-  emit_INX(p_buf);
+  emit_JMP(p_buf, k_abs, 0x3A05);
   emit_EXIT(p_buf);
   state_6502_set_pc(s_p_state_6502, 0x3A00);
   jit_enter(s_p_cpu_driver);
@@ -1363,11 +1363,9 @@ jit_test_compile_binary(void) {
   p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3A00);
 #if defined(__x86_64__)
   /* je     0x61d0180
-   * sub    r15, 0x7
-   * TODO: it's currently lea, not sub, due to reverting an optimization.
-   * p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x49\x83\xef\x07";
+   * lea    r15, [r15 - 2]
    */
-  p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x4d\x8d\x7f\xf9";
+  p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x4d\x8d\x7f\xfe";
   expect_len = 10;
 #elif defined(__aarch64__)
   /* b.eq  0x61d0180

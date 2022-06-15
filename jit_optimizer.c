@@ -730,7 +730,6 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
   struct asm_uop* p_load_a_uop = NULL;
   struct asm_uop* p_load_x_uop = NULL;
   struct asm_uop* p_load_y_uop = NULL;
-  struct asm_uop* p_add_cycles_uop = NULL;
 
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
@@ -740,7 +739,6 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     int32_t imm_value = -1;
     struct asm_uop* p_load_uop = NULL;
     struct asm_uop* p_load_flags_uop = NULL;
-    struct asm_uop* p_countdown_uop = NULL;
     int is_self_modify_invalidated = p_opcode->self_modify_invalidated;
 
     if (p_opcode->ends_block) {
@@ -858,23 +856,6 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       case k_opcode_flags_nz_mem:
         p_load_flags_uop = p_uop;
         break;
-      case k_opcode_add_cycles:
-        p_add_cycles_uop = p_uop;
-        break;
-      case k_opcode_countdown:
-        /* Merge any branch-not-taken countdown fixup into the countdown check
-         * subtraction itself.
-         */
-        assert(p_opcode->cycles_run_start >= 0);
-        p_countdown_uop = p_uop;
-        if (p_add_cycles_uop != NULL) {
-          if (p_countdown_uop->value2 >= p_add_cycles_uop->value1) {
-            p_countdown_uop->value2 -= p_add_cycles_uop->value1;
-            p_add_cycles_uop->is_eliminated = 1;
-            p_add_cycles_uop->is_merged = 1;
-          }
-        }
-        break;
       default:
         if (p_uop->uopcode == k_opcode_SAX) {
           if (!p_uop->is_eliminated || p_uop->is_merged) {
@@ -886,7 +867,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       }
     }
 
-    if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {
+    /*if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {*/
       /* If the opcode immediately following a countdown check sets the NZ
        * flags, then we can safely use a faster countdown check that clobbers
        * the NZ flags.
@@ -899,7 +880,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
        * will require some work.
        * p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
        */
-    }
+    /*}*/
 
     /* This is subtle, but if we're in the middle of resolving self-modification
      * on a merged (or merged into) opcode, don't eliminate the merged opcode.
@@ -937,6 +918,49 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
          */
         p_load_flags_uop->is_eliminated = 1;
         p_load_flags_uop->is_merged = 1;
+      }
+    }
+  }
+}
+
+static void
+jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_add_cycles_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t i_uops;
+    uint32_t num_uops = p_opcode->num_uops;
+    struct asm_uop* p_countdown_uop = NULL;
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_add_cycles:
+        p_add_cycles_uop = p_uop;
+        break;
+      case k_opcode_countdown:
+        /* Merge any branch-not-taken countdown fixup into the countdown check
+         * subtraction itself.
+         */
+        assert(p_opcode->cycles_run_start >= 0);
+        p_countdown_uop = p_uop;
+        if (p_add_cycles_uop != NULL) {
+          if (p_countdown_uop->value2 >= p_add_cycles_uop->value1) {
+            p_countdown_uop->value2 -= p_add_cycles_uop->value1;
+            p_add_cycles_uop->is_eliminated = 1;
+            p_add_cycles_uop->is_merged = 1;
+          }
+        }
+        break;
+      default:
+        break;
       }
     }
   }
@@ -983,6 +1007,9 @@ jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
    */
   jit_optimizer_eliminate_axy_loads(p_opcodes);
 
-  /* Pass 4: eliminate repeated mode loads, e.g EOR ($70),Y STA ($70),Y. */
+  /* Pass 4: merge post-branch countdown opcodes. */
+  jit_optimizer_merge_countdowns(p_opcodes);
+
+  /* Pass 5: eliminate repeated mode loads, e.g EOR ($70),Y STA ($70),Y. */
   jit_optimizer_eliminate_mode_loads(p_opcodes);
 }
