@@ -1369,9 +1369,9 @@ jit_test_compile_binary(void) {
   expect_len = 10;
 #elif defined(__aarch64__)
   /* b.eq  0x61d0180
-   * sub   x24, x24, #0x7
+   * sub   x24, x24, #0x2
    */
-  p_expect = "\xc0\x0b\x00\x54" "\x18\x1f\x00\xd1";
+  p_expect = "\xc0\x0b\x00\x54" "\x18\x0b\x00\xd1";
   expect_len = 8;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);

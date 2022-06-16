@@ -1193,8 +1193,10 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
      * invalidations due to other self-modifying code in the same block).
      */
     if (p_details->num_bytes_6502 > 1) {
-      uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502 + 1];
-      void* p_jit_ptr = (void*) (uintptr_t) jit_ptr;
+      void* p_jit_ptr;
+      uint64_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502 + 1];
+      jit_ptr |= K_JIT_ADDR;
+      p_jit_ptr = (void*) (uintptr_t) jit_ptr;
       if (p_jit_ptr == p_compiler->p_jit_ptr_dynamic_operand) {
         is_self_modify_invalidated = 1;
       }
