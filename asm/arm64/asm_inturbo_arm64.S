@@ -18,6 +18,15 @@ ASM_SYM(asm_inturbo_enter):
   mov REG_MEM_READ, REG_PARAM4
   ldr REG_INTURBO_INTERP, [REG_PARAM1, #K_CONTEXT_OFFSET_INTERP_ASM]
 
+  # We have to go through this dance due to a 64-bit truncation issue in the
+  # ABI (which we could fix if we were less in a hurry).
+  # This leaves a raw 6502 PC in the context.
+  ldr REG_SCRATCH1, [REG_PARAM1, #K_CONTEXT_OFFSET_STATE_6502]
+  ldr REG_SCRATCH2_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_PC]
+  sub REG_SCRATCH2, REG_SCRATCH2, REG_MEM_READ
+  and REG_SCRATCH2, REG_SCRATCH2, #0xFFFF
+  str REG_SCRATCH2_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_PC]
+
   b ASM_SYM(asm_common_enter)
 
 ASM_SYM(asm_inturbo_enter_END):

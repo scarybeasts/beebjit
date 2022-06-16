@@ -37,6 +37,8 @@ ASM_SYM(asm_common_enter):
 
   bl ASM_SYM(asm_restore_AXYS_PC_flags)
 
+  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
+
   # More juggling of final jump location.
   mov REG_SCRATCH2, REG_MEM_WRITE
 
