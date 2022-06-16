@@ -95,7 +95,7 @@ asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
-                                       uint16_t special_addr_above) {
+                                       uint16_t special_addr_from) {
   uint8_t* p_dest;
   void asm_inturbo_check_special_address_movz(void);
   void asm_inturbo_check_special_address_movz_END(void);
@@ -104,7 +104,7 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
   asm_copy(p_buf,
            asm_inturbo_check_special_address_movz,
            asm_inturbo_check_special_address_movz_END);
-  asm_patch_arm64_imm16(p_buf, (special_addr_above + 1));
+  asm_patch_arm64_imm16(p_buf, (special_addr_from - 1));
   asm_copy(p_buf,
            asm_inturbo_check_special_address_sub_and_tbz,
            asm_inturbo_check_special_address_sub_and_tbz_END);
