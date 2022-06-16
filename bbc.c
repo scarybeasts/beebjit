@@ -665,6 +665,7 @@ bbc_page_rom(struct bbc_struct* p_bbc,
   int curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
   int new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  intptr_t mem_handle = p_bbc->mem_handle;
 
   /* If current bank is RAM, save it. */
   if (curr_is_ram) {
@@ -698,11 +699,8 @@ bbc_page_rom(struct bbc_struct* p_bbc,
   map_offset = (k_6502_addr_space_size / 2);
 
   os_alloc_free_mapping(p_bbc->p_mapping_write_2);
-  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
 
   if (new_is_ram) {
-    intptr_t mem_handle = p_bbc->mem_handle;
-
     p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
         mem_handle,
         (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
@@ -710,6 +708,21 @@ bbc_page_rom(struct bbc_struct* p_bbc,
         half_map_size);
     os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
                                k_bbc_rom_size);
+  } else {
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size);
+  }
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
+
+  if (p_bbc->p_mapping_write_ind_2 == NULL) {
+    return;
+  }
+
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+
+  if (new_is_ram) {
     p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
         mem_handle,
         (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
@@ -718,9 +731,6 @@ bbc_page_rom(struct bbc_struct* p_bbc,
     os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
                                k_bbc_rom_size);
   } else {
-    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
-        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
-        half_map_size);
     p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
         (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
         half_map_size);
@@ -728,8 +738,7 @@ bbc_page_rom(struct bbc_struct* p_bbc,
         (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
         K_BBC_MEM_INACCESSIBLE_LEN);
   }
-  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
-                             map_offset);
+
   os_alloc_make_mapping_none(
       (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
       map_offset);
