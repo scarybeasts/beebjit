@@ -2914,7 +2914,9 @@ check_irq:
                                irq_pending,
                                hit_special)) {
         /* The instruction callback can elect to exit the interpreter. */
-        break;
+        if (!*p_debug_interrupt) {
+          break;
+        }
       }
     }
 
