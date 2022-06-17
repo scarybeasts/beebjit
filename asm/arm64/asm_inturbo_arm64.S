@@ -669,8 +669,9 @@ ASM_SYM(asm_instruction_BVS_interp_accurate_END):
 .globl ASM_SYM(asm_instruction_CMP_imm_interp)
 .globl ASM_SYM(asm_instruction_CMP_imm_interp_END)
 ASM_SYM(asm_instruction_CMP_imm_interp):
-  cmp REG_6502_A, REG_SCRATCH1
+  subs REG_SCRATCH1, REG_6502_A, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CMP_imm_interp_END):
   ret
@@ -680,8 +681,9 @@ ASM_SYM(asm_instruction_CMP_imm_interp_END):
 .globl ASM_SYM(asm_instruction_CMP_scratch_interp_END)
 ASM_SYM(asm_instruction_CMP_scratch_interp):
   ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
-  cmp REG_6502_A, REG_SCRATCH1
+  subs REG_SCRATCH1, REG_6502_A, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CMP_scratch_interp_END):
   ret
@@ -690,9 +692,9 @@ ASM_SYM(asm_instruction_CMP_scratch_interp_END):
 .globl ASM_SYM(asm_instruction_CPX_imm_interp)
 .globl ASM_SYM(asm_instruction_CPX_imm_interp_END)
 ASM_SYM(asm_instruction_CPX_imm_interp):
-  lsl REG_SCRATCH2, REG_6502_X, #56
-  cmp REG_SCRATCH2, REG_SCRATCH1, lsl #56
+  subs REG_SCRATCH1, REG_6502_X, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CPX_imm_interp_END):
   ret
@@ -702,8 +704,9 @@ ASM_SYM(asm_instruction_CPX_imm_interp_END):
 .globl ASM_SYM(asm_instruction_CPX_scratch_interp_END)
 ASM_SYM(asm_instruction_CPX_scratch_interp):
   ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
-  cmp REG_6502_X, REG_SCRATCH1
+  subs REG_SCRATCH1, REG_6502_X, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CPX_scratch_interp_END):
   ret
@@ -712,9 +715,9 @@ ASM_SYM(asm_instruction_CPX_scratch_interp_END):
 .globl ASM_SYM(asm_instruction_CPY_imm_interp)
 .globl ASM_SYM(asm_instruction_CPY_imm_interp_END)
 ASM_SYM(asm_instruction_CPY_imm_interp):
-  lsl REG_SCRATCH2, REG_6502_Y, #56
-  cmp REG_SCRATCH2, REG_SCRATCH1, lsl #56
+  subs REG_SCRATCH1, REG_6502_Y, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CPY_imm_interp_END):
   ret
@@ -724,13 +727,12 @@ ASM_SYM(asm_instruction_CPY_imm_interp_END):
 .globl ASM_SYM(asm_instruction_CPY_scratch_interp_END)
 ASM_SYM(asm_instruction_CPY_scratch_interp):
   ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
-  cmp REG_6502_Y, REG_SCRATCH1
+  subs REG_SCRATCH1, REG_6502_Y, REG_SCRATCH1
   cset REG_6502_CF, cs
+  adds xzr, xzr, REG_SCRATCH1, lsl #56
 
 ASM_SYM(asm_instruction_CPY_scratch_interp_END):
   ret
-
-
 
 
 .globl ASM_SYM(asm_instruction_DEC_scratch_interp)

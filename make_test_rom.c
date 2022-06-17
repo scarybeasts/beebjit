@@ -2487,8 +2487,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x36);   /* Check Z flag wasn't trashed. */
   emit_JMP(p_buf, k_abs, 0xE380);
 
-  /* End of test. */
+  /* Test for another value combination of CMP vs. N flag.
+   * Yes, ARM64 inturbo hit this bug even though everything else passes.
+   */
   set_new_index(p_buf, 0x2380);
+  emit_LDA(p_buf, k_imm, 0xEC);
+  emit_CMP(p_buf, k_imm, 0x00);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE3C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x23C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
