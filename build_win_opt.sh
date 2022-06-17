@@ -2,8 +2,8 @@
 
 # NOTE: -gdwarf-2 needed for my version of wine to recognize the symbols.
 
-x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 -DPLATFORM_WINDOWS \
-    -Wall -W -Werror -Wl,--default-image-base-low \
+x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
+    -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -O3 -DNDEBUG -flto -o beebjit.exe \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \

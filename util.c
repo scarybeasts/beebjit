@@ -10,9 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef PLATFORM_WINDOWS
-#include "windows.h"
-#endif
 
 void*
 util_malloc(size_t size) {
@@ -282,12 +279,9 @@ util_file_name_split(char** p_file_name_base,
   const char* p_sep = NULL;
   const char* p_str = p_full_file_name;
 
+  /* TODO: respect Windows separator? */
   while (*p_str != '\0') {
-#ifdef PLATFORM_WINDOWS
-    if (*p_str == '/' || *p_str == '\\') {
-#else
     if (*p_str == '/') {
-#endif
       p_sep = p_str;
     }
     p_str++;
@@ -315,11 +309,7 @@ util_file_name_join(const char* p_file_name_base, const char* p_file_name) {
   /* TODO: respect Windows separator? */
   (void) snprintf(file_name_buf,
                   sizeof(file_name_buf),
-#ifdef PLATFORM_WINDOWS
-                  "%s\\%s",
-#else
                   "%s/%s",
-#endif
                   p_file_name_base,
                   p_file_name);
   return strdup(&file_name_buf[0]);
@@ -329,23 +319,6 @@ struct util_file*
 util_file_open(const char* p_file_name, int writeable, int create) {
   struct util_file* p_file = util_file_try_open(p_file_name, writeable, create);
   if (p_file == NULL) {
-#ifdef PLATFORM_WINDOWS
-    char executable_path_buf[4096];
-    char* executable_dir;
-    char* executable_file_name;
-    char* joined_file_name;
-    GetModuleFileNameA(NULL, executable_path_buf, 4096);
-    util_file_name_split(&executable_dir, &executable_file_name, executable_path_buf);
-    joined_file_name = util_file_name_join(executable_dir, p_file_name);
-  
-    p_file = util_file_try_open(joined_file_name, writeable, create);
-
-    util_free(joined_file_name);
-    util_free(executable_file_name);
-    util_free(executable_dir);
-  }
-  if (p_file == NULL) {
-#endif
     util_bail("couldn't open %s", p_file_name);
   }
   return p_file;
