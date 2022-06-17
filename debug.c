@@ -1665,6 +1665,7 @@ debug_print_status_line(struct debug_struct* p_debug,
                         uint8_t operand2,
                         int do_irq,
                         int branch_taken) {
+  char sub_tag[5];
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
@@ -1702,7 +1703,6 @@ debug_print_status_line(struct debug_struct* p_debug,
     p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
                                                              p_debug->reg_pc);
   } else {
-    char sub_tag[5];
     assert(p_debug->is_sub_instruction_active);
     (void) snprintf(sub_tag,
                     sizeof(sub_tag),
