@@ -463,12 +463,13 @@ via_calculate_port_a(struct via_struct* p_via) {
   uint8_t ora = p_via->ORA;
   uint8_t ddra = p_via->DDRA;
   uint8_t val = (ora & ddra);
-  val |= (p_via->peripheral_a & ~ddra);
+  uint8_t peripheral_a = p_via->peripheral_a;
+  val |= (peripheral_a & ~ddra);
 
   /* Our peripheral (currently just the keyboard) is always capable of driving
    * a bus level low, even for pins configured as outputs.
    */
-  val &= p_via->peripheral_a;
+  val &= peripheral_a;
 
   return val;
 }
@@ -493,15 +494,15 @@ sysvia_update_port_a(struct via_struct* p_via) {
   uint8_t keycol = (bus_val & 0xf);
   int fire = 0;
   uint8_t IC32 = bbc_get_IC32(p_bbc);
+  uint8_t peripheral_a = 0xFF;
 
-  p_via->peripheral_a = 0xFF;
   if (p_cmos != NULL) {
-    p_via->peripheral_a &= cmos_get_bus_value(p_cmos);
+    peripheral_a &= cmos_get_bus_value(p_cmos);
   }
 
   if (!(IC32 & 0x08)) {
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
-      p_via->peripheral_a &= 0x7F;
+      peripheral_a &= 0x7F;
     }
     if (keyboard_bbc_is_key_column_pressed(p_keyboard, keycol)) {
       fire = 1;
@@ -517,12 +518,14 @@ sysvia_update_port_a(struct via_struct* p_via) {
     }
   }
 
+  p_via->peripheral_a = peripheral_a;
+
   via_set_CA2(p_via, fire);
 
   if (!(IC32 & 1)) {
     struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
     /* Make sure the bus value is uptodate with any keyboard action. */
-    bus_val = via_calculate_port_a(p_via);
+    bus_val &= peripheral_a;
     sound_sn_write(p_sound, bus_val);
   }
 }
