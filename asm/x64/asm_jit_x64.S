@@ -447,20 +447,25 @@ ASM_SYM(asm_jit_flags_nz_value_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n)
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n_lea_patch)
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n_END)
-ASM_SYM(asm_jit_JMP_SCRATCH_n):
-  # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
-  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_add_n)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_add_n_END)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_END)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx_END)
+ASM_SYM(asm_jit_JMP_SCRATCH_add_n):
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x7fffffff]
-ASM_SYM(asm_jit_JMP_SCRATCH_n_lea_patch):
+ASM_SYM(asm_jit_JMP_SCRATCH_add_n_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump):
   lahf
   shl REG_SCRATCH1_32, K_JIT_BYTES_SHIFT
   sahf
   jmp REG_SCRATCH1
-
-ASM_SYM(asm_jit_JMP_SCRATCH_n_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx):
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
+  jmp REG_SCRATCH1
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx_END):
   ret
 
 

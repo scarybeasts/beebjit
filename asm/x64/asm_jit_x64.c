@@ -732,17 +732,14 @@ asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
 }
 
 static void
-asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
-  void asm_jit_JMP_SCRATCH_n(void);
-  void asm_jit_JMP_SCRATCH_n_lea_patch(void);
-  void asm_jit_JMP_SCRATCH_n_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-  asm_copy(p_buf, asm_jit_JMP_SCRATCH_n, asm_jit_JMP_SCRATCH_n_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_JMP_SCRATCH_n,
-                asm_jit_JMP_SCRATCH_n_lea_patch,
-                ((K_JIT_ADDR >> K_JIT_BYTES_SHIFT) + n));
+asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_dest_buf, uint16_t n) {
+  uint32_t value1 = ((K_JIT_ADDR >> K_JIT_BYTES_SHIFT) + n);
+  ASM_U32(JMP_SCRATCH_add_n);
+  if (s_rorx_works) {
+    ASM(JMP_SCRATCH_shift_jump_rorx);
+  } else {
+    ASM(JMP_SCRATCH_shift_jump);
+  }
 }
 
 static void
