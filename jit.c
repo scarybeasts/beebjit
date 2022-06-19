@@ -786,7 +786,11 @@ jit_safe_hex_convert(char* p_buf, void* p_ptr) {
 }
 
 static void
-fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
+fault_reraise(void* p_pc,
+              void* p_addr,
+              int is_illegal,
+              int is_write,
+              int is_exec) {
   int ret;
   char hex_buf[16];
   char digit;
@@ -795,7 +799,8 @@ fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
   static const char* p_msg2 = ", addr ";
   static const char* p_msg3 = ", write ";
   static const char* p_msg4 = ", exec ";
-  static const char* p_msg5 = "\n";
+  static const char* p_msg5 = ", illegal ";
+  static const char* p_msg6 = "\n";
 
   ret = write(2, p_msg, strlen(p_msg));
   jit_safe_hex_convert(&hex_buf[0], p_pc);
@@ -818,6 +823,9 @@ fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
   }
   ret = write(2, &digit, 1);
   ret = write(2, p_msg5, strlen(p_msg5));
+  digit = ('0' + is_illegal);
+  ret = write(2, &digit, 1);
+  ret = write(2, p_msg6, strlen(p_msg6));
 
   (void) ret;
 
@@ -827,6 +835,7 @@ fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
 static void
 jit_handle_fault(uintptr_t* p_host_pc,
                  uintptr_t host_fault_addr,
+                 int is_illegal,
                  int is_exec,
                  int is_write,
                  uintptr_t host_context) {
@@ -839,6 +848,11 @@ jit_handle_fault(uintptr_t* p_host_pc,
   void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
+  /* Illegal instructions are not expected! */
+  if (is_illegal) {
+    fault_reraise(p_fault_pc, p_fault_addr, 1, 0, 0);
+  }
+
   /* Fail unless the faulting instruction is in the JIT or inturbo region. */
   if ((p_fault_pc >= (void*) K_JIT_ADDR) &&
       (p_fault_pc < (void*) K_JIT_ADDR_END)) {
@@ -848,12 +862,12 @@ jit_handle_fault(uintptr_t* p_host_pc,
     /* Inturbo code. Continue. */
     is_inturbo = 1;
   } else {
-    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+    fault_reraise(p_fault_pc, p_fault_addr, 0, is_write, is_exec);
   }
 
   /* Fault in instruction fetch would be bad! */
   if (is_exec == 1) {
-    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+    fault_reraise(p_fault_pc, p_fault_addr, 0, is_write, is_exec);
   }
 
   if (!is_inturbo) {
@@ -866,7 +880,7 @@ jit_handle_fault(uintptr_t* p_host_pc,
   }
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
-    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+    fault_reraise(p_fault_pc, p_fault_addr, 0, is_write, is_exec);
   }
 
   if (!is_inturbo) {
@@ -887,7 +901,7 @@ jit_handle_fault(uintptr_t* p_host_pc,
                             addr_6502,
                             p_fault_addr,
                             is_write)) {
-    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
+    fault_reraise(p_fault_pc, p_fault_addr, 0, is_write, is_exec);
   }
 
   if (p_jit->log_fault) {

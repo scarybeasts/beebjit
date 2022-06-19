@@ -2,6 +2,8 @@
 
 #include "../../defs_6502.h"
 #include "../../os_alloc.h"
+#include "../../os_fault.h"
+#include "../../log.h"
 #include "../../util.h"
 #include "../asm_common.h"
 #include "../asm_defs_host.h"
@@ -248,6 +250,7 @@ enum {
 }
 
 static struct os_alloc_mapping* s_p_mapping_trampolines;
+static int s_rorx_works;
 
 struct asm_jit_struct {
   int (*is_memory_always_ram)(void* p, uint16_t addr);
@@ -316,12 +319,40 @@ asm_jit_is_default(void) {
   return 1;
 }
 
+static void
+asm_jit_rorx_check_handle_fault(uintptr_t* p_host_pc,
+                                uintptr_t host_fault_addr,
+                                int is_illegal,
+                                int is_exec,
+                                int is_write,
+                                uintptr_t host_context) {
+  (void) host_fault_addr;
+  (void) is_exec;
+  (void) is_write;
+  (void) host_context;
+
+  if (!is_illegal) {
+    os_fault_bail();
+  }
+
+  s_rorx_works = 0;
+  *p_host_pc += 6;
+}
+
 void
 asm_jit_test_preconditions(void) {
+  static int s_preconditions_checked;
+
   void asm_jit_BEQ_8bit(void);
   void asm_jit_BEQ_8bit_END(void);
   void asm_jit_interp(void);
+  void asm_jit_check_x64_rorx(void);
   int64_t delta;
+
+  if (s_preconditions_checked) {
+    return;
+  }
+  s_preconditions_checked = 1;
 
   if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
     util_bail("JIT assembly miscompiled (%p %p) clang issue? try opt build",
@@ -332,6 +363,19 @@ asm_jit_test_preconditions(void) {
   delta = ((void*) asm_jit_interp - (void*) K_JIT_ADDR);
   if ((delta > INT_MAX) || (delta < INT_MIN)) {
     util_bail("Binary bad location? (%p)", asm_jit_interp);
+  }
+
+  /* TODO: check it works on macOS, Windows. */
+  (void) asm_jit_rorx_check_handle_fault;
+#if defined(__linux__)
+  os_fault_register_handler(asm_jit_rorx_check_handle_fault);
+  /* Fault handler will set this to 0 if there is a fault. */
+  s_rorx_works = 1;
+  asm_jit_check_x64_rorx();
+#endif
+
+  if (s_rorx_works) {
+    log_do_log(k_log_jit, k_log_info, "using x64 rorx");
   }
 }
 
@@ -622,18 +666,20 @@ asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 static void
-asm_emit_jit_call_inturbo(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_call_inturbo(void);
-  void asm_jit_call_inturbo_pc_patch(void);
-  void asm_jit_call_inturbo_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_call_inturbo, asm_jit_call_inturbo_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_call_inturbo,
-                asm_jit_call_inturbo_pc_patch,
-                (addr + K_BBC_MEM_READ_FULL_ADDR));
+asm_emit_jit_call_inturbo(struct util_buffer* p_dest_buf, uint16_t addr) {
+  uint32_t value1 = (addr + K_BBC_MEM_READ_FULL_ADDR);
+  ASM_U32(inturbo_set_pc);
+  if (s_rorx_works) {
+    ASM(inturbo_calculate_inturbo_jump_rorx);
+  } else {
+    ASM(inturbo_calculate_inturbo_jump);
+  }
+  ASM(inturbo_call);
+  if (s_rorx_works) {
+    ASM(inturbo_do_jit_jump_rorx);
+  } else {
+    ASM(inturbo_do_jit_jump);
+  }
 }
 
 static void

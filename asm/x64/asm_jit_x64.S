@@ -10,6 +10,12 @@
 .text
 
 
+.globl ASM_SYM(asm_jit_check_x64_rorx)
+ASM_SYM(asm_jit_check_x64_rorx):
+  rorx eax, eax, 1
+  ret
+
+
 .globl ASM_SYM(asm_jit_enter)
 .globl ASM_SYM(asm_jit_enter_END)
 ASM_SYM(asm_jit_enter):
@@ -236,24 +242,46 @@ ASM_SYM(asm_jit_jump_interp_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_call_inturbo)
-.globl ASM_SYM(asm_jit_call_inturbo_pc_patch)
-.globl ASM_SYM(asm_jit_call_inturbo_END)
-ASM_SYM(asm_jit_call_inturbo):
+.globl ASM_SYM(asm_jit_inturbo_set_pc)
+.globl ASM_SYM(asm_jit_inturbo_set_pc_END)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_END)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx_END)
+.globl ASM_SYM(asm_jit_inturbo_call)
+.globl ASM_SYM(asm_jit_inturbo_call_END)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_END)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx_END)
+.globl ASM_SYM(asm_jit_inturbo_call)
+.globl ASM_SYM(asm_jit_inturbo_call_END)
+ASM_SYM(asm_jit_inturbo_set_pc):
   mov REG_6502_PC_32, 0x7fffffff
-ASM_SYM(asm_jit_call_inturbo_pc_patch):
+ASM_SYM(asm_jit_inturbo_set_pc_END):
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump):
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
   lahf
   shl REG_SCRATCH1_32, K_INTURBO_OPCODE_SHIFT
   sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_ADDR]
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_END):
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx):
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_INTURBO_OPCODE_SHIFT)
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_ADDR]
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx_END):
+ASM_SYM(asm_jit_inturbo_call):
   # Save JIT REG_CONTEXT.
   # Keeps stack alignment to 16 after the call.
   push REG_CONTEXT
   # Swith REG_CONTEXT to inturbo one.
   mov REG_CONTEXT, [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_INTURBO]
   call REG_SCRATCH1
+
   pop REG_CONTEXT
+ASM_SYM(asm_jit_inturbo_call_END):
+ASM_SYM(asm_jit_inturbo_do_jit_jump):
   lahf
   lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   shl REG_6502_PC_32, K_JIT_BYTES_SHIFT
@@ -261,8 +289,15 @@ ASM_SYM(asm_jit_call_inturbo_pc_patch):
   lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
   jmp REG_6502_PC
+ASM_SYM(asm_jit_inturbo_do_jit_jump_END):
+ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx):
+  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  rorx REG_6502_PC_32, REG_6502_PC_32, (32 - K_JIT_BYTES_SHIFT)
+  lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
-ASM_SYM(asm_jit_call_inturbo_END):
+  jmp REG_6502_PC
+ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx_END):
+
   ret
 
 
