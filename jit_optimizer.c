@@ -940,6 +940,7 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
     }
 
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      uint32_t cycles;
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_add_cycles:
@@ -951,12 +952,20 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
          */
         assert(p_opcode->cycles_run_start >= 0);
         p_countdown_uop = p_uop;
+        cycles = p_countdown_uop->value2;
         if (p_add_cycles_uop != NULL) {
-          if (p_countdown_uop->value2 >= p_add_cycles_uop->value1) {
-            p_countdown_uop->value2 -= p_add_cycles_uop->value1;
+          if (cycles >= p_add_cycles_uop->value1) {
+            cycles -= p_add_cycles_uop->value1;
+            p_countdown_uop->value2 = cycles;
             p_add_cycles_uop->is_eliminated = 1;
             p_add_cycles_uop->is_merged = 1;
           }
+        }
+        /* Eliminate countdown checks for 0 cycles. These happen at the start
+         * of a block that contains just an inturbo callout.
+         */
+        if (cycles == 0) {
+          p_countdown_uop->is_eliminated = 1;
         }
         break;
       default:
