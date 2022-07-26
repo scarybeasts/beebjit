@@ -2129,13 +2129,24 @@ debug_callback_common(struct debug_struct* p_debug,
       (void) printf("result: %"PRId64" (0x%"PRIx64")\n",
                     expression_ret,
                     expression_ret);
-    } else if ((sscanf(input_buf,
-                       "writem %"PRIx32" %"PRIx32,
-                       &parse_int,
-                       &parse_int2) == 2) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536)) {
-      bbc_memory_write(p_bbc, parse_int, parse_int2);
+    } else if (!strcmp(p_command, "writem")) {
+      uint32_t sequence_len;
+      uint32_t i_seq;
+      uint16_t addr_start;
+      if (num_strings < 3) {
+        break;
+      }
+      sequence_len = (num_strings - 2);
+      p_param_str = util_string_list_get_string(p_command_strings, 1);
+      addr_start = (uint16_t) debug_parse_number(p_param_str, 1);
+      for (i_seq = 0; i_seq < sequence_len; ++i_seq) {
+        p_param_str =
+            util_string_list_get_string(p_command_strings, (i_seq + 2));
+        parse_int = debug_parse_number(p_param_str, 1);
+        bbc_memory_write(p_bbc,
+                         (uint16_t) (addr_start + i_seq),
+                         (uint8_t) parse_int);
+      }
     } else if (!strcmp(p_command, "find")) {
       uint32_t sequence_len;
       uint32_t addr_start;
