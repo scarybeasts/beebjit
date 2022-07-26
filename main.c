@@ -495,21 +495,6 @@ beebjit_main(void) {
   if (extended_roms_flag) {
     bbc_enable_extended_rom_addressing(p_bbc);
   }
-  for (i = 0; i < k_bbc_num_roms; ++i) {
-    const char* p_rom_name = rom_names[i];
-    if (p_rom_name != NULL) {
-      (void) memset(load_rom, '\0', k_bbc_rom_size);
-      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
-      bbc_load_rom(p_bbc, i, load_rom);
-    }
-    if (sideways_ram[i]) {
-      bbc_make_sideways_ram(p_bbc, i);
-    }
-  }
-
-  if (load_name != NULL) {
-    state_load(p_bbc, load_name);
-  }
 
   /* Load the discs into the drive! */
   for (i = 0; i <= 1; ++i) {
@@ -548,6 +533,41 @@ beebjit_main(void) {
     }
   }
 
+  /* Set autoboot before calling bbc_power_on_reset().
+   * Currently, autoboot is handled by resetting the autoboot timer in this
+   * function.
+   */
+  if (autoboot_flag) {
+    bbc_set_autoboot(p_bbc, 1);
+  }
+
+  /* Do the power on reset before any of the below options that change state:
+   * - Loading a state file.
+   * - Setting the PC.
+   * - Loading a ROM file into a sideways RAM bank.
+   */
+  bbc_power_on_reset(p_bbc);
+
+  if (load_name != NULL) {
+    state_load(p_bbc, load_name);
+  }
+
+  if (pc >= 0) {
+    bbc_set_pc(p_bbc, pc);
+  }
+
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    const char* p_rom_name = rom_names[i];
+    if (p_rom_name != NULL) {
+      (void) memset(load_rom, '\0', k_bbc_rom_size);
+      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
+      bbc_load_rom(p_bbc, i, load_rom);
+    }
+    if (sideways_ram[i]) {
+      bbc_make_sideways_ram(p_bbc, i);
+    }
+  }
+
   /* Set up keyboard capture / replay / links. */
   p_keyboard = bbc_get_keyboard(p_bbc);
   if (capture_name) {
@@ -558,9 +578,6 @@ beebjit_main(void) {
   }
   if (keyboard_links != -1) {
     keyboard_set_links(p_keyboard, keyboard_links);
-  }
-  if (autoboot_flag) {
-    bbc_set_autoboot(p_bbc, 1);
   }
 
   p_render = bbc_get_render(p_bbc);
@@ -631,15 +648,6 @@ beebjit_main(void) {
                           handle_channel_write_bbc,
                           handle_channel_read_ui,
                           handle_channel_write_ui);
-
-  bbc_power_on_reset(p_bbc);
-
-  /* Can only set the PC after the bbc_power_on_reset reset call, otherwise the
-   * 6502 reset will clobber it.
-   */
-  if (pc >= 0) {
-    bbc_set_pc(p_bbc, pc);
-  }
 
   bbc_run_async(p_bbc);
 
