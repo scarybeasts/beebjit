@@ -4,8 +4,6 @@
 
 #include "bbc.h"
 #include "emit_6502.h"
-/* For jit_has_invalidated_code(). */
-#include "jit_compiler.h"
 
 static struct cpu_driver* s_p_cpu_driver = NULL;
 static struct jit_struct* s_p_jit = NULL;
@@ -13,30 +11,26 @@ static struct state_6502* s_p_state_6502 = NULL;
 static uint8_t* s_p_mem = NULL;
 static struct interp_struct* s_p_interp = NULL;
 static struct jit_compiler* s_p_compiler = NULL;
+static struct jit_metadata* s_p_metadata = NULL;
 static struct timing_struct* s_p_timing = NULL;
 
 static void
 jit_test_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr) {
   asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
-  jit_invalidate_code_at_address(p_jit, addr);
+  jit_metadata_invalidate_code(s_p_metadata, addr);
   asm_jit_finish_code_updates(p_jit->p_asm);
-}
-
-static int
-jit_is_jit_ptr_dyanmic(struct jit_struct* p_jit, uint16_t addr_6502) {
-  void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
-  return (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand);
 }
 
 static void
 jit_test_expect_block_invalidated(int expect, uint16_t block_addr) {
-  void* p_host_address = jit_get_jit_block_host_address(s_p_jit, block_addr);
+  void* p_host_address = jit_metadata_get_host_block_address(s_p_metadata,
+                                                             block_addr);
   test_expect_u32(expect, asm_jit_is_invalidated_code_at(p_host_address));
 }
 
 static void
 jit_test_expect_code_invalidated(int expect, uint16_t code_addr) {
-  void* p_host_address = jit_get_host_jit_ptr(s_p_jit, code_addr);
+  void* p_host_address = jit_metadata_get_host_jit_ptr(s_p_metadata, code_addr);
   test_expect_u32(expect, asm_jit_is_invalidated_code_at(p_host_address));
 }
 
@@ -60,6 +54,7 @@ jit_test_init(struct bbc_struct* p_bbc) {
   s_p_mem = p_cpu_driver->p_extra->p_memory_access->p_mem_read;
   s_p_interp = s_p_jit->p_interp;
   s_p_compiler = s_p_jit->p_compiler;
+  s_p_metadata = s_p_jit->p_metadata;
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
@@ -76,9 +71,12 @@ jit_test_details_from_host_ip(void) {
   struct jit_host_ip_details details;
   void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
-  uint8_t* p_200_host_block = jit_get_jit_block_host_address(s_p_jit, 0x0200);
-  uint8_t* p_A00_host_block = jit_get_jit_block_host_address(s_p_jit, 0x0A00);
-  uint8_t* p_A01_host_block = jit_get_jit_block_host_address(s_p_jit, 0x0A01);
+  uint8_t* p_200_host_block = jit_metadata_get_host_block_address(s_p_metadata,
+                                                                  0x0200);
+  uint8_t* p_A00_host_block = jit_metadata_get_host_block_address(s_p_metadata,
+                                                                  0x0A00);
+  uint8_t* p_A01_host_block = jit_metadata_get_host_block_address(s_p_metadata,
+                                                                  0x0A01);
 
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_A00_host_block);
   test_expect_u32(0xFFFFFFFF, details.pc_6502);
@@ -102,21 +100,21 @@ jit_test_details_from_host_ip(void) {
   test_expect_u32(0xFFFFFFFF, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA00);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA00);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(1, details.exact_match);
   test_expect_u32(0xA00, details.pc_6502);
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA01);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA01);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(1, details.exact_match);
   test_expect_u32(0xA01, details.pc_6502);
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA00);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA00);
   p_jit_ptr++;
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0, details.exact_match);
@@ -124,7 +122,7 @@ jit_test_details_from_host_ip(void) {
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA01);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA01);
   p_jit_ptr++;
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0, details.exact_match);
@@ -144,7 +142,7 @@ jit_test_details_from_host_ip(void) {
   state_6502_set_pc(s_p_state_6502, 0x200);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0x280);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x280);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0x280, details.pc_6502);
   test_expect_u32(0x200, details.block_6502);
@@ -224,6 +222,7 @@ jit_test_block_continuation(void) {
 
 static void
 jit_test_invalidation(void) {
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xD00), 0x100);
@@ -298,8 +297,8 @@ jit_test_invalidation(void) {
   jit_test_expect_code_invalidated(1, 0xD04);
   jit_cleanup_stale_code(s_p_jit);
   jit_test_expect_block_invalidated(1, 0xD03);
-  test_expect_eq((uint32_t) (uintptr_t) s_p_jit->p_jit_ptr_no_code,
-                 s_p_jit->jit_ptrs[0xD04]);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xD04);
+  test_expect_eq(1, jit_metadata_is_jit_ptr_no_code(s_p_metadata, p_jit_ptr));
 
   util_buffer_destroy(p_buf);
 }
@@ -498,6 +497,7 @@ jit_test_dynamic_operand_3(void) {
    * settle to a stable state.
    */
   uint32_t i;
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   /* Test 1: The dynamic operand opcode starts off optimized away. */
@@ -520,21 +520,25 @@ jit_test_dynamic_operand_3(void) {
       /* We expect the optimzied away opcode to flag as invalidated, if the
        * opcode it was merged into is invalidated.
        */
-      test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1000));
-      test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1003));
+      test_expect_u32(1,
+                      jit_metadata_has_invalidated_code(s_p_metadata, 0x1000));
+      test_expect_u32(1,
+                      jit_metadata_has_invalidated_code(s_p_metadata, 0x1003));
     }
   }
 
   /* The compiler should have been able to settle the above code to dynamic
    * operands, even though the self-modify target is optimized out.
    */
-  test_expect_u32(0, jit_has_invalidated_code(s_p_compiler, 0x1000));
-  test_expect_u32(0, jit_has_invalidated_code(s_p_compiler, 0x1003));
+  test_expect_u32(0, jit_metadata_has_invalidated_code(s_p_metadata, 0x1000));
+  test_expect_u32(0, jit_metadata_has_invalidated_code(s_p_metadata, 0x1003));
   /* The compiler should also have been able to only use dynamic operands for
    * the one affected opcode.
    */
-  test_expect_u32(0, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1001));
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1004));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1001);
+  test_expect_u32(0, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1004);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
 
   /* Test 2: Based on the Exile sprite unpack loop.
    * Within a single block, there are a series of self-modifications that
@@ -563,8 +567,11 @@ jit_test_dynamic_operand_3(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1108));
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x110F));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1108);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x110F);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
+
   jit_test_expect_block_invalidated(0, 0x1102);
 }
 
@@ -572,6 +579,7 @@ static void
 jit_test_dynamic_opcode(void) {
   uint64_t num_compiles;
   uint64_t ticks;
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0x1900), 0x100);
@@ -596,7 +604,8 @@ jit_test_dynamic_opcode(void) {
   interp_testing_unexit(s_p_interp);
 
   test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
-  test_expect_u32(0, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1902));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1902);
+  test_expect_u32(0, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
 
   /* Replace INX with DEX, should compile as dynamic opcode. */
   s_p_mem[0x1902] = 0xCA;
@@ -609,9 +618,10 @@ jit_test_dynamic_opcode(void) {
 
   test_expect_u32(0xA9, s_p_mem[0x50]);
   test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1902));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1902);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
   /* Dynamic operands always show as invalidated. */
-  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
+  test_expect_u32(1, jit_metadata_has_invalidated_code(s_p_metadata, 0x1902));
 
   /* Replace DEX with INX, should not invalidate the dynamic opcode. We check
    * by making sure it doesn't incur a recompile.
@@ -619,7 +629,7 @@ jit_test_dynamic_opcode(void) {
   s_p_mem[0x1902] = 0xE8;
   jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
   /* Dynamic operands always show as invalidated. */
-  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
+  test_expect_u32(1, jit_metadata_has_invalidated_code(s_p_metadata, 0x1902));
 
   num_compiles = s_p_jit->counter_num_compiles;
   state_6502_set_pc(s_p_state_6502, 0x1900);
@@ -637,7 +647,7 @@ jit_test_dynamic_opcode(void) {
   state_6502_set_pc(s_p_state_6502, 0x1980);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  test_expect_u32(1, jit_has_invalidated_code(s_p_compiler, 0x1902));
+  test_expect_u32(1, jit_metadata_has_invalidated_code(s_p_metadata, 0x1902));
 
   /* Replace INX with an opcode that needs to cause a self-modified
    * invalidation: STX abs.
@@ -715,7 +725,8 @@ jit_test_dynamic_opcode(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1A00));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1A00);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
 
   /* Trigger a block split in the middle of the dynamic opcode! */
   s_p_mem[0x1A01] = 0xEA;
@@ -731,6 +742,7 @@ jit_test_dynamic_opcode(void) {
 
 static void
 jit_test_dynamic_opcode_2(void) {
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   /* Trigger what looks like a dynamic operand, but on an opcode for which
@@ -750,8 +762,10 @@ jit_test_dynamic_opcode_2(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1B00));
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1B01));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1B00);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1B01);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
 
   util_buffer_destroy(p_buf);
 }
@@ -759,6 +773,7 @@ jit_test_dynamic_opcode_2(void) {
 static void
 jit_test_dynamic_opcode_3(void) {
   uint64_t ticks;
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   /* Trigger a dynamic opcode that itself bounces inturbo -> interp. We'll use
@@ -786,7 +801,8 @@ jit_test_dynamic_opcode_3(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1C00));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x1C00);
+  test_expect_u32(1, jit_metadata_is_jit_ptr_dynamic(s_p_metadata, p_jit_ptr));
 
   /* Switch to LDA $FE20. */
   s_p_mem[0x1C00] = 0xAD;
@@ -962,7 +978,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3000);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3000);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3f]
    * or     al,  0x07
@@ -991,7 +1007,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3100);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3100);
 #if defined(__x86_64__)
   /* btr    r13d, 0x3
    * add    al,  0x1
@@ -1018,7 +1034,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3200);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3200);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * shr    r14b, 1
@@ -1064,7 +1080,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3300);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3300);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x10]
    * mov    dh, BYTE PTR [rbp-0x0f]
@@ -1119,7 +1135,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3400);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3400);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x35]
    * mov    dh, BYTE PTR [rbp-0x34]
@@ -1177,7 +1193,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3500);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3500);
 #if defined(__x86_64__)
   /* movzx  edx,BYTE PTR [rbp+0x3481]
    * mov    dh,BYTE PTR [rbp+0x3482]
@@ -1218,7 +1234,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3600);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3600);
 #if defined(__x86_64__)
   /* shr    r14b, 1
    * rcl    BYTE PTR [rbp-0x4e], 1
@@ -1271,7 +1287,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3700);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3700);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * sub    al, BYTE PTR [rbp-0x40]
@@ -1312,7 +1328,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3800);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3800);
 #if defined(__x86_64__)
   /* xor    eax, eax */
   p_expect = "\x31\xc0";
@@ -1336,7 +1352,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3900);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3900);
 #if defined(__x86_64__)
   /* mov    BYTE PTR [rbp+0x60], 0x0 */
   p_expect = "\xc6\x45\x60\x00";
@@ -1360,7 +1376,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3A00);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3A00);
 #if defined(__x86_64__)
   /* je     0x61d0180
    * lea    r15, [r15 - 2]
@@ -1388,7 +1404,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3B00);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3B00);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3b]
    * cmp    al, 0x96
