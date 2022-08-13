@@ -975,7 +975,7 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
   }
 }
 
-struct jit_opcode_details*
+void
 jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
   jit_optimizer_merge_opcodes(p_opcodes);
@@ -994,8 +994,6 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
    * unrolled loops.
    */
   jit_optimizer_replace_uops(p_opcodes);
-
-  return NULL;
 }
 
 void

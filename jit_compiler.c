@@ -82,10 +82,11 @@ struct jit_compiler {
   int32_t addr_x_fixup[k_6502_addr_space_size];
   int32_t addr_y_fixup[k_6502_addr_space_size];
 
-  /* State used within jit_compiler_compile_block() and subroutines. */
+  /* State used within compilation routines and subroutines. */
   struct jit_opcode_details opcode_details[k_max_addr_space_per_compile];
   struct jit_opcode_details* p_last_opcode;
   uint16_t start_addr_6502;
+  int32_t sub_instruction_addr_6502;
   int has_unresolved_jumps;
 };
 
@@ -1094,8 +1095,7 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
 }
 
 static void
-jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
-                            int32_t* p_out_sub_instruction_addr_6502) {
+jit_compiler_check_dynamics(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   struct jit_metadata* p_jit_metadata = p_compiler->p_jit_metadata;
 
@@ -1183,7 +1183,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
                      "compiling sub-instruction at $%.4X",
                      addr_6502);
         }
-        *p_out_sub_instruction_addr_6502 = next_addr_6502;
+        p_compiler->sub_instruction_addr_6502 = next_addr_6502;
         jit_compiler_make_last_opcode(p_compiler, p_details);
         break;
       }
@@ -1559,14 +1559,13 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 }
 
 uint32_t
-jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                           int is_invalidation,
-                           uint16_t start_addr_6502) {
+jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
+                                   int is_invalidation,
+                                   uint16_t start_addr_6502) {
   uint32_t i_opcodes;
   struct jit_opcode_details* p_details;
   uint16_t end_addr_6502;
   int is_block_start = 0;
-  int32_t sub_instruction_addr_6502 = -1;
 
   for (i_opcodes = 0; i_opcodes < k_max_addr_space_per_compile; ++i_opcodes) {
     p_compiler->opcode_details[i_opcodes].addr_6502 = -1;
@@ -1575,6 +1574,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   p_compiler->start_addr_6502 = start_addr_6502;
   p_compiler->p_last_opcode = NULL;
+  p_compiler->sub_instruction_addr_6502 = -1;
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
@@ -1601,9 +1601,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* 2) Work out if we'll be compiling any dynamic opcodes / operands.
    * NOTE: may truncate p_compiler->total_num_opcodes.
+   * NOTE: sets p_compiler->sub_instruction_addr_6502
    */
-  jit_compiler_check_dynamics(p_compiler,
-                              &sub_instruction_addr_6502);
+  jit_compiler_check_dynamics(p_compiler);
 
   /* If the block didn't end with an explicit jump, put it in. */
   p_details = p_compiler->p_last_opcode;
@@ -1624,11 +1624,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* 3) Run the pre-rewrite optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
-    struct jit_opcode_details* p_last_details =
-        jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
-    if (p_last_details != NULL) {
-      jit_compiler_make_last_opcode(p_compiler, p_last_details);
-    }
+    jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
   }
 
   /* 4) Walk the opcode list; add countdown checks and calculate cycle counts.
@@ -1648,6 +1644,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   if (!p_compiler->option_no_optimize) {
     jit_optimizer_optimize_post_rewrite(&p_compiler->opcode_details[0]);
   }
+
+  end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
+  return (end_addr_6502 - p_compiler->start_addr_6502);
+}
+
+void
+jit_compiler_execute_compile_block(struct jit_compiler* p_compiler) {
+  int32_t sub_instruction_addr_6502 = p_compiler->sub_instruction_addr_6502;
+
+  assert(p_compiler->p_last_opcode != NULL);
 
   /* 7) Emit the uop stream to the output buffer. */
   p_compiler->has_unresolved_jumps = 0;
@@ -1675,8 +1681,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   }
 
-  end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
-  return (end_addr_6502 - p_compiler->start_addr_6502);
+  p_compiler->p_last_opcode = NULL;
 }
 
 int64_t

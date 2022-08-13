@@ -5,8 +5,7 @@
 
 struct jit_opcode_details;
 
-struct jit_opcode_details*
-jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes);
+void jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes);
 
 void jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes);
 

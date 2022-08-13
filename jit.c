@@ -652,21 +652,21 @@ jit_compile(struct jit_struct* p_jit,
                                                                addr_6502);
   }
 
+  bytes_6502_compiled = jit_compiler_prepare_compile_block(p_compiler,
+                                                           is_invalidation,
+                                                           addr_6502);
+
   p_jit_block = jit_metadata_get_host_block_address(p_metadata, addr_6502);
-  p_jit_block_end = (p_jit_block + (256 * K_JIT_BYTES_PER_BYTE));
+  p_jit_block_end =
+      (p_jit_block + (bytes_6502_compiled * K_JIT_BYTES_PER_BYTE));
   if (p_jit_block_end > (void*) K_JIT_ADDR_END) {
     p_jit_block_end = (void*) K_JIT_ADDR_END;
   }
-  /* TODO: this 256 constant must match k_max_addr_space_per_compile in
-   * jit_compiler.c.
-   */
   asm_jit_start_code_updates(p_jit->p_asm,
                              p_jit_block,
                              (p_jit_block_end - p_jit_block));
 
-  bytes_6502_compiled = jit_compiler_compile_block(p_compiler,
-                                                   is_invalidation,
-                                                   addr_6502);
+  jit_compiler_execute_compile_block(p_compiler);
 
   asm_jit_finish_code_updates(p_jit->p_asm);
 

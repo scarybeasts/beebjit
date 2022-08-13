@@ -27,9 +27,10 @@ struct jit_compiler* jit_compiler_create(
     uint8_t* p_opcode_cycles);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
-uint32_t jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                                    int is_invalidation,
-                                    uint16_t addr_6502);
+uint32_t jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
+                                            int is_invalidation,
+                                            uint16_t addr_6502);
+void jit_compiler_execute_compile_block(struct jit_compiler* p_compiler);
 
 int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                                  struct state_6502* p_state_6502,
