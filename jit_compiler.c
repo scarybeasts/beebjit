@@ -292,6 +292,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Don't try and handle address space wraps in opcode fetch. */
   if ((addr_6502 + p_details->num_bytes_6502) >= k_6502_addr_space_size) {
     use_interp = 1;
+    p_details->num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
   }
 
   p_details->p_host_address_prefix_end = NULL;
@@ -969,9 +970,10 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
   p_opcode->is_dynamic_operand = 1;
 }
 
-static uint16_t
+static uint32_t
 jit_compiler_get_end_addr_6502(struct jit_compiler* p_compiler) {
-  uint16_t end_addr_6502;
+  /* Must be uint32_t because the end address could be 0x10000. */
+  uint32_t end_addr_6502;
   int32_t addr_6502;
   struct jit_opcode_details* p_details = p_compiler->p_last_opcode;
 
@@ -979,6 +981,7 @@ jit_compiler_get_end_addr_6502(struct jit_compiler* p_compiler) {
   assert(addr_6502 != -1);
   end_addr_6502 = (uint16_t) addr_6502;
   end_addr_6502 += p_details->num_bytes_6502;
+  assert(end_addr_6502 <= k_6502_addr_space_size);
 
   return end_addr_6502;
 }
@@ -1505,10 +1508,6 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
     }
 
     addr_6502 = p_details->addr_6502;
-    /* Handle address space wraps. */
-    if ((addr_6502 + num_bytes_6502) > k_6502_addr_space_size) {
-      num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
-    }
     for (i = 0; i < num_bytes_6502; ++i) {
       jit_metadata_set_jit_ptr(p_jit_metadata, addr_6502, jit_ptr);
       jit_metadata_set_code_block(p_jit_metadata, addr_6502, start_addr_6502);
@@ -1564,7 +1563,7 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
                                    uint16_t start_addr_6502) {
   uint32_t i_opcodes;
   struct jit_opcode_details* p_details;
-  uint16_t end_addr_6502;
+  uint32_t end_addr_6502;
   int is_block_start = 0;
 
   for (i_opcodes = 0; i_opcodes < k_max_addr_space_per_compile; ++i_opcodes) {

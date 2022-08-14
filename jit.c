@@ -659,9 +659,7 @@ jit_compile(struct jit_struct* p_jit,
   p_jit_block = jit_metadata_get_host_block_address(p_metadata, addr_6502);
   p_jit_block_end =
       (p_jit_block + (bytes_6502_compiled * K_JIT_BYTES_PER_BYTE));
-  if (p_jit_block_end > (void*) K_JIT_ADDR_END) {
-    p_jit_block_end = (void*) K_JIT_ADDR_END;
-  }
+  assert(p_jit_block_end <= (void*) K_JIT_ADDR_END);
   asm_jit_start_code_updates(p_jit->p_asm,
                              p_jit_block,
                              (p_jit_block_end - p_jit_block));
