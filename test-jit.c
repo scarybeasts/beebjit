@@ -66,22 +66,22 @@ jit_test_init(struct bbc_struct* p_bbc) {
 }
 
 static void
-jit_test_details_from_host_ip(void) {
+jit_test_simple_jit_metadata(void) {
   uint32_t i;
-  struct jit_host_ip_details details;
   void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
-  uint8_t* p_200_host_block = jit_metadata_get_host_block_address(s_p_metadata,
-                                                                  0x0200);
   uint8_t* p_A00_host_block = jit_metadata_get_host_block_address(s_p_metadata,
-                                                                  0x0A00);
+                                                                  0xA00);
   uint8_t* p_A01_host_block = jit_metadata_get_host_block_address(s_p_metadata,
-                                                                  0x0A01);
+                                                                  0xA01);
 
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_A00_host_block);
-  test_expect_u32(0xFFFFFFFF, details.pc_6502);
-  test_expect_u32(0xFFFFFFFF, details.block_6502);
-  test_expect_u32(0, (uint32_t) (uintptr_t) details.p_invalidation_code_block);
+  test_expect_eq(0xA00,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       p_A00_host_block));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xA00));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xA01));
+  test_expect_eq(1, asm_jit_is_invalidated_code_at(p_A00_host_block));
+  test_expect_eq(1, asm_jit_is_invalidated_code_at(p_A01_host_block));
 
   util_buffer_setup(p_buf, (s_p_mem + 0xA00), 0x100);
   emit_PLA(p_buf);
@@ -90,46 +90,22 @@ jit_test_details_from_host_ip(void) {
   state_6502_set_pc(s_p_state_6502, 0xA00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_A00_host_block);
-  test_expect_u32(0xFFFFFFFF, details.pc_6502);
-  test_expect_u32(0xFFFFFFFF, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_A01_host_block);
-  test_expect_u32(0xFFFFFFFF, details.pc_6502);
-  test_expect_u32(0xFFFFFFFF, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
+
   p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA00);
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
-  test_expect_u32(1, details.exact_match);
-  test_expect_u32(0xA00, details.pc_6502);
-  test_expect_u32(0xA00, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
+  test_expect_eq(0xA00,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       p_jit_ptr));
+  test_expect_eq(0xA00,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       (p_jit_ptr + 1)));
   p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA01);
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
-  test_expect_u32(1, details.exact_match);
-  test_expect_u32(0xA01, details.pc_6502);
-  test_expect_u32(0xA00, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA00);
-  p_jit_ptr++;
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
-  test_expect_u32(0, details.exact_match);
-  test_expect_u32(0xA00, details.pc_6502);
-  test_expect_u32(0xA00, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA01);
-  p_jit_ptr++;
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
-  test_expect_u32(0, details.exact_match);
-  test_expect_u32(0xA01, details.pc_6502);
-  test_expect_u32(0xA00, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
+  test_expect_eq(0xA01,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       p_jit_ptr));
+  test_expect_eq(0xA00, jit_metadata_get_code_block(s_p_metadata, 0xA00));
+  test_expect_eq(0xA00, jit_metadata_get_code_block(s_p_metadata, 0xA01));
+  test_expect_eq(0, asm_jit_is_invalidated_code_at(p_A00_host_block));
+  test_expect_eq(1, asm_jit_is_invalidated_code_at(p_A01_host_block));
 
   /* Emit a ton of non-trivial consecutive 6502 opcodes, such that the 6502
    * code block will spill across multiple host blocks.
@@ -142,12 +118,15 @@ jit_test_details_from_host_ip(void) {
   state_6502_set_pc(s_p_state_6502, 0x200);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+
   p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x280);
-  jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
-  test_expect_u32(0x280, details.pc_6502);
-  test_expect_u32(0x200, details.block_6502);
-  test_expect_u32((uint32_t) (uintptr_t) p_200_host_block,
-                  (uint32_t) (uintptr_t) details.p_invalidation_code_block);
+  test_expect_eq(0x280,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       p_jit_ptr));
+  test_expect_eq(0x280,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       (p_jit_ptr + 1)));
+  test_expect_eq(0x200, jit_metadata_get_code_block(s_p_metadata, 0x280));
 
   util_buffer_destroy(p_buf);
 }
@@ -189,6 +168,7 @@ jit_test_block_split(void) {
 
 static void
 jit_test_block_continuation(void) {
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xC00), 0x100);
@@ -207,7 +187,13 @@ jit_test_block_continuation(void) {
 
   jit_test_expect_block_invalidated(0, 0xC00);
   jit_test_expect_block_invalidated(1, 0xC01);
+  jit_test_expect_block_invalidated(1, 0xC02);
+  jit_test_expect_block_invalidated(1, 0xC03);
   jit_test_expect_block_invalidated(0, 0xC04);
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xC03);
+  test_expect_eq(0xC03,
+                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                                       p_jit_ptr));
 
   state_6502_set_pc(s_p_state_6502, 0xC01);
   jit_enter(s_p_cpu_driver);
@@ -1436,7 +1422,7 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_cleanup_stale_code(s_p_jit);
 
   jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
-  jit_test_details_from_host_ip();
+  jit_test_simple_jit_metadata();
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
 
   jit_test_block_split();

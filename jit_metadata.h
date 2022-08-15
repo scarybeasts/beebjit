@@ -27,6 +27,7 @@ int jit_metadata_has_invalidated_code(struct jit_metadata* p_metadata,
                                       uint16_t addr_6502);
 uint16_t jit_metadata_get_block_addr_from_host_pc(
     struct jit_metadata* p_metadata, void* p_host_pc);
+uint16_t jit_metadata_get_6502_pc_from_host_pc(struct jit_metadata* p_metadata,                                                void* p_host_pc);
 
 void jit_metadata_set_jit_ptr(struct jit_metadata* p_metadata,
                               uint16_t addr_6502,

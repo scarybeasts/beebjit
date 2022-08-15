@@ -127,6 +127,44 @@ jit_metadata_get_block_addr_from_host_pc(struct jit_metadata* p_metadata,
   return (uint16_t) block_addr_6502;
 }
 
+uint16_t
+jit_metadata_get_6502_pc_from_host_pc(struct jit_metadata* p_metadata,
+                                      void* p_host_pc) {
+  uint16_t addr_6502;
+  uint16_t ret_addr_6502;
+
+  void* p_curr_jit_ptr = NULL;
+  uint16_t host_block_6502 =
+      jit_metadata_get_block_addr_from_host_pc(p_metadata, p_host_pc);
+  int32_t code_block_6502 = jit_metadata_get_code_block(p_metadata,
+                                                        host_block_6502);
+
+  if (((uintptr_t) p_host_pc & (K_JIT_BYTES_PER_BYTE - 1)) == 0) {
+    return host_block_6502;
+  }
+
+  assert(code_block_6502 != -1);
+  for (addr_6502 = code_block_6502;
+       (jit_metadata_get_code_block(p_metadata, addr_6502) ==
+           code_block_6502);
+       ++addr_6502) {
+    void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, addr_6502);
+    assert(!jit_metadata_is_jit_ptr_no_code(p_metadata, p_jit_ptr));
+    if (jit_metadata_is_jit_ptr_dynamic(p_metadata, p_jit_ptr)) {
+      continue;
+    }
+    if (p_jit_ptr > p_host_pc) {
+      break;
+    }
+    if (p_jit_ptr != p_curr_jit_ptr) {
+      p_curr_jit_ptr = p_jit_ptr;
+      ret_addr_6502 = addr_6502;
+    }
+  }
+
+  return ret_addr_6502;
+}
+
 void
 jit_metadata_set_jit_ptr(struct jit_metadata* p_metadata,
                          uint16_t addr_6502,

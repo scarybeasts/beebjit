@@ -493,88 +493,11 @@ jit_housekeeping_tick(struct cpu_driver* p_cpu_driver) {
   p_jit->last_housekeeping_cycles = cycles;
 }
 
-struct jit_host_ip_details {
-  int exact_match;
-  int32_t pc_6502;
-  int32_t block_6502;
-  void* p_invalidation_code_block;
-};
-
-static void
-jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
-                                  struct jit_host_ip_details* p_details,
-                                  void* p_host_ip) {
-  uint16_t host_block_6502;
-  int32_t code_block_6502;
-  uint16_t i_pc_6502;
-  uint16_t pc_6502;
-  void* p_jit_ptr;
-  void* p_last_jit_ptr;
-  struct jit_metadata* p_metadata = p_jit->p_metadata;
-  int exact_match = -1;
-
-  p_details->exact_match = -1;
-  p_details->pc_6502 = -1;
-  p_details->block_6502 = -1;
-  p_details->p_invalidation_code_block = NULL;
-
-  host_block_6502 = jit_metadata_get_block_addr_from_host_pc(p_metadata,
-                                                             p_host_ip);
-  code_block_6502 = jit_metadata_get_code_block(p_metadata, host_block_6502);
-
-  if (((uintptr_t) p_host_ip & (K_JIT_BYTES_PER_BYTE - 1)) == 0) {
-    /* A block compile request. Still need to check if this splits an existing
-     * block.
-     */
-    if (code_block_6502 != -1) {
-      p_details->p_invalidation_code_block =
-          jit_metadata_get_host_block_address(p_metadata, code_block_6502);
-    }
-    return;
-  }
-
-  assert(code_block_6502 != -1);
-  i_pc_6502 = code_block_6502;
-  pc_6502 = i_pc_6502;
-  p_last_jit_ptr = NULL;
-  exact_match = 0;
-  while (1) {
-    if (jit_metadata_get_code_block(p_metadata, i_pc_6502) != code_block_6502) {
-      break;
-    }
-    p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, i_pc_6502);
-    assert(!jit_metadata_is_jit_ptr_no_code(p_metadata, p_jit_ptr));
-    if (jit_metadata_is_jit_ptr_dynamic(p_metadata, p_jit_ptr)) {
-      /* Just continue. */
-    } else if (p_jit_ptr == p_host_ip) {
-      pc_6502 = i_pc_6502;
-      exact_match = 1;
-      break;
-    } else {
-      if (p_jit_ptr > p_host_ip) {
-        break;
-      }
-      if (p_jit_ptr != p_last_jit_ptr) {
-        p_last_jit_ptr = p_jit_ptr;
-        pc_6502 = i_pc_6502;
-      }
-    }
-    i_pc_6502++;
-  }
-
-  p_details->exact_match = exact_match;
-  p_details->block_6502 = code_block_6502;
-  p_details->pc_6502 = pc_6502;
-  p_details->p_invalidation_code_block =
-      jit_metadata_get_host_block_address(p_metadata, code_block_6502);
-}
-
 static int64_t
 jit_compile(struct jit_struct* p_jit,
-            uint8_t* p_host_cpu_ip,
+            uint8_t* p_host_pc,
             int64_t countdown,
             uint64_t host_flags) {
-  struct jit_host_ip_details details;
   uint32_t bytes_6502_compiled;
   uint16_t addr_6502;
   uint16_t addr_6502_next;
@@ -585,29 +508,29 @@ jit_compile(struct jit_struct* p_jit,
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct jit_metadata* p_metadata = p_jit->p_metadata;
+  int32_t code_block_6502;
   int is_invalidation = 0;
   int has_6502_code = 0;
   int is_block_continuation = 0;
 
   p_jit->counter_num_compiles++;
 
-  jit_get_6502_details_from_host_ip(p_jit, &details, p_host_cpu_ip);
-
-  if (details.p_invalidation_code_block) {
-    asm_jit_start_code_updates(p_jit->p_asm,
-                               details.p_invalidation_code_block,
-                               4);
-    asm_jit_invalidate_code_at(details.p_invalidation_code_block);
-    asm_jit_finish_code_updates(p_jit->p_asm);
+  addr_6502 = jit_metadata_get_6502_pc_from_host_pc(p_metadata, p_host_pc);
+  code_block_6502 = jit_metadata_get_code_block(p_metadata, addr_6502);
+  if ((((uintptr_t) p_host_pc & (K_JIT_BYTES_PER_BYTE - 1)) != 0) &&
+      asm_jit_is_invalidated_code_at(p_host_pc)) {
+    is_invalidation = 1;
   }
 
-  if (details.pc_6502 != -1) {
-    assert(details.exact_match == 1);
-    addr_6502 = details.pc_6502;
-    is_invalidation = 1;
-  } else {
-    addr_6502 = jit_metadata_get_block_addr_from_host_pc(p_metadata,
-                                                         p_host_cpu_ip);
+  if (code_block_6502 != -1) {
+    /* We're splitting (or overwriting) an existing code block, so invalidate
+     * it.
+     */
+    void* p_jit_ptr = jit_metadata_get_host_block_address(p_metadata,
+                                                          code_block_6502);
+    asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
+    asm_jit_invalidate_code_at(p_jit_ptr);
+    asm_jit_finish_code_updates(p_jit->p_asm);
   }
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
@@ -675,9 +598,9 @@ jit_compile(struct jit_struct* p_jit,
   addr_6502_next = (addr_6502 + bytes_6502_compiled);
   clear_ptrs_addr_6502 = addr_6502_next;
   while (1) {
-    int32_t code_block = jit_metadata_get_code_block(p_metadata,
-                                                     clear_ptrs_addr_6502);
-    if ((code_block == -1) || (code_block >= addr_6502_next)) {
+    code_block_6502 = jit_metadata_get_code_block(p_metadata,
+                                                  clear_ptrs_addr_6502);
+    if ((code_block_6502 == -1) || (code_block_6502 >= addr_6502_next)) {
       break;
     }
     jit_metadata_set_code_block(p_metadata, clear_ptrs_addr_6502, -1);
@@ -702,7 +625,7 @@ jit_compile(struct jit_struct* p_jit,
                "compile @$%.4X-$%.4X [host %p], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
-               p_host_cpu_ip,
+               p_host_pc,
                p_text,
                timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));
   }
@@ -834,15 +757,12 @@ jit_handle_fault(uintptr_t* p_host_pc,
   }
 
   if (!is_inturbo) {
-    struct jit_host_ip_details details;
     /* NOTE -- may call assert() which isn't async safe but faulting context is
      * raw asm, shouldn't be a disaster.
      */
-    jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_pc);
-    assert(details.block_6502 != -1);
-    assert(details.pc_6502 != -1);
-
-    addr_6502 = details.pc_6502;
+    assert(((uintptr_t) p_fault_pc & (K_JIT_BYTES_PER_BYTE - 1)) != 0);
+    addr_6502 = jit_metadata_get_6502_pc_from_host_pc(p_jit->p_metadata,
+                                                      p_fault_pc);
   }
 
   /* Bail unless it's a clearly recognized fault. */
