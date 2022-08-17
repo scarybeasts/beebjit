@@ -205,3 +205,21 @@ jit_metadata_invalidate_code(struct jit_metadata* p_metadata, uint16_t addr) {
   void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, addr);
   asm_jit_invalidate_code_at(p_jit_ptr);
 }
+
+void
+jit_metadata_clear_block(struct jit_metadata* p_metadata, uint16_t addr_6502) {
+  uint16_t i_addr_6502;
+  int32_t next_code_block_addr_6502;
+  int32_t code_block_addr_6502 = jit_metadata_get_code_block(p_metadata,
+                                                             addr_6502);
+  assert(code_block_addr_6502 != -1);
+
+  i_addr_6502 = addr_6502;
+  do {
+    jit_metadata_make_jit_ptr_no_code(p_metadata, i_addr_6502);
+    jit_metadata_set_code_block(p_metadata, i_addr_6502, -1);
+    i_addr_6502++;
+    next_code_block_addr_6502 = jit_metadata_get_code_block(p_metadata,
+                                                            i_addr_6502);
+  } while (next_code_block_addr_6502 == code_block_addr_6502);
+}

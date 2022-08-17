@@ -501,7 +501,7 @@ jit_compile(struct jit_struct* p_jit,
   uint32_t bytes_6502_compiled;
   uint16_t addr_6502;
   uint16_t addr_6502_next;
-  uint16_t clear_ptrs_addr_6502;
+  uint16_t addr_6502_last;
   void* p_jit_block;
   void* p_jit_block_end;
 
@@ -520,17 +520,6 @@ jit_compile(struct jit_struct* p_jit,
   if ((((uintptr_t) p_host_pc & (K_JIT_BYTES_PER_BYTE - 1)) != 0) &&
       asm_jit_is_invalidated_code_at(p_host_pc)) {
     is_invalidation = 1;
-  }
-
-  if (code_block_6502 != -1) {
-    /* We're splitting (or overwriting) an existing code block, so invalidate
-     * it.
-     */
-    void* p_jit_ptr = jit_metadata_get_host_block_address(p_metadata,
-                                                          code_block_6502);
-    asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
-    asm_jit_invalidate_code_at(p_jit_ptr);
-    asm_jit_finish_code_updates(p_jit->p_asm);
   }
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
@@ -575,10 +564,12 @@ jit_compile(struct jit_struct* p_jit,
                                                                addr_6502);
   }
 
+  /* Get the compile bounds. */
   bytes_6502_compiled = jit_compiler_prepare_compile_block(p_compiler,
                                                            is_invalidation,
                                                            addr_6502);
 
+  /* Prepare for and write out the new binary code. */
   p_jit_block = jit_metadata_get_host_block_address(p_metadata, addr_6502);
   p_jit_block_end =
       (p_jit_block + (bytes_6502_compiled * K_JIT_BYTES_PER_BYTE));
@@ -586,26 +577,26 @@ jit_compile(struct jit_struct* p_jit,
   asm_jit_start_code_updates(p_jit->p_asm,
                              p_jit_block,
                              (p_jit_block_end - p_jit_block));
-
   jit_compiler_execute_compile_block(p_compiler);
-
   asm_jit_finish_code_updates(p_jit->p_asm);
 
-  /* Clear any leftover JIT pointers from a previous block at the same
-   * location. Also clean out subsequent block metadata if that block was
-   * trampled on.
-   */
+  /* Handle any overlap with existing code blocks. */
+  if ((code_block_6502 != -1) && (code_block_6502 != addr_6502)) {
+    /* We're splitting a code block before, so invalidate it. */
+    void* p_jit_ptr = jit_metadata_get_host_block_address(p_metadata,
+                                                          code_block_6502);
+    asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
+    asm_jit_invalidate_code_at(p_jit_ptr);
+    asm_jit_finish_code_updates(p_jit->p_asm);
+
+    jit_metadata_clear_block(p_metadata, code_block_6502);
+  }
   addr_6502_next = (addr_6502 + bytes_6502_compiled);
-  clear_ptrs_addr_6502 = addr_6502_next;
-  while (1) {
-    code_block_6502 = jit_metadata_get_code_block(p_metadata,
-                                                  clear_ptrs_addr_6502);
-    if ((code_block_6502 == -1) || (code_block_6502 >= addr_6502_next)) {
-      break;
-    }
-    jit_metadata_set_code_block(p_metadata, clear_ptrs_addr_6502, -1);
-    jit_metadata_make_jit_ptr_no_code(p_metadata, clear_ptrs_addr_6502);
-    clear_ptrs_addr_6502++;
+  addr_6502_last = (addr_6502_next - 1);
+  code_block_6502 = jit_metadata_get_code_block(p_metadata, addr_6502_next);
+  if ((code_block_6502 != -1) && (code_block_6502 <= addr_6502_last)) {
+    /* We're splitting a code block after, so invalidate it. */
+    jit_metadata_clear_block(p_metadata, addr_6502_next);
   }
 
   if (p_jit->log_compile) {

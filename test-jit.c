@@ -133,12 +133,14 @@ jit_test_simple_jit_metadata(void) {
 
 static void
 jit_test_block_split(void) {
+  void* p_jit_ptr;
   struct util_buffer* p_buf = util_buffer_create();
 
   jit_test_expect_block_invalidated(1, 0xB00);
   jit_test_expect_block_invalidated(1, 0xB01);
 
   util_buffer_setup(p_buf, (s_p_mem + 0xB00), 0x100);
+  emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
@@ -149,19 +151,48 @@ jit_test_block_split(void) {
   jit_test_expect_block_invalidated(0, 0xB00);
   jit_test_expect_block_invalidated(1, 0xB01);
 
-  state_6502_set_pc(s_p_state_6502, 0xB01);
+  /* Check block split at the start of the range. */
+  state_6502_set_pc(s_p_state_6502, 0xB02);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
   jit_test_expect_block_invalidated(1, 0xB00);
-  jit_test_expect_block_invalidated(0, 0xB01);
+  jit_test_expect_block_invalidated(1, 0xB01);
+  jit_test_expect_block_invalidated(0, 0xB02);
+
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xB00);
+  test_expect_eq(1, jit_metadata_is_jit_ptr_no_code(s_p_metadata, p_jit_ptr));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xB00));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xB01);
+  test_expect_eq(1, jit_metadata_is_jit_ptr_no_code(s_p_metadata, p_jit_ptr));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xB01));
 
   state_6502_set_pc(s_p_state_6502, 0xB00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
   jit_test_expect_block_invalidated(0, 0xB00);
-  jit_test_expect_block_invalidated(0, 0xB01);
+  jit_test_expect_block_invalidated(1, 0xB01);
+  jit_test_expect_block_invalidated(0, 0xB02);
+
+  /* Check block split at the end of the range. */
+  jit_test_invalidate_code_at_address(s_p_jit, 0xB00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xB01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xB02);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xB03);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xB05);
+  util_buffer_setup(p_buf, (s_p_mem + 0xB00), 0x100);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0xB00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xB05);
+  test_expect_eq(1, jit_metadata_is_jit_ptr_no_code(s_p_metadata, p_jit_ptr));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xB05));
+  p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xB06);
+  test_expect_eq(1, jit_metadata_is_jit_ptr_no_code(s_p_metadata, p_jit_ptr));
+  test_expect_eq(-1, jit_metadata_get_code_block(s_p_metadata, 0xB06));
 
   util_buffer_destroy(p_buf);
 }
@@ -1308,7 +1339,7 @@ jit_test_compile_binary(void) {
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, (s_p_mem + 0x3800), 0x100);
   emit_LDA(p_buf, k_imm, 0x00);
-  emit_JMP(p_buf, k_abs, 0x3804);
+  emit_JMP(p_buf, k_abs, 0x3805);
   emit_EXIT(p_buf);
   state_6502_set_pc(s_p_state_6502, 0x3800);
   jit_enter(s_p_cpu_driver);
@@ -1389,6 +1420,10 @@ jit_test_compile_binary(void) {
   state_6502_set_pc(s_p_state_6502, 0x3B00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+  /* And again because the block was split. */
+  state_6502_set_pc(s_p_state_6502, 0x3B00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
   p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3B00);
 #if defined(__x86_64__)
@@ -1423,9 +1458,9 @@ jit_test(struct bbc_struct* p_bbc) {
 
   jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
   jit_test_simple_jit_metadata();
+  jit_test_block_split();
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
 
-  jit_test_block_split();
   jit_test_block_continuation();
   jit_test_invalidation();
 
