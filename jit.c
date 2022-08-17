@@ -310,31 +310,34 @@ jit_set_exit_value(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
 
 static void
 jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
-                            uint16_t addr,
+                            uint16_t addr_6502,
                             uint32_t len) {
   uint32_t i;
+  void* p_block_ptr;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct jit_metadata* p_metadata = p_jit->p_metadata;
-  uint32_t addr_end = (addr + len);
+  uint32_t addr_end_6502 = (addr_6502 + len);
 
   assert(len <= k_6502_addr_space_size);
-  assert(addr_end <= k_6502_addr_space_size);
+  assert(addr_end_6502 <= k_6502_addr_space_size);
 
   if (p_jit->log_compile) {
     log_do_log(k_log_jit,
                k_log_info,
                "invalidate range $%.4X-$%.4X",
-               addr,
-               (addr_end - 1));
+               addr_6502,
+               (addr_end_6502 - 1));
   }
 
-  assert(addr_end >= addr);
+  assert(addr_end_6502 >= addr_6502);
 
-  /* TODO: only invalidate the relevant subsection of the JIT region. */
-  asm_jit_start_code_updates(p_jit->p_asm, NULL, 0);
+  p_block_ptr = jit_metadata_get_host_block_address(p_metadata, addr_6502);
+  asm_jit_start_code_updates(p_jit->p_asm,
+                             p_block_ptr,
+                             (len * K_JIT_BYTES_PER_BYTE));
 
-  for (i = addr; i < addr_end; ++i) {
+  for (i = addr_6502; i < addr_end_6502; ++i) {
     void* p_jit_ptr;
     p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, i);
     asm_jit_invalidate_code_at(p_jit_ptr);
@@ -346,7 +349,7 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
 
   asm_jit_finish_code_updates(p_jit->p_asm);
 
-  jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr, len);
+  jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr_6502, len);
 }
 
 static char*
