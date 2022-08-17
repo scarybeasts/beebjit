@@ -384,11 +384,6 @@ jit_check_code_block(struct jit_struct* p_jit, uint16_t block_addr_6502) {
   void* p_block_ptr;
 
   assert(code_block == block_addr_6502);
-  /* TODO: can't assert this, because the current block split code does not
-   * clear code_blocks[] for the old block.
-   * assert(!asm_jit_is_invalidated_code_at(
-   *    jit_get_jit_block_host_address(p_jit, block_addr_6502)));
-   */
 
   addr_6502 = block_addr_6502;
   while (code_block == block_addr_6502) {
