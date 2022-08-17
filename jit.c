@@ -495,7 +495,7 @@ jit_compile(struct jit_struct* p_jit,
             uint64_t host_flags) {
   uint32_t bytes_6502_compiled;
   uint16_t addr_6502;
-  uint16_t addr_6502_next;
+  uint16_t addr_6502_end;
   uint16_t addr_6502_last;
   void* p_jit_block;
   void* p_jit_block_end;
@@ -507,6 +507,7 @@ jit_compile(struct jit_struct* p_jit,
   int is_invalidation = 0;
   int has_6502_code = 0;
   int is_block_continuation = 0;
+  int do_redo_prepare = 0;
 
   p_jit->counter_num_compiles++;
 
@@ -528,6 +529,18 @@ jit_compile(struct jit_struct* p_jit,
                                          host_flags);
   }
 
+  if (p_jit->log_compile) {
+    has_6502_code = jit_metadata_is_pc_in_code_block(p_metadata, addr_6502);
+    is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
+                                                               addr_6502);
+  }
+
+  /* Get the compile bounds. */
+  bytes_6502_compiled = jit_compiler_prepare_compile_block(p_compiler,
+                                                           is_invalidation,
+                                                           addr_6502);
+  addr_6502_end = (addr_6502 + bytes_6502_compiled);
+
   if ((addr_6502 < 0xFF) &&
       !jit_compiler_is_compiling_for_code_in_zero_page(p_compiler)) {
     log_do_log(k_log_jit,
@@ -543,26 +556,22 @@ jit_compile(struct jit_struct* p_jit,
                                 (k_6502_addr_space_size - 1));
 
     jit_compiler_set_compiling_for_code_in_zero_page(p_compiler, 1);
-  } else if ((addr_6502 >= 0x100) && (addr_6502 <= 0x1FF)) {
-    /* TODO: doesn't handle case where zero page code spills into stack page
-     * code.
-     */
+    do_redo_prepare = 1;
+  }
+  if ((addr_6502 <= 0x1FF) && (addr_6502_end >= 0x100)) {
     log_do_log(k_log_jit,
                k_log_unimplemented,
                "compiling stack page code @$%.4X; self-modify not handled",
                addr_6502);
   }
 
-  if (p_jit->log_compile) {
-    has_6502_code = jit_metadata_is_pc_in_code_block(p_metadata, addr_6502);
-    is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
-                                                               addr_6502);
+  if (do_redo_prepare) {
+    /* Some compilation options changed, so-generate the compiler structures. */
+    bytes_6502_compiled = jit_compiler_prepare_compile_block(p_compiler,
+                                                             is_invalidation,
+                                                             addr_6502);
+    addr_6502_end = (addr_6502 + bytes_6502_compiled);
   }
-
-  /* Get the compile bounds. */
-  bytes_6502_compiled = jit_compiler_prepare_compile_block(p_compiler,
-                                                           is_invalidation,
-                                                           addr_6502);
 
   /* Prepare for and write out the new binary code. */
   p_jit_block = jit_metadata_get_host_block_address(p_metadata, addr_6502);
@@ -586,12 +595,12 @@ jit_compile(struct jit_struct* p_jit,
 
     jit_metadata_clear_block(p_metadata, code_block_6502);
   }
-  addr_6502_next = (addr_6502 + bytes_6502_compiled);
-  addr_6502_last = (addr_6502_next - 1);
-  code_block_6502 = jit_metadata_get_code_block(p_metadata, addr_6502_next);
+  addr_6502_end = (addr_6502 + bytes_6502_compiled);
+  addr_6502_last = (addr_6502_end - 1);
+  code_block_6502 = jit_metadata_get_code_block(p_metadata, addr_6502_end);
   if ((code_block_6502 != -1) && (code_block_6502 <= addr_6502_last)) {
     /* We're splitting a code block after, so invalidate it. */
-    jit_metadata_clear_block(p_metadata, addr_6502_next);
+    jit_metadata_clear_block(p_metadata, addr_6502_end);
   }
 
   if (p_jit->log_compile) {
