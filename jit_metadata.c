@@ -131,9 +131,9 @@ uint16_t
 jit_metadata_get_6502_pc_from_host_pc(struct jit_metadata* p_metadata,
                                       void* p_host_pc) {
   uint16_t addr_6502;
-  uint16_t ret_addr_6502;
 
   void* p_curr_jit_ptr = NULL;
+  uint16_t ret_addr_6502 = 0;
   uint16_t host_block_6502 =
       jit_metadata_get_block_addr_from_host_pc(p_metadata, p_host_pc);
   int32_t code_block_6502 = jit_metadata_get_code_block(p_metadata,
@@ -162,6 +162,7 @@ jit_metadata_get_6502_pc_from_host_pc(struct jit_metadata* p_metadata,
     }
   }
 
+  assert(p_curr_jit_ptr != NULL);
   return ret_addr_6502;
 }
 
