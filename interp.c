@@ -386,6 +386,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
   addr_temp <<= 8;                                                            \
   addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
+  addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
   if (addr < read_callback_from) {                                            \
@@ -582,6 +583,23 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_BCD_ID_READ(INSTR)                                        \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 6;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     goto check_irq;                                                           \
   }
 
@@ -1877,7 +1895,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x72: /* KIL */ /* Undocumented. */ /* ADC id */
       if (is_65c12) {
         if (df) {
-          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_ADC());
+          INTERP_MODE_BCD_ID_READ(INTERP_INSTR_BCD_ADC());
         } else {
           INTERP_MODE_ID_READ(INTERP_INSTR_ADC());
         }
@@ -2650,7 +2668,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xF2: /* KIL */ /* Undocumented. */ /* SBC id */
       if (is_65c12) {
         if (df) {
-          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_SBC());
+          INTERP_MODE_BCD_ID_READ(INTERP_INSTR_BCD_SBC());
         } else {
           INTERP_MODE_ID_READ(INTERP_INSTR_SBC());
         }
