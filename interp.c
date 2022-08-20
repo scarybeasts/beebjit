@@ -1702,7 +1702,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x5C: /* NOP abx */ /* Undocumented. */ /* NOP abs (8) */
       if (is_65c12) {
-        util_bail("NOP abs (8)");
+        /* Apparently, cycle stretching isn't possible in any of these 8 ticks.
+         * See: https://laughtonelectronics.com/Arcana/KimKlone/Kimklone_opcode_mapping.html
+         */
+        pc += 3;
+        cycles_this_instruction = 8;
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
       }
