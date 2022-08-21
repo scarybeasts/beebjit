@@ -693,6 +693,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
     INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
