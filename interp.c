@@ -905,6 +905,12 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   special_checks |= k_interp_special_KIL;                                     \
   cycles_this_instruction = 7;
 
+#define INTERP_INSTR_LAS()                                                    \
+  a = (s & v);                                                                \
+  x = a;                                                                      \
+  s = a;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(a);
+
 #define INTERP_INSTR_LAX()                                                    \
   a = v;                                                                      \
   x = v;                                                                      \
@@ -1007,6 +1013,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cf = !!(temp_int & 0x100);                                                  \
   a = temp_int;
 
+#define INTERP_INSTR_SHX()                                                    \
+  v = (x & ((addr_temp >> 8) + 1));
+
 #define INTERP_INSTR_SHY()                                                    \
   v = (y & ((addr_temp >> 8) + 1));
 
@@ -1033,6 +1042,10 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_STZ()                                                    \
   v = 0;
+
+#define INTERP_INSTR_TAS()                                                    \
+  s = (a & x);                                                                \
+  v = (a & x & ((addr_temp >> 8) + 1));
 
 #define INTERP_INSTR_TRB()                                                    \
   zf = !(v & a);                                                              \
@@ -1858,7 +1871,12 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ARR imm");
+        log_do_log(k_log_instruction,
+                   k_log_unimplemented,
+                   "pc $%.4x ARR #imm",
+                   pc);
+        pc += 2;
+        cycles_this_instruction = 2;
       }
       break;
     case 0x6C: /* JMP ind */
@@ -2192,7 +2210,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("TAS aby");
+        INTERP_MODE_ABr_WRITE(INTERP_INSTR_TAS(), y);
       }
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
@@ -2209,7 +2227,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABr_WRITE(INTERP_INSTR_STZ(), x);
       } else {
-        util_bail("SHX aby");
+        INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHX(), y);
       }
       break;
     case 0x9F: /* AHX aby */ /* Undocumented. */ /* NOP1 */
@@ -2368,7 +2386,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("LAS aby");
+        INTERP_MODE_ABr_READ(INTERP_INSTR_LAS(), y);
       }
       break;
     case 0xBC: /* LDY abx */
@@ -2784,12 +2802,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     default:
-      log_do_log(k_log_instruction,
-                 k_log_unimplemented,
-                 "pc $%.4x opcode $%.2x",
-                 pc,
-                 opcode);
-      __builtin_trap();
+      assert(0);
       break;
     }
 
