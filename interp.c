@@ -441,6 +441,33 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+#define INTERP_MODE_ABr_WRITE_SHr(INSTR, reg_name)                            \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
+  addr = (addr_temp + reg_name);                                              \
+  pc += 3;                                                                    \
+  if (addr < write_callback_from) {                                           \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 5;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                       \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    INSTR;                                                                    \
+    if (page_crossing) {                                                      \
+      addr &= 0x00FF;                                                         \
+      p_mem_write[addr] = v;                                                  \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_MEMORY_WRITE(addr);                                              \
+    }                                                                         \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_ABr_READ_WRITE(INSTR, reg_name)                           \
   addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
   addr_temp <<= 8;                                                            \
@@ -719,6 +746,33 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     }                                                                         \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_IDY_WRITE_AHX(INSTR)                                      \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  pc += 2;                                                                    \
+  if (addr < write_callback_from) {                                           \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 6;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                       \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    INSTR;                                                                    \
+    if (page_crossing) {                                                      \
+      addr &= 0x00FF;                                                         \
+      p_mem_write[addr] = v;                                                  \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_MEMORY_WRITE(addr);                                              \
+    }                                                                         \
     goto check_irq;                                                           \
   }
 
@@ -2171,7 +2225,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        INTERP_MODE_IDY_WRITE(INTERP_INSTR_AHX());
+        INTERP_MODE_IDY_WRITE_AHX(INTERP_INSTR_AHX());
       }
       break;
     case 0x94: /* STY zpx */
@@ -2210,14 +2264,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_TAS(), y);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_TAS(), y);
       }
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
       if (is_65c12) {
         INTERP_MODE_ABS_WRITE(INTERP_INSTR_STZ());
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHY(), x);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_SHY(), x);
       }
       break;
     case 0x9D: /* STA abx */
@@ -2227,7 +2281,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABr_WRITE(INTERP_INSTR_STZ(), x);
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHX(), y);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_SHX(), y);
       }
       break;
     case 0x9F: /* AHX aby */ /* Undocumented. */ /* NOP1 */
@@ -2235,7 +2289,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_AHX(), y);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_AHX(), y);
       }
       break;
     case 0xA0: /* LDY imm */
