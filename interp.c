@@ -338,7 +338,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     if (is_65c12) {                                                           \
-      uint8_t v2 = v;                                                         \
+      v2 = v;                                                                 \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
       v = v2;                                                                 \
     } else {                                                                  \
@@ -493,7 +493,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
         INTERP_MEMORY_READ(addr);                                             \
       }                                                                       \
       INTERP_MEMORY_READ(addr);                                               \
-      uint8_t v2 = v;                                                         \
+      v2 = v;                                                                 \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
       v = v2;                                                                 \
     } else {                                                                  \
@@ -966,11 +966,13 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_ISC()                                                    \
   v++;                                                                        \
+  v2 = v;                                                                     \
   if (df) {                                                                   \
     INTERP_INSTR_BCD_SBC();                                                   \
   } else {                                                                    \
     INTERP_INSTR_SBC();                                                       \
-  }
+  }                                                                           \
+  v = v2;
 
 #define INTERP_INSTR_KIL()                                                    \
   if (!(special_checks & k_interp_special_KIL)) {                             \
@@ -1152,6 +1154,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int page_crossing;
   uint16_t addr_temp;
   uint8_t v;
+  uint8_t v2;
   int poll_irq;
   uint32_t cpu_driver_flags;
   uint16_t read_callback_from;
