@@ -903,6 +903,35 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   a &= v;                                                                     \
   INTERP_LOAD_NZ_FLAGS(a);
 
+#define INTERP_INSTR_ARR()                                                    \
+  /* Logic from jsbeeb. */                                                    \
+  if (df) {                                                                   \
+    temp_int = (a & v);                                                       \
+    ah = (temp_int >> 4);                                                     \
+    al = (temp_int & 0x0F);                                                   \
+    nf = cf;                                                                  \
+    a = (temp_int >> 1);                                                      \
+    if (cf) {                                                                 \
+      a |= 0x80;                                                              \
+    }                                                                         \
+    zf = !a;                                                                  \
+    of = !!((temp_int ^ a) & 0x40);                                           \
+    if ((al + (al & 1)) > 5) {                                                \
+      a = ((a & 0xF0) | ((a + 6) & 0x0F));                                    \
+    }                                                                         \
+    cf = ((ah + (ah & 1)) > 5);                                               \
+    if (cf) {                                                                 \
+      a = ((a + 0x60) & 0xFF);                                                \
+    }                                                                         \
+  } else {                                                                    \
+    a = (a & v);                                                              \
+    of = !!(((a >> 7) ^ (a >> 6)) & 0x01);                                    \
+    a >>= 1;                                                                  \
+    a += (cf << 7);                                                           \
+    INTERP_LOAD_NZ_FLAGS(a);                                                  \
+    cf = !!(a & 0x40);                                                        \
+  }
+
 #define INTERP_INSTR_ASL()                                                    \
   cf = !!(v & 0x80);                                                          \
   v <<= 1;                                                                    \
@@ -1910,10 +1939,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        log_do_log(k_log_instruction,
-                   k_log_unimplemented,
-                   "pc $%.4x ARR #imm",
-                   pc);
+        v = p_mem_read[pc + 1];
+        INTERP_INSTR_ARR();
         pc += 2;
         cycles_this_instruction = 2;
       }
