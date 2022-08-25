@@ -869,34 +869,29 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_ADC()                                                    \
   temp_int = (a + v + cf);                                                    \
-  zf = !(temp_int & 0xFF);                                                    \
+  cf = (temp_int >> 8);                                                       \
+  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
-  nf = !!(temp_int & 0x80);                                                   \
-  cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
 
 #define INTERP_INSTR_BCD_ADC()                                                \
+  interp_check_log_bcd(p_interp);                                             \
   temp_int = (a + v + cf);                                                    \
   zf = !(temp_int & 0xFF);                                                    \
-  if (df) {                                                                   \
-    interp_check_log_bcd(p_interp);                                           \
-    /* Fix up decimal carry on first nibble. */                               \
-    int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                       \
-    if (decimal_carry >= 0x0A) {                                              \
-      temp_int += 0x06;                                                       \
-      if (decimal_carry >= 0x1A) {                                            \
-        temp_int -= 0x10;                                                     \
-      }                                                                       \
+  /* Fix up decimal carry on first nibble. */                                 \
+  int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                         \
+  if (decimal_carry >= 0x0A) {                                                \
+    temp_int += 0x06;                                                         \
+    if (decimal_carry >= 0x1A) {                                              \
+      temp_int -= 0x10;                                                       \
     }                                                                         \
   }                                                                           \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
   nf = !!(temp_int & 0x80);                                                   \
-  if (df) {                                                                   \
-    if (temp_int >= 0xA0) {                                                   \
-      temp_int += 0x60;                                                       \
-    }                                                                         \
+  if (temp_int >= 0xA0) {                                                     \
+    temp_int += 0x60;                                                         \
   }                                                                           \
   cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
@@ -1034,13 +1029,8 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   /* "SBC simply takes the ones complement of the second value and then       \
    * performs an ADC"                                                         \
    */                                                                         \
-  temp_int = (a + (uint8_t) ~v + cf);                                         \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
-  /* In decimal mode, NZ flags are based on this interim value. */            \
-  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
-  cf = !!(temp_int & 0x100);                                                  \
-  a = temp_int;
+  v = ~v;                                                                     \
+  INTERP_INSTR_ADC();
 
 #define INTERP_INSTR_BCD_SBC()                                                \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
@@ -1048,21 +1038,17 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
    * performs an ADC"                                                         \
    */                                                                         \
   temp_int = (a + (uint8_t) ~v + cf);                                         \
-  if (df) {                                                                   \
-    interp_check_log_bcd(p_interp);                                           \
-    /* Fix up decimal carry on first nibble. */                               \
-    if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                    \
-      temp_int -= 0x06;                                                       \
-    }                                                                         \
+  interp_check_log_bcd(p_interp);                                             \
+  /* Fix up decimal carry on first nibble. */                                 \
+  if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                      \
+    temp_int -= 0x06;                                                         \
   }                                                                           \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
   /* In decimal mode, NZ flags are based on this interim value. */            \
   INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
-  if (df) {                                                                   \
-    if ((v + !cf) > a) {                                                      \
-      temp_int -= 0x60;                                                       \
-    }                                                                         \
+  if ((v + !cf) > a) {                                                        \
+    temp_int -= 0x60;                                                         \
   }                                                                           \
   cf = !!(temp_int & 0x100);                                                  \
   a = temp_int;
