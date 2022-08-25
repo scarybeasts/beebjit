@@ -1033,25 +1033,22 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   INTERP_INSTR_ADC();
 
 #define INTERP_INSTR_BCD_SBC()                                                \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  /* "SBC simply takes the ones complement of the second value and then       \
-   * performs an ADC"                                                         \
-   */                                                                         \
-  temp_int = (a + (uint8_t) ~v + cf);                                         \
   interp_check_log_bcd(p_interp);                                             \
-  /* Fix up decimal carry on first nibble. */                                 \
-  if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                      \
-    temp_int -= 0x06;                                                         \
+  /* Logic from jsbeeb. */                                                    \
+  temp_int = (a - v - !cf);                                                   \
+  al = ((a & 0x0F) - (v & 0x0F) - !cf);                                       \
+  ah = ((a >> 4) - (v >> 4));                                                 \
+  if (al & 0x10) {                                                            \
+    al = ((al - 6) & 0x0F);                                                   \
+    ah--;                                                                     \
   }                                                                           \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
-  /* In decimal mode, NZ flags are based on this interim value. */            \
+  if (ah & 0x10) {                                                            \
+    ah = ((ah - 6) & 0x0F);                                                   \
+  }                                                                           \
+  cf = !(temp_int & 0x100);                                                   \
   INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
-  if ((v + !cf) > a) {                                                        \
-    temp_int -= 0x60;                                                         \
-  }                                                                           \
-  cf = !!(temp_int & 0x100);                                                  \
-  a = temp_int;
+  of = !!((a ^ temp_int) & (v ^ a) & 0x80);                                   \
+  a = (al | (ah << 4));
 
 #define INTERP_INSTR_SHX()                                                    \
   v = (x & ((addr_temp >> 8) + 1));
@@ -1120,6 +1117,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t intf;
 
   int temp_int;
+  uint8_t al;
+  uint8_t ah;
   uint8_t temp_u8;
   int page_crossing;
   uint16_t addr_temp;
