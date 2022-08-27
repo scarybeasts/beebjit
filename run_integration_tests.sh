@@ -39,3 +39,5 @@ echo 'Running master.rom, interpreter.'
 echo 'Running 8271.rom, interpreter.'
 ./beebjit -os 8271.rom -0 test/empty/0bytefile.ssd -writeable -test-map \
     -mode interp
+
+echo 'Integration tests OK.'

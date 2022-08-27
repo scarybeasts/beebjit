@@ -17,3 +17,5 @@ echo 'Checking E00 DFS ROM in sideways RAM.'
     -headless -fast -accurate -debug \
     -autoboot \
     -commands 'b 1900;c;q'
+
+echo 'Functional tests OK.'
