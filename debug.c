@@ -1952,6 +1952,7 @@ debug_callback_common(struct debug_struct* p_debug,
 
     /* Get more commands from stdin if the list is empty. */
     if (util_string_list_get_count(p_pending_commands) == 0) {
+      char* p_input_ret;
       uint32_t len;
 
       /* If we're blocking waiting on user input, re-paint the screen. This
@@ -1961,7 +1962,7 @@ debug_callback_common(struct debug_struct* p_debug,
       video_advance_crtc_timing(p_debug->p_video);
       video_force_paint(p_debug->p_video, 0);
 
-      char* p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
+      p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {
         util_bail("fgets failed");
       }
@@ -2011,6 +2012,8 @@ debug_callback_common(struct debug_struct* p_debug,
 
     if (!strcmp(p_command, "q")) {
       exit(0);
+    } else if (!strcmp(p_command, "bail")) {
+      util_bail("debug bailing!");
     } else if (!strcmp(p_command, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
       (void) printf("print now: %d\n", p_debug->debug_running_print);
@@ -2434,6 +2437,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
   "fast               : toggle fast mode on/off\n"
   "seek <s>           : seek a replay file to <s> seconds\n"
+  "bail               : exit emulator with failure code\n"
   );
     } else {
       (void) printf("???\n");
