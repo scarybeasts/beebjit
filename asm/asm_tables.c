@@ -1,6 +1,7 @@
 #include "asm_tables.h"
 
 #include "asm_defs_host.h"
+#include "asm_tables_defs.h"
 #include "asm_jit.h"
 #include "../os_alloc.h"
 

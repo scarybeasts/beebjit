@@ -11,9 +11,11 @@ are currently prioritized.
 JIT improvements
 ================
 
-- ARM64 partial zero page caching in host registers.
-- Investigate mode REL for dynamic operand.
-- Re-add mode IDX address optimization.
+- ARM64 partial zero page caching in host registers (turbocharge or flop?)
+- Investigate mode REL for dynamic operand (see Castle Quest)
+- Re-add mode IDX address optimization (Galaforce?)
+- x64 and ARM64: page crossing check is ripe for optimization (Galaforce sprite
+loop)
 
 
 Fix later

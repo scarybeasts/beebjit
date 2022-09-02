@@ -81,6 +81,10 @@ proof-of-concept prototypes being worked on at the time of writing (April 2022).
 
 
 In the "ok" category:
+- Porting.
+beebjit is developed on Linux. There is a Windows port and a macOS port, which
+appear to be reasonably stable.
+
 - 6502 debugger.
 The built-in 6502 debugger is reasonably capable and could very quickly be
 extended if there is demand. One of the highlights is the ability to craft
@@ -92,11 +96,6 @@ configurability such as extra ROMs and sideways RAM. There is no Master Turbo.
 
 
 In the "worse" category:
-- Porting.
-Currently, beebjit was developed on Linux and there's an early port to Windows.
-If there's demand, this will be improved, probably by use the cross-platform
-SDL library.
-
 - GUI.
 There is no GUI for configuration or anything else. Currently, it's a deliberate
 philosophical decision. Cast your mind back to the original BBC: it dropped you

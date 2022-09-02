@@ -386,6 +386,32 @@ timing_test_simultaneous() {
   test_expect_u32(2, s_timing_test_order_t2);
 }
 
+static void
+timing_test_reset() {
+  struct timing_struct* p_timing = timing_create(1);
+
+  uint32_t t1 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_basic,
+                                      p_timing);
+  (void) timing_start_timer_with_value(p_timing, t1, 100);
+  test_expect_u32(100, timing_get_timer_value(p_timing, t1));
+
+  (void) timing_advance_time_delta(p_timing, 10);
+  test_expect_u32(90, timing_get_countdown(p_timing));
+  test_expect_u32(10, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(90, timing_get_timer_value(p_timing, t1));
+
+  timing_reset_total_timer_ticks(p_timing);
+  test_expect_u32(90, timing_get_countdown(p_timing));
+  test_expect_u32(0, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(90, timing_get_timer_value(p_timing, t1));
+
+  (void) timing_advance_time_delta(p_timing, 10);
+  test_expect_u32(80, timing_get_countdown(p_timing));
+  test_expect_u32(10, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(80, timing_get_timer_value(p_timing, t1));
+}
+
 void
 timing_test() {
   timing_test_counting();
@@ -393,4 +419,5 @@ timing_test() {
   timing_test_multi_expiry();
   timing_test_scaling();
   timing_test_simultaneous();
+  timing_test_reset();
 }

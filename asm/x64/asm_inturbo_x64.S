@@ -259,10 +259,8 @@ ASM_SYM(asm_inturbo_call_interp):
   pop REG_CONTEXT
 
   test REG_RETURN, REG_RETURN
-  je not_exiting
-  ret
+  jne exiting
 
-not_exiting:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   lea REG_6502_PC, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
@@ -273,6 +271,18 @@ not_exiting:
   sahf
   lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_ADDR]
   jmp REG_SCRATCH3
+
+exiting:
+  # We might be exiting inturbo mode, or exiting JIT mode within a call to
+  # inturbo.
+  # It's a layering violation, but for now handle those two cases here by
+  # walking up the stack one more call if we're in JIT mode.
+  mov REG_SCRATCH1, [REG_CONTEXT]
+  test REG_SCRATCH1, REG_SCRATCH1
+  je exiting_inturbo
+  add rsp, 16
+exiting_inturbo:
+  ret
 
 
 .globl ASM_SYM(asm_inturbo_mode_rel)

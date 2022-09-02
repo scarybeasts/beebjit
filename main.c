@@ -126,6 +126,7 @@ beebjit_main(void) {
   int wd_1770_type = 0;
   int watford_flag = 0;
   int opus_flag = 0;
+  int dfs12_flag = 0;
   int is_master_flag = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
@@ -318,6 +319,8 @@ beebjit_main(void) {
       watford_flag = 1;
     } else if (!strcmp(arg, "-opus")) {
       opus_flag = 1;
+    } else if (!strcmp(arg, "-dfs12")) {
+      dfs12_flag = 1;
     } else if (!strcmp(arg, "-autoboot")) {
       autoboot_flag = 1;
     } else if (!strcmp(arg, "-extended-roms")) {
@@ -379,6 +382,7 @@ beebjit_main(void) {
 "-frames-dir     <d>: directory for frame files, default '.'.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
+"-dfs12             : for a model B with an 8271, load newer DFS v1.2 ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
 "-rocket     <p> <f>: connect to Rocket sync editor with prefix string <p> and track list file <f>.\n"
 "");
@@ -488,6 +492,8 @@ beebjit_main(void) {
     } else {
       if (watford_flag) {
         p_dfs_rom_name = "roms/WDFS144";
+      } else if (dfs12_flag) {
+        p_dfs_rom_name = "roms/acorn_dnfs.rom";
       } else {
         p_dfs_rom_name = "roms/DFS-0.9.rom";
       }
@@ -497,21 +503,6 @@ beebjit_main(void) {
 
   if (extended_roms_flag) {
     bbc_enable_extended_rom_addressing(p_bbc);
-  }
-  for (i = 0; i < k_bbc_num_roms; ++i) {
-    const char* p_rom_name = rom_names[i];
-    if (p_rom_name != NULL) {
-      (void) memset(load_rom, '\0', k_bbc_rom_size);
-      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
-      bbc_load_rom(p_bbc, i, load_rom);
-    }
-    if (sideways_ram[i]) {
-      bbc_make_sideways_ram(p_bbc, i);
-    }
-  }
-
-  if (load_name != NULL) {
-    state_load(p_bbc, load_name);
   }
 
   /* Load the discs into the drive! */
@@ -551,6 +542,41 @@ beebjit_main(void) {
     }
   }
 
+  /* Set autoboot before calling bbc_power_on_reset().
+   * Currently, autoboot is handled by resetting the autoboot timer in this
+   * function.
+   */
+  if (autoboot_flag) {
+    bbc_set_autoboot(p_bbc, 1);
+  }
+
+  /* Do the power on reset before any of the below options that change state:
+   * - Loading a state file.
+   * - Setting the PC.
+   * - Loading a ROM file into a sideways RAM bank.
+   */
+  bbc_power_on_reset(p_bbc);
+
+  if (load_name != NULL) {
+    state_load(p_bbc, load_name);
+  }
+
+  if (pc >= 0) {
+    bbc_set_pc(p_bbc, pc);
+  }
+
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    const char* p_rom_name = rom_names[i];
+    if (p_rom_name != NULL) {
+      (void) memset(load_rom, '\0', k_bbc_rom_size);
+      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
+      bbc_load_rom(p_bbc, i, load_rom);
+    }
+    if (sideways_ram[i]) {
+      bbc_make_sideways_ram(p_bbc, i);
+    }
+  }
+
   /* Set up keyboard capture / replay / links. */
   p_keyboard = bbc_get_keyboard(p_bbc);
   if (capture_name) {
@@ -561,9 +587,6 @@ beebjit_main(void) {
   }
   if (keyboard_links != -1) {
     keyboard_set_links(p_keyboard, keyboard_links);
-  }
-  if (autoboot_flag) {
-    bbc_set_autoboot(p_bbc, 1);
   }
 
   /* Set up Rocket sync editor. */
@@ -640,15 +663,6 @@ beebjit_main(void) {
                           handle_channel_read_ui,
                           handle_channel_write_ui);
 
-  bbc_power_on_reset(p_bbc);
-
-  /* Can only set the PC after the bbc_power_on_reset reset call, otherwise the
-   * 6502 reset will clobber it.
-   */
-  if (pc >= 0) {
-    bbc_set_pc(p_bbc, pc);
-  }
-
   bbc_run_async(p_bbc);
 
   os_poller_add_handle(p_poller, handle_channel_read_ui);
@@ -671,6 +685,7 @@ beebjit_main(void) {
 
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
+        log_do_log(k_log_misc, k_log_info, "BBC thread exited");
         break;
       }
 
@@ -698,6 +713,7 @@ beebjit_main(void) {
           main_save_frame(p_frames_dir, save_frame_count, p_render);
           save_frame_count++;
           if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
+            log_do_log(k_log_misc, k_log_info, "save frame count exit");
             exit(0);
           }
         }
@@ -718,6 +734,7 @@ beebjit_main(void) {
       os_window_process_events(p_window);
       if (os_window_is_closed(p_window)) {
         struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+        log_do_log(k_log_misc, k_log_info, "OS window closed");
         window_open = 0;
         if (!(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) &
               k_cpu_flag_exited)) {

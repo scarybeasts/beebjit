@@ -590,6 +590,9 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t address_counter;
+  uint64_t crtc_frames;
+  int is_in_vert_adjust;
+  int is_in_dummy_raster;
   uint8_t regs[k_video_crtc_num_registers];
   uint32_t horiz_pos;
   uint32_t vert_pos;
@@ -604,15 +607,22 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                        &horiz_counter,
                        &scanline_counter,
                        &vert_counter,
-                       &address_counter);
+                       &address_counter,
+                       &crtc_frames,
+                       &is_in_vert_adjust,
+                       &is_in_dummy_raster);
   video_get_crtc_registers(p_video, &regs[0]);
 
   (void) printf("horiz %"PRId8" scanline %"PRId8" vert %"PRId8
-                " addr $%.4"PRIX16"\n",
+                " addr $%.4"PRIX16" frames %"PRIu64"\n",
                 horiz_counter,
                 scanline_counter,
                 vert_counter,
-                address_counter);
+                address_counter,
+                crtc_frames);
+  (void) printf("is_in_vert_adjust %d is_in_dummy_raster %d\n",
+                is_in_vert_adjust,
+                is_in_dummy_raster);
   for (i = 0; i < k_video_crtc_num_registers; ++i) {
     (void) printf("R%.2d $%.2X  ", i, regs[i]);
     if ((i & 7) == 7) {
@@ -1037,17 +1047,19 @@ debug_print_registers(uint8_t reg_a,
                       const char* flags_buf,
                       uint16_t reg_pc,
                       uint64_t cycles,
+                      uint64_t ticks,
                       uint64_t countdown) {
-  (void) printf("[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
-                "F=%s PC=%.4"PRIX16" "
-                "cycles=%"PRIu64" countdown=%"PRIu64"]\n",
+  (void) printf("6502 [A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
+                "F=%s PC=%.4"PRIX16" cycles=%"PRIu64"]\n",
                 reg_a,
                 reg_x,
                 reg_y,
                 reg_s,
                 flags_buf,
                 reg_pc,
-                cycles,
+                cycles);
+  (void) printf("sys  [ticks=%"PRIu64" countdown=%"PRIu64"]\n",
+                ticks,
                 countdown);
 }
 
@@ -1180,12 +1192,18 @@ debug_read_variable_crtc_c0(void* p, uint32_t index) {
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t addr_counter;
+  uint64_t crtc_frames;
+  int is_in_vert_adjust;
+  int is_in_dummy_raster;
   (void) index;
   video_get_crtc_state(p_debug->p_video,
                        &horiz_counter,
                        &scanline_counter,
                        &vert_counter,
-                       &addr_counter);
+                       &addr_counter,
+                       &crtc_frames,
+                       &is_in_vert_adjust,
+                       &is_in_dummy_raster);
   return horiz_counter;
 }
 
@@ -1196,12 +1214,18 @@ debug_read_variable_crtc_c4(void* p, uint32_t index) {
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t addr_counter;
+  uint64_t crtc_frames;
+  int is_in_vert_adjust;
+  int is_in_dummy_raster;
   (void) index;
   video_get_crtc_state(p_debug->p_video,
                        &horiz_counter,
                        &scanline_counter,
                        &vert_counter,
-                       &addr_counter);
+                       &addr_counter,
+                       &crtc_frames,
+                       &is_in_vert_adjust,
+                       &is_in_dummy_raster);
   return vert_counter;
 }
 
@@ -1212,12 +1236,18 @@ debug_read_variable_crtc_c9(void* p, uint32_t index) {
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t addr_counter;
+  uint64_t crtc_frames;
+  int is_in_vert_adjust;
+  int is_in_dummy_raster;
   (void) index;
   video_get_crtc_state(p_debug->p_video,
                        &horiz_counter,
                        &scanline_counter,
                        &vert_counter,
-                       &addr_counter);
+                       &addr_counter,
+                       &crtc_frames,
+                       &is_in_vert_adjust,
+                       &is_in_dummy_raster);
   return scanline_counter;
 }
 
@@ -1228,12 +1258,18 @@ debug_read_variable_crtc_ma(void* p, uint32_t index) {
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t addr_counter;
+  uint64_t crtc_frames;
+  int is_in_vert_adjust;
+  int is_in_dummy_raster;
   (void) index;
   video_get_crtc_state(p_debug->p_video,
                        &horiz_counter,
                        &scanline_counter,
                        &vert_counter,
-                       &addr_counter);
+                       &addr_counter,
+                       &crtc_frames,
+                       &is_in_vert_adjust,
+                       &is_in_dummy_raster);
   return addr_counter;
 }
 
@@ -1629,6 +1665,7 @@ debug_print_status_line(struct debug_struct* p_debug,
                         uint8_t operand2,
                         int do_irq,
                         int branch_taken) {
+  char sub_tag[5];
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
@@ -1666,7 +1703,6 @@ debug_print_status_line(struct debug_struct* p_debug,
     p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
                                                              p_debug->reg_pc);
   } else {
-    char sub_tag[5];
     assert(p_debug->is_sub_instruction_active);
     (void) snprintf(sub_tag,
                     sizeof(sub_tag),
@@ -1916,6 +1952,7 @@ debug_callback_common(struct debug_struct* p_debug,
 
     /* Get more commands from stdin if the list is empty. */
     if (util_string_list_get_count(p_pending_commands) == 0) {
+      char* p_input_ret;
       uint32_t len;
 
       /* If we're blocking waiting on user input, re-paint the screen. This
@@ -1925,7 +1962,7 @@ debug_callback_common(struct debug_struct* p_debug,
       video_advance_crtc_timing(p_debug->p_video);
       video_force_paint(p_debug->p_video, 0);
 
-      char* p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
+      p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {
         util_bail("fgets failed");
       }
@@ -1975,9 +2012,16 @@ debug_callback_common(struct debug_struct* p_debug,
 
     if (!strcmp(p_command, "q")) {
       exit(0);
+    } else if (!strcmp(p_command, "bail")) {
+      util_bail("debug bailing!");
     } else if (!strcmp(p_command, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
       (void) printf("print now: %d\n", p_debug->debug_running_print);
+    } else if (!strcmp(p_command, "fast")) {
+      int is_fast = bbc_get_fast_flag(p_bbc);
+      is_fast = !is_fast;
+      bbc_set_fast_flag(p_bbc, is_fast);
+      (void) printf("fast now: %d\n", is_fast);
     } else if (!strcmp(p_command, "stats")) {
       p_debug->stats = !p_debug->stats;
       (void) printf("stats now: %d\n", p_debug->stats);
@@ -2032,14 +2076,18 @@ debug_callback_common(struct debug_struct* p_debug,
       uint64_t ticks_delta;
       struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
-      uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
+      uint64_t ticks = timing_get_total_timer_ticks(p_timing);
       if (timing_timer_is_running(p_timing, timer_id)) {
         (void) timing_stop_timer(p_timing, timer_id);
       }
-      if (parse_u64 > curr_cycles) {
-        ticks_delta = (parse_u64 - curr_cycles);
+      if (parse_u64 > ticks) {
+        ticks_delta = (parse_u64 - ticks);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
+    } else if (!strcmp(p_command, "seek")) {
+      (void) bbc_replay_seek(p_bbc, (parse_int * 2000000ull));
+      p_debug->debug_running = 1;
+      break;
     } else if (!strcmp(p_command, "b") || !strcmp(p_command, "break")) {
       debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bm")) {
@@ -2084,13 +2132,24 @@ debug_callback_common(struct debug_struct* p_debug,
       (void) printf("result: %"PRId64" (0x%"PRIx64")\n",
                     expression_ret,
                     expression_ret);
-    } else if ((sscanf(input_buf,
-                       "writem %"PRIx32" %"PRIx32,
-                       &parse_int,
-                       &parse_int2) == 2) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536)) {
-      bbc_memory_write(p_bbc, parse_int, parse_int2);
+    } else if (!strcmp(p_command, "writem")) {
+      uint32_t sequence_len;
+      uint32_t i_seq;
+      uint16_t addr_start;
+      if (num_strings < 3) {
+        break;
+      }
+      sequence_len = (num_strings - 2);
+      p_param_str = util_string_list_get_string(p_command_strings, 1);
+      addr_start = (uint16_t) debug_parse_number(p_param_str, 1);
+      for (i_seq = 0; i_seq < sequence_len; ++i_seq) {
+        p_param_str =
+            util_string_list_get_string(p_command_strings, (i_seq + 2));
+        parse_int = debug_parse_number(p_param_str, 1);
+        bbc_memory_write(p_bbc,
+                         (uint16_t) (addr_start + i_seq),
+                         (uint8_t) parse_int);
+      }
     } else if (!strcmp(p_command, "find")) {
       uint32_t sequence_len;
       uint32_t addr_start;
@@ -2182,6 +2241,7 @@ debug_callback_common(struct debug_struct* p_debug,
       char flags_buf[9];
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
       struct timing_struct* p_timing = p_debug->p_timing;
+      uint64_t ticks = timing_get_total_timer_ticks(p_timing);
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
       debug_print_flags_buf(&flags_buf[0], p_debug->reg_flags);
@@ -2192,6 +2252,7 @@ debug_callback_common(struct debug_struct* p_debug,
                             flags_buf,
                             p_debug->reg_pc,
                             cycles,
+                            ticks,
                             countdown);
     } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0) &&
@@ -2374,6 +2435,9 @@ debug_callback_common(struct debug_struct* p_debug,
   "keydown <k>        : simulate key press <k>\n"
   "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
+  "fast               : toggle fast mode on/off\n"
+  "seek <s>           : seek a replay file to <s> seconds\n"
+  "bail               : exit emulator with failure code\n"
   );
     } else {
       (void) printf("???\n");

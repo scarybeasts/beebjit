@@ -17,6 +17,14 @@ Does a split screen MODE1 / MODE7. Tests tons of corner cases such as 2MHz
 teletext mode, non-interlaced teletext, accurate teletext scanline tracking,
 and more.
 
+- mode4+7.ssd
+A modern creation by gfoot, posted to Stardot here:
+https://stardot.org.uk/forums/viewtopic.php?f=54&t=24636
+Does a split screen MODE4 / MODE7, with correct interlace handling. Tests
+handling of odd/even field reset. An correct emulation is required in order
+to run the test case correctly every time. (An incorrect emulation might get
+the timing / rendering wrong 50% of the time.)
+
 - mode7-75.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/126
 By Kieran Connell.

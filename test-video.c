@@ -10,6 +10,8 @@ enum {
   k_ticks_mode7_to_vsync_odd = (28 * 10 * k_ticks_mode7_per_scanline),
   k_ticks_mode7_to_vsync_even = ((28 * 10 * k_ticks_mode7_per_scanline) +
                                  k_ticks_mode7_per_half_scanline),
+  k_ticks_mode4ni_per_frame = ((39 * 8) * k_ticks_mode7_per_scanline),
+  k_ticks_mode4ni_to_vsync = ((35 * 8) * k_ticks_mode7_per_scanline),
 };
 
 struct bbc_options g_p_options;
@@ -89,35 +91,58 @@ video_test_advance_and_timing_mode7() {
   test_expect_u32(1, g_p_video->is_interlace_sync_and_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(0, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(0, g_p_video->is_even_vsync);
   test_expect_u32(0, g_p_video->crtc_frames);
-  test_expect_u32(1, g_p_video->is_even_interlace_frame);
-  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+
+  test_expect_u32(0, render_get_vert_pos(g_p_render));
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_odd));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
   test_expect_u32(1, g_p_video->crtc_frames);
-  test_expect_u32(0, g_p_video->is_even_interlace_frame);
-  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
   countdown = timing_advance_time(
       g_p_timing,
       (countdown - (k_ticks_mode7_per_scanline / 2)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(32, g_p_video->horiz_counter);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(-1, render_get_vert_pos(g_p_render));
+
   countdown = timing_advance_time(
       g_p_timing,
       (countdown - (k_ticks_mode7_per_scanline * 1.5)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
   countdown = timing_advance_time(
       g_p_timing,
       (countdown - (k_ticks_mode7_per_scanline / 2)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
 
   /* Move to start of next frame. */
   countdown = timing_advance_time(
@@ -131,18 +156,42 @@ video_test_advance_and_timing_mode7() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->is_odd_frame);
+  test_expect_u32(0, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_odd));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(0, render_get_vert_pos(g_p_render));
+
   countdown = timing_advance_time(
       g_p_timing,
       (countdown - (k_ticks_mode7_per_scanline * 2)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
 }
 
 static void
@@ -484,8 +533,7 @@ video_test_6845_corner_cases() {
   video_crtc_write(g_p_video, 1, 50);
   countdown = timing_get_countdown(g_p_timing);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_even_interlace_frame);
-  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
   countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
@@ -493,8 +541,7 @@ video_test_6845_corner_cases() {
   /* Frame counter didn't advance because R6 wasn't hit. */
   test_expect_u32(4, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_even_interlace_frame);
-  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
 
   /* Test R6=0. */
   countdown = timing_advance_time(g_p_timing, (countdown - (32 * 128)));
@@ -635,14 +682,18 @@ video_test_inactive_rendering() {
   test_expect_u32(0, g_p_video->num_vsyncs);
   test_expect_u32(0, g_p_video->num_crtc_advances);
   test_expect_u32(0, g_p_video->crtc_frames);
+  test_expect_u32(0, render_get_vert_pos(g_p_render));
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_even));
   test_expect_u32(32, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->is_even_interlace_frame);
-  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
-  test_expect_u32(1, g_p_video->do_dummy_raster);
+  test_expect_u32(0, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(-1, render_get_vert_pos(g_p_render));
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(1, g_p_video->num_vsyncs);
@@ -653,10 +704,13 @@ video_test_inactive_rendering() {
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(0, g_p_video->horiz_counter);
-  test_expect_u32(1, g_p_video->is_even_interlace_frame);
-  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
-  test_expect_u32(0, g_p_video->do_dummy_raster);
+  test_expect_u32(1, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(-1, render_get_vert_pos(g_p_render));
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(2, g_p_video->num_vsyncs);
@@ -669,10 +723,9 @@ video_test_inactive_rendering() {
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(32, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->is_even_interlace_frame);
-  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
-  test_expect_u32(1, g_p_video->do_dummy_raster);
+  test_expect_u32(0, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(-1, render_get_vert_pos(g_p_render));
   test_expect_u32(3, g_p_video->num_vsyncs);
   test_expect_u32(3, g_p_video->crtc_frames);
   test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
@@ -685,9 +738,9 @@ video_test_inactive_rendering() {
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
-  test_expect_u32(1, g_p_video->is_even_interlace_frame);
-  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(1, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(0, render_get_vert_pos(g_p_render));
   test_expect_u32(0, g_p_video->is_rendering_active);
   num_crtc_advances = g_p_video->num_crtc_advances;
 
@@ -737,23 +790,34 @@ video_test_inactive_rendering() {
 static void
 video_test_R6_gt_R7() {
   /* A separate test for an interesting corner case with R6 > R7. The Hitachi
-   * data sheet says "don't do that" but it seems to show that the decision to
-   * render a dummy raster or not is done and latched at R7 hit.
+   * data sheet says "don't do that" but it seems to result in a stable picture.
    * Mirrorsoft's Caesar's Travels hits this.
    */
-  video_crtc_write(g_p_video, 0, 7);
-  video_crtc_write(g_p_video, 1, 10);
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 29);
 
-  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_frame);
+  test_expect_u32(0, g_p_video->crtc_frames);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_to_vsync_odd);
   video_advance_crtc_timing(g_p_video);
-
+  test_expect_u32(0, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->in_dummy_raster);
 
-  (void) timing_advance_time_delta(
-      g_p_timing, (k_ticks_mode7_per_frame - k_ticks_mode7_per_half_scanline));
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_half_scanline);
   video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->in_vsync);
 
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode7_per_scanline * 32));
+  video_advance_crtc_timing(g_p_video);
   test_expect_u32(1, g_p_video->in_dummy_raster);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_half_scanline);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+  test_expect_u32(1, g_p_video->crtc_frames);
+  test_expect_u32(1, g_p_video->is_odd_frame);
 }
 
 static void
@@ -765,12 +829,13 @@ video_test_vsync_row_wraparound() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(1, g_p_video->in_vsync);
   countdown = timing_advance_time(
-    g_p_timing,
-    (countdown - (k_ticks_mode7_per_scanline * 4)));
+      g_p_timing,
+      (countdown - (k_ticks_mode7_per_scanline * 4)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(8, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->in_vsync);
-  test_expect_u32(1, g_p_video->had_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
 
   /* Set R9 to 6 so that scanline counter fails to hit R9 until after it
    * wraps.
@@ -785,7 +850,8 @@ video_test_vsync_row_wraparound() {
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->in_vsync);
-  test_expect_u32(1, g_p_video->had_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
 }
 
 static void
@@ -816,13 +882,19 @@ video_test_vsync_tiny_frame() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(1, g_p_video->had_vsync_this_row);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
   countdown = timing_advance_time(g_p_timing, (countdown - 6));
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(0, g_p_video->had_vsync_this_row);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
 }
 
 static void
@@ -966,9 +1038,15 @@ video_test_timer_corner_case_2() {
   video_crtc_write(g_p_video, 1, 4);
   video_crtc_write(g_p_video, 0, 7);
   video_crtc_write(g_p_video, 1, 6);
+
+  test_expect_u32(0, g_p_video->crtc_frames);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+
   countdown = timing_get_countdown(g_p_timing);
   countdown = timing_advance_time(
       g_p_timing, (countdown - (k_ticks_mode7_per_scanline * 10)));
+  countdown = timing_advance_time(
+      g_p_timing, (countdown - k_ticks_mode7_per_half_scanline));
   /* Timer should hit here, C4=6, for vsync. */
   test_expect_u32(1, g_p_video->in_vsync);
 }
@@ -1025,6 +1103,143 @@ video_test_inactive_advance() {
       g_p_timing,
       (countdown - k_ticks_mode7_per_scanline));
   test_expect_u32(0, g_p_video->in_vsync);
+}
+
+static void
+video_test_no_dummy_raster() {
+  /* Test that the dummy raster scanline doesn't happen if interlace is turned
+   * off part-way through an even field.
+   * Confirmed on real hardware.
+   */
+  uint64_t ticks = (k_ticks_mode7_per_frame - k_ticks_mode7_per_scanline);
+
+  /* Advance to half a scanline before the dummy raster. */
+  (void) timing_advance_time_delta(g_p_timing, ticks);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+
+  /* Turn off interlace. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+
+  /* Advance half a scanline -- should not enter dummy raster. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode7_per_scanline / 2));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+}
+
+static void
+video_test_vsync_mux() {
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_to_vsync_odd);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing, 2);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing, 2);
+  video_advance_crtc_timing(g_p_video);
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  test_expect_u32(2, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing, 2);
+  video_advance_crtc_timing(g_p_video);
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 3);
+  test_expect_u32(3, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_half_scanline);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(35, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+}
+
+static void
+video_test_inactive_non_interlace() {
+  /* Tests that state is maintained correctly when skipping rendering some
+   * frames on account of fast mode.
+   * Non-interlaced version; there was an assert regression with this setup.
+   */
+  g_test_fast_flag = 1;
+
+  /* Use a non-interlaced MODE4 setup. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 38);
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 32);
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 35);
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 7);
+
+  test_expect_u32(1, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->num_vsyncs);
+  test_expect_u32(7, g_p_video->num_crtc_advances);
+  test_expect_u32(0, g_p_video->crtc_frames);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_to_vsync);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
+  test_expect_u32(1, g_p_video->num_vsyncs);
+  test_expect_u32(1, g_p_video->crtc_frames);
+  test_expect_u32(8, g_p_video->num_crtc_advances);
+
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode7_per_scanline * 2));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
+  test_expect_u32(1, g_p_video->num_vsyncs);
+  test_expect_u32(1, g_p_video->crtc_frames);
+  test_expect_u32(8, g_p_video->num_crtc_advances);
+
+  (void) timing_advance_time_delta(
+      g_p_timing,
+      (k_ticks_mode4ni_per_frame - (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_odd_vsync);
+  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
+  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
+  test_expect_u32(2, g_p_video->num_vsyncs);
+  test_expect_u32(2, g_p_video->crtc_frames);
+  test_expect_u32(8, g_p_video->num_crtc_advances);
 }
 
 void
@@ -1099,5 +1314,17 @@ video_test() {
 
   video_test_init();
   video_test_inactive_advance();
+  video_test_end();
+
+  video_test_init();
+  video_test_no_dummy_raster();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_mux();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_non_interlace();
   video_test_end();
 }

@@ -6,7 +6,12 @@
 
 #include <stdio.h>
 
-static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);
+static void (*s_p_fault_callback)(uintptr_t*,
+                                  uintptr_t,
+                                  int,
+                                  int,
+                                  int,
+                                  uintptr_t);
 
 static LONG
 VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
@@ -20,6 +25,7 @@ VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
 
   s_p_fault_callback((uintptr_t*) &p_context->Rip,
                      (uintptr_t) p_record->ExceptionInformation[1],
+                     0,
                      !!(flags & 8),
                      !!(flags & 1),
                      (uintptr_t) p_context->Rdi);
@@ -31,6 +37,7 @@ void
 os_fault_register_handler(
     void (*p_fault_callback)(uintptr_t* p_host_rip,
                              uintptr_t host_fault_addr,
+                             int is_illegal,
                              int is_exec,
                              int is_write,
                              uintptr_t host_rdi)) {

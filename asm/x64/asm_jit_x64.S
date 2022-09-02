@@ -1,12 +1,19 @@
 #include "../asm_defs_host.h"
 #include "../asm_inturbo_defs.h"
 #include "../asm_jit_defs.h"
+#include "../asm_tables_defs.h"
 #include "asm_calling_convention_x64.h"
 #include "asm_defs_registers_x64.h"
 
 .file "asm/x64/asm_jit_x64.S"
 .intel_syntax noprefix
 .text
+
+
+.globl ASM_SYM(asm_jit_check_x64_rorx)
+ASM_SYM(asm_jit_check_x64_rorx):
+  rorx eax, eax, 1
+  ret
 
 
 .globl ASM_SYM(asm_jit_enter)
@@ -136,33 +143,59 @@ ASM_SYM(asm_jit_jump_interp_trampoline_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_check_countdown)
-.globl ASM_SYM(asm_jit_check_countdown_count_patch)
-.globl ASM_SYM(asm_jit_check_countdown_jump_patch)
-.globl ASM_SYM(asm_jit_check_countdown_END)
-ASM_SYM(asm_jit_check_countdown):
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
-ASM_SYM(asm_jit_check_countdown_count_patch):
-  bt REG_COUNTDOWN, 63
-  jb ASM_SYM(asm_unpatched_branch_target)
-ASM_SYM(asm_jit_check_countdown_jump_patch):
+.globl ASM_SYM(asm_jit_check_countdown_lea_8bit)
+.globl ASM_SYM(asm_jit_check_countdown_lea_8bit_END)
+ASM_SYM(asm_jit_check_countdown_lea_8bit):
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 
-ASM_SYM(asm_jit_check_countdown_END):
+ASM_SYM(asm_jit_check_countdown_lea_8bit_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_check_countdown_8bit)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_count_patch)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_jump_patch)
-.globl ASM_SYM(asm_jit_check_countdown_8bit_END)
-ASM_SYM(asm_jit_check_countdown_8bit):
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
-ASM_SYM(asm_jit_check_countdown_8bit_count_patch):
-  bt REG_COUNTDOWN, 63
-  jb ASM_SYM(asm_unpatched_branch_target)
-ASM_SYM(asm_jit_check_countdown_8bit_jump_patch):
+.globl ASM_SYM(asm_jit_check_countdown_lea)
+.globl ASM_SYM(asm_jit_check_countdown_lea_END)
+ASM_SYM(asm_jit_check_countdown_lea):
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 
-ASM_SYM(asm_jit_check_countdown_8bit_END):
+ASM_SYM(asm_jit_check_countdown_lea_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_bt)
+.globl ASM_SYM(asm_jit_check_countdown_bt_END)
+ASM_SYM(asm_jit_check_countdown_bt):
+  bt REG_COUNTDOWN, 63
+
+ASM_SYM(asm_jit_check_countdown_bt_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_sub_8bit)
+.globl ASM_SYM(asm_jit_check_countdown_sub_8bit_END)
+ASM_SYM(asm_jit_check_countdown_sub_8bit):
+  sub REG_COUNTDOWN, 0x7f
+
+ASM_SYM(asm_jit_check_countdown_sub_8bit_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_sub)
+.globl ASM_SYM(asm_jit_check_countdown_sub_END)
+ASM_SYM(asm_jit_check_countdown_sub):
+  sub REG_COUNTDOWN, 0x7fffffff
+
+ASM_SYM(asm_jit_check_countdown_sub_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_check_countdown_jb)
+.globl ASM_SYM(asm_jit_check_countdown_jb_END)
+ASM_SYM(asm_jit_check_countdown_jb):
+  # Force short jump encoding for "jb".
+  .byte 0x72
+  .byte 0x00
+
+ASM_SYM(asm_jit_check_countdown_jb_END):
   ret
 
 
@@ -209,24 +242,46 @@ ASM_SYM(asm_jit_jump_interp_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_call_inturbo)
-.globl ASM_SYM(asm_jit_call_inturbo_pc_patch)
-.globl ASM_SYM(asm_jit_call_inturbo_END)
-ASM_SYM(asm_jit_call_inturbo):
+.globl ASM_SYM(asm_jit_inturbo_set_pc)
+.globl ASM_SYM(asm_jit_inturbo_set_pc_END)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_END)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx)
+.globl ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx_END)
+.globl ASM_SYM(asm_jit_inturbo_call)
+.globl ASM_SYM(asm_jit_inturbo_call_END)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_END)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx)
+.globl ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx_END)
+.globl ASM_SYM(asm_jit_inturbo_call)
+.globl ASM_SYM(asm_jit_inturbo_call_END)
+ASM_SYM(asm_jit_inturbo_set_pc):
   mov REG_6502_PC_32, 0x7fffffff
-ASM_SYM(asm_jit_call_inturbo_pc_patch):
+ASM_SYM(asm_jit_inturbo_set_pc_END):
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump):
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
   lahf
   shl REG_SCRATCH1_32, K_INTURBO_OPCODE_SHIFT
   sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_ADDR]
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_END):
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx):
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_INTURBO_OPCODE_SHIFT)
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_ADDR]
+ASM_SYM(asm_jit_inturbo_calculate_inturbo_jump_rorx_END):
+ASM_SYM(asm_jit_inturbo_call):
   # Save JIT REG_CONTEXT.
   # Keeps stack alignment to 16 after the call.
   push REG_CONTEXT
   # Swith REG_CONTEXT to inturbo one.
   mov REG_CONTEXT, [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_INTURBO]
   call REG_SCRATCH1
+
   pop REG_CONTEXT
+ASM_SYM(asm_jit_inturbo_call_END):
+ASM_SYM(asm_jit_inturbo_do_jit_jump):
   lahf
   lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   shl REG_6502_PC_32, K_JIT_BYTES_SHIFT
@@ -234,8 +289,15 @@ ASM_SYM(asm_jit_call_inturbo_pc_patch):
   lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
   jmp REG_6502_PC
+ASM_SYM(asm_jit_inturbo_do_jit_jump_END):
+ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx):
+  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  rorx REG_6502_PC_32, REG_6502_PC_32, (32 - K_JIT_BYTES_SHIFT)
+  lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
-ASM_SYM(asm_jit_call_inturbo_END):
+  jmp REG_6502_PC
+ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx_END):
+
   ret
 
 
@@ -385,20 +447,25 @@ ASM_SYM(asm_jit_flags_nz_value_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n)
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n_lea_patch)
-.globl ASM_SYM(asm_jit_JMP_SCRATCH_n_END)
-ASM_SYM(asm_jit_JMP_SCRATCH_n):
-  # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
-  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_add_n)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_add_n_END)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_END)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx)
+.globl ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx_END)
+ASM_SYM(asm_jit_JMP_SCRATCH_add_n):
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x7fffffff]
-ASM_SYM(asm_jit_JMP_SCRATCH_n_lea_patch):
+ASM_SYM(asm_jit_JMP_SCRATCH_add_n_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump):
   lahf
   shl REG_SCRATCH1_32, K_JIT_BYTES_SHIFT
   sahf
   jmp REG_SCRATCH1
-
-ASM_SYM(asm_jit_JMP_SCRATCH_n_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_END):
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx):
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
+  jmp REG_SCRATCH1
+ASM_SYM(asm_jit_JMP_SCRATCH_shift_jump_rorx_END):
   ret
 
 

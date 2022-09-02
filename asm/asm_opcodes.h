@@ -23,6 +23,7 @@ enum {
   k_opcode_check_page_crossing_n,
   k_opcode_check_pending_irq,
   k_opcode_countdown,
+  k_opcode_countdown_no_preserve_nz_flags,
   k_opcode_debug,
   k_opcode_interp,
   k_opcode_inturbo,
@@ -49,6 +50,7 @@ enum {
   k_opcode_addr_end,
 
   /* Value opcodes, 0x300 - 0x3FF. */
+  k_opcode_value_begin = 0x300,
   k_opcode_flags_nz_a,
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,

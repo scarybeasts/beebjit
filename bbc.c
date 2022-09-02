@@ -665,6 +665,7 @@ bbc_page_rom(struct bbc_struct* p_bbc,
   int curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
   int new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  intptr_t mem_handle = p_bbc->mem_handle;
 
   /* If current bank is RAM, save it. */
   if (curr_is_ram) {
@@ -698,11 +699,8 @@ bbc_page_rom(struct bbc_struct* p_bbc,
   map_offset = (k_6502_addr_space_size / 2);
 
   os_alloc_free_mapping(p_bbc->p_mapping_write_2);
-  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
 
   if (new_is_ram) {
-    intptr_t mem_handle = p_bbc->mem_handle;
-
     p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
         mem_handle,
         (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
@@ -710,6 +708,21 @@ bbc_page_rom(struct bbc_struct* p_bbc,
         half_map_size);
     os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
                                k_bbc_rom_size);
+  } else {
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size);
+  }
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
+
+  if (p_bbc->p_mapping_write_ind_2 == NULL) {
+    return;
+  }
+
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+
+  if (new_is_ram) {
     p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
         mem_handle,
         (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
@@ -718,9 +731,6 @@ bbc_page_rom(struct bbc_struct* p_bbc,
     os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
                                k_bbc_rom_size);
   } else {
-    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
-        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
-        half_map_size);
     p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
         (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
         half_map_size);
@@ -728,8 +738,7 @@ bbc_page_rom(struct bbc_struct* p_bbc,
         (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
         K_BBC_MEM_INACCESSIBLE_LEN);
   }
-  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
-                             map_offset);
+
   os_alloc_make_mapping_none(
       (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
       map_offset);
@@ -1236,7 +1245,7 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
 }
 
 static void
-bbc_set_fast_mode(void* p, int is_fast) {
+bbc_set_fast_mode_callback(void* p, int is_fast) {
   struct cpu_driver* p_cpu_driver;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   void (*p_memory_written_callback)(void* p) = NULL;
@@ -1262,11 +1271,14 @@ bbc_set_fast_mode(void* p, int is_fast) {
                                                      p_bbc->p_video);
 }
 
-/* TODO: Might be better to implement Rocket as a pseudo device attached to
-   the BBC to avoid exposing more state poking BBC RAM from the outside. */
+int
+bbc_get_fast_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->fast_flag;
+}
+
 void
-bbc_set_fast_flag(struct bbc_struct* p_bbc, int fast_flag ) {
-  bbc_set_fast_mode(p_bbc, fast_flag);
+bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast) {
+  bbc_set_fast_mode_callback((void*) p_bbc, is_fast);
 }
 
 static void
@@ -1559,7 +1571,9 @@ bbc_create(int mode,
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
                                         bbc_virtual_keyboard_updated_callback,
                                         p_bbc);
-  keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
+  keyboard_set_fast_mode_callback(p_bbc->p_keyboard,
+                                  bbc_set_fast_mode_callback,
+                                  (void*) p_bbc);
 
   p_bbc->p_adc = adc_create(externally_clocked_adc,
                             p_timing,
@@ -1616,8 +1630,8 @@ bbc_create(int mode,
                                           fasttape_flag,
                                           &p_bbc->options);
   serial_ula_set_fast_mode_callback(p_bbc->p_serial_ula,
-                                    bbc_set_fast_mode,
-                                    p_bbc);
+                                    bbc_set_fast_mode_callback,
+                                    (void*) p_bbc);
 
   p_debug = debug_create(p_bbc, debug_flag, &p_bbc->options);
 
@@ -2172,21 +2186,15 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
-static int
-bbc_try_queue_rewind(struct bbc_struct* p_bbc, uint64_t rewind_cycles) {
-  uint64_t rewind_to_cycles;
-  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+int
+bbc_replay_seek(struct bbc_struct* p_bbc, uint64_t seek_target) {
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   if (!keyboard_can_rewind(p_bbc->p_keyboard)) {
     return 0;
   }
 
-  rewind_to_cycles = 0;
-  if (cycles > rewind_cycles) {
-    rewind_to_cycles = (cycles - rewind_cycles);
-  }
-  p_bbc->rewind_to_cycles = rewind_to_cycles;
+  p_bbc->rewind_to_cycles = seek_target;
 
   p_cpu_driver->p_funcs->apply_flags(
       p_cpu_driver,
@@ -2209,7 +2217,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
 
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
-    bbc_set_fast_mode(p_bbc, !p_bbc->fast_flag);
+    bbc_set_fast_flag(p_bbc, !p_bbc->fast_flag);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
     if (keyboard_is_replaying(p_keyboard)) {
@@ -2227,9 +2235,15 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
      */
     p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
+    int64_t seek_target = timing_get_total_timer_ticks(p_bbc->p_timing);
     /* "undo" -- go back 5 seconds if there is a current capture or replay. */
     /* TODO: not correct for non-2MHz tick rates. */
-    (void) bbc_try_queue_rewind(p_bbc, (5 * 2000000));
+    seek_target -= (5 * 2000000);
+    if (seek_target < 0) {
+      seek_target = 0;
+    }
+
+    (void) bbc_replay_seek(p_bbc, seek_target);
   }
 }
 
@@ -2390,7 +2404,7 @@ bbc_cpu_thread(void* p) {
   bbc_start_timer_tick(p_bbc);
 
   /* Set up initial fast mode correctly. */
-  bbc_set_fast_mode(p_bbc, p_bbc->fast_flag);
+  bbc_set_fast_flag(p_bbc, p_bbc->fast_flag);
 
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;

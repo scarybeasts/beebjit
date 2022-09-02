@@ -338,7 +338,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     if (is_65c12) {                                                           \
-      uint8_t v2 = v;                                                         \
+      v2 = v;                                                                 \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
       v = v2;                                                                 \
     } else {                                                                  \
@@ -386,6 +386,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
   addr_temp <<= 8;                                                            \
   addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
+  addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
   if (addr < read_callback_from) {                                            \
@@ -419,9 +420,17 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   } else {                                                                    \
     hit_special = 1;                                                          \
     if (is_65c12) {                                                           \
+      /* Quirk! The 65c12 puts out a fully formed address read in this case   \
+       * if there is no page crossing!                                        \
+       */                                                                     \
+      page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                     \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
-      INTERP_TIMING_ADVANCE(1);                                               \
+      if (page_crossing) {                                                    \
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);                     \
+        INTERP_TIMING_ADVANCE(1);                                             \
+      } else {                                                                \
+        INTERP_MEMORY_READ_POLL_IRQ(addr);                                    \
+      }                                                                       \
     } else {                                                                  \
       addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                     \
       INTERP_TIMING_ADVANCE(3);                                               \
@@ -429,6 +438,33 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     }                                                                         \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_ABr_WRITE_SHr(INSTR, reg_name)                            \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
+  addr = (addr_temp + reg_name);                                              \
+  pc += 3;                                                                    \
+  if (addr < write_callback_from) {                                           \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 5;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                       \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    INSTR;                                                                    \
+    if (page_crossing) {                                                      \
+      addr &= 0x00FF;                                                         \
+      p_mem_write[addr] = v;                                                  \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_MEMORY_WRITE(addr);                                              \
+    }                                                                         \
     goto check_irq;                                                           \
   }
 
@@ -446,9 +482,18 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   } else {                                                                    \
     hit_special = 1;                                                          \
     if (is_65c12) {                                                           \
-      INTERP_TIMING_ADVANCE(4);                                               \
+      /* Quirk! The 65c12 puts out a fully formed address read in this case   \
+       * if there is no page crossing!                                        \
+       */                                                                     \
+      page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                     \
+      if (page_crossing) {                                                    \
+        INTERP_TIMING_ADVANCE(4);                                             \
+      } else {                                                                \
+        INTERP_TIMING_ADVANCE(3);                                             \
+        INTERP_MEMORY_READ(addr);                                             \
+      }                                                                       \
       INTERP_MEMORY_READ(addr);                                               \
-      uint8_t v2 = v;                                                         \
+      v2 = v;                                                                 \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
       v = v2;                                                                 \
     } else {                                                                  \
@@ -585,6 +630,23 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+#define INTERP_MODE_BCD_ID_READ(INSTR)                                        \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 6;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_ID_WRITE(INSTR)                                           \
   addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
@@ -658,6 +720,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
     INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
@@ -683,6 +746,33 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     }                                                                         \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_IDY_WRITE_AHX(INSTR)                                      \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  pc += 2;                                                                    \
+  if (addr < write_callback_from) {                                           \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 6;                                              \
+  } else {                                                                    \
+    hit_special = 1;                                                          \
+    page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                       \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    INSTR;                                                                    \
+    if (page_crossing) {                                                      \
+      addr &= 0x00FF;                                                         \
+      p_mem_write[addr] = v;                                                  \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_MEMORY_WRITE(addr);                                              \
+    }                                                                         \
     goto check_irq;                                                           \
   }
 
@@ -757,7 +847,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v = p_mem_read[addr];                                                       \
   INSTR;                                                                      \
   p_mem_write[addr] = v;                                                      \
-  cycles_this_instruction = 5;
+  cycles_this_instruction = 6;
 
 #define INTERP_LOAD_NZ_FLAGS(reg_name)                                        \
   nf = !!(reg_name & 0x80);                                                   \
@@ -779,34 +869,29 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_ADC()                                                    \
   temp_int = (a + v + cf);                                                    \
-  zf = !(temp_int & 0xFF);                                                    \
+  cf = (temp_int >> 8);                                                       \
+  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
-  nf = !!(temp_int & 0x80);                                                   \
-  cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
 
 #define INTERP_INSTR_BCD_ADC()                                                \
+  interp_check_log_bcd(p_interp);                                             \
   temp_int = (a + v + cf);                                                    \
   zf = !(temp_int & 0xFF);                                                    \
-  if (df) {                                                                   \
-    interp_check_log_bcd(p_interp);                                           \
-    /* Fix up decimal carry on first nibble. */                               \
-    int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                       \
-    if (decimal_carry >= 0x0A) {                                              \
-      temp_int += 0x06;                                                       \
-      if (decimal_carry >= 0x1A) {                                            \
-        temp_int -= 0x10;                                                     \
-      }                                                                       \
+  /* Fix up decimal carry on first nibble. */                                 \
+  int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                         \
+  if (decimal_carry >= 0x0A) {                                                \
+    temp_int += 0x06;                                                         \
+    if (decimal_carry >= 0x1A) {                                              \
+      temp_int -= 0x10;                                                       \
     }                                                                         \
   }                                                                           \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
   nf = !!(temp_int & 0x80);                                                   \
-  if (df) {                                                                   \
-    if (temp_int >= 0xA0) {                                                   \
-      temp_int += 0x60;                                                       \
-    }                                                                         \
+  if (temp_int >= 0xA0) {                                                     \
+    temp_int += 0x60;                                                         \
   }                                                                           \
   cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
@@ -817,6 +902,35 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_INSTR_AND()                                                    \
   a &= v;                                                                     \
   INTERP_LOAD_NZ_FLAGS(a);
+
+#define INTERP_INSTR_ARR()                                                    \
+  /* Logic from jsbeeb. */                                                    \
+  if (df) {                                                                   \
+    temp_int = (a & v);                                                       \
+    ah = (temp_int >> 4);                                                     \
+    al = (temp_int & 0x0F);                                                   \
+    nf = cf;                                                                  \
+    a = (temp_int >> 1);                                                      \
+    if (cf) {                                                                 \
+      a |= 0x80;                                                              \
+    }                                                                         \
+    zf = !a;                                                                  \
+    of = !!((temp_int ^ a) & 0x40);                                           \
+    if ((al + (al & 1)) > 5) {                                                \
+      a = ((a & 0xF0) | ((a + 6) & 0x0F));                                    \
+    }                                                                         \
+    cf = ((ah + (ah & 1)) > 5);                                               \
+    if (cf) {                                                                 \
+      a = ((a + 0x60) & 0xFF);                                                \
+    }                                                                         \
+  } else {                                                                    \
+    a = (a & v);                                                              \
+    of = !!(((a >> 7) ^ (a >> 6)) & 0x01);                                    \
+    a >>= 1;                                                                  \
+    a += (cf << 7);                                                           \
+    INTERP_LOAD_NZ_FLAGS(a);                                                  \
+    cf = !!(a & 0x40);                                                        \
+  }
 
 #define INTERP_INSTR_ASL()                                                    \
   cf = !!(v & 0x80);                                                          \
@@ -852,11 +966,13 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_ISC()                                                    \
   v++;                                                                        \
+  v2 = v;                                                                     \
   if (df) {                                                                   \
     INTERP_INSTR_BCD_SBC();                                                   \
   } else {                                                                    \
     INTERP_INSTR_SBC();                                                       \
-  }
+  }                                                                           \
+  v = v2;
 
 #define INTERP_INSTR_KIL()                                                    \
   if (!(special_checks & k_interp_special_KIL)) {                             \
@@ -868,6 +984,12 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }                                                                           \
   special_checks |= k_interp_special_KIL;                                     \
   cycles_this_instruction = 7;
+
+#define INTERP_INSTR_LAS()                                                    \
+  a = (s & v);                                                                \
+  x = a;                                                                      \
+  s = a;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(a);
 
 #define INTERP_INSTR_LAX()                                                    \
   a = v;                                                                      \
@@ -938,38 +1060,29 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   /* "SBC simply takes the ones complement of the second value and then       \
    * performs an ADC"                                                         \
    */                                                                         \
-  temp_int = (a + (uint8_t) ~v + cf);                                         \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
-  /* In decimal mode, NZ flags are based on this interim value. */            \
-  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
-  cf = !!(temp_int & 0x100);                                                  \
-  a = temp_int;
+  v = ~v;                                                                     \
+  INTERP_INSTR_ADC();
 
 #define INTERP_INSTR_BCD_SBC()                                                \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  /* "SBC simply takes the ones complement of the second value and then       \
-   * performs an ADC"                                                         \
-   */                                                                         \
-  temp_int = (a + (uint8_t) ~v + cf);                                         \
-  if (df) {                                                                   \
-    interp_check_log_bcd(p_interp);                                           \
-    /* Fix up decimal carry on first nibble. */                               \
-    if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                    \
-      temp_int -= 0x06;                                                       \
-    }                                                                         \
+  interp_check_log_bcd(p_interp);                                             \
+  /* Logic from jsbeeb. */                                                    \
+  temp_int = (a - v - !cf);                                                   \
+  al = ((a & 0x0F) - (v & 0x0F) - !cf);                                       \
+  ah = ((a >> 4) - (v >> 4));                                                 \
+  if (al & 0x10) {                                                            \
+    al = ((al - 6) & 0x0F);                                                   \
+    ah--;                                                                     \
   }                                                                           \
-  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
-  /* In decimal mode, NZ flags are based on this interim value. */            \
+  if (ah & 0x10) {                                                            \
+    ah = ((ah - 6) & 0x0F);                                                   \
+  }                                                                           \
+  cf = !(temp_int & 0x100);                                                   \
   INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
-  if (df) {                                                                   \
-    if ((v + !cf) > a) {                                                      \
-      temp_int -= 0x60;                                                       \
-    }                                                                         \
-  }                                                                           \
-  cf = !!(temp_int & 0x100);                                                  \
-  a = temp_int;
+  of = !!((a ^ temp_int) & (v ^ a) & 0x80);                                   \
+  a = (al | (ah << 4));
+
+#define INTERP_INSTR_SHX()                                                    \
+  v = (x & ((addr_temp >> 8) + 1));
 
 #define INTERP_INSTR_SHY()                                                    \
   v = (y & ((addr_temp >> 8) + 1));
@@ -997,6 +1110,10 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_INSTR_STZ()                                                    \
   v = 0;
+
+#define INTERP_INSTR_TAS()                                                    \
+  s = (a & x);                                                                \
+  v = (a & x & ((addr_temp >> 8) + 1));
 
 #define INTERP_INSTR_TRB()                                                    \
   zf = !(v & a);                                                              \
@@ -1031,10 +1148,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t intf;
 
   int temp_int;
+  uint8_t al;
+  uint8_t ah;
   uint8_t temp_u8;
   int page_crossing;
   uint16_t addr_temp;
   uint8_t v;
+  uint8_t v2;
   int poll_irq;
   uint32_t cpu_driver_flags;
   uint16_t read_callback_from;
@@ -1702,7 +1822,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x5C: /* NOP abx */ /* Undocumented. */ /* NOP abs (8) */
       if (is_65c12) {
-        util_bail("NOP abs (8)");
+        /* Apparently, cycle stretching isn't possible in any of these 8 ticks.
+         * See: https://laughtonelectronics.com/Arcana/KimKlone/Kimklone_opcode_mapping.html
+         */
+        pc += 3;
+        cycles_this_instruction = 8;
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
       }
@@ -1818,7 +1942,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ARR imm");
+        v = p_mem_read[pc + 1];
+        INTERP_INSTR_ARR();
+        pc += 2;
+        cycles_this_instruction = 2;
       }
       break;
     case 0x6C: /* JMP ind */
@@ -1873,7 +2000,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x72: /* KIL */ /* Undocumented. */ /* ADC id */
       if (is_65c12) {
         if (df) {
-          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_ADC());
+          INTERP_MODE_BCD_ID_READ(INTERP_INSTR_BCD_ADC());
         } else {
           INTERP_MODE_ID_READ(INTERP_INSTR_ADC());
         }
@@ -2113,7 +2240,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        INTERP_MODE_IDY_WRITE(INTERP_INSTR_AHX());
+        INTERP_MODE_IDY_WRITE_AHX(INTERP_INSTR_AHX());
       }
       break;
     case 0x94: /* STY zpx */
@@ -2152,14 +2279,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("TAS aby");
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_TAS(), y);
       }
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
       if (is_65c12) {
         INTERP_MODE_ABS_WRITE(INTERP_INSTR_STZ());
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHY(), x);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_SHY(), x);
       }
       break;
     case 0x9D: /* STA abx */
@@ -2169,7 +2296,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABr_WRITE(INTERP_INSTR_STZ(), x);
       } else {
-        util_bail("SHX aby");
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_SHX(), y);
       }
       break;
     case 0x9F: /* AHX aby */ /* Undocumented. */ /* NOP1 */
@@ -2177,7 +2304,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        INTERP_MODE_ABr_WRITE(INTERP_INSTR_AHX(), y);
+        INTERP_MODE_ABr_WRITE_SHr(INTERP_INSTR_AHX(), y);
       }
       break;
     case 0xA0: /* LDY imm */
@@ -2328,7 +2455,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("LAS aby");
+        INTERP_MODE_ABr_READ(INTERP_INSTR_LAS(), y);
       }
       break;
     case 0xBC: /* LDY abx */
@@ -2646,7 +2773,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xF2: /* KIL */ /* Undocumented. */ /* SBC id */
       if (is_65c12) {
         if (df) {
-          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_SBC());
+          INTERP_MODE_BCD_ID_READ(INTERP_INSTR_BCD_SBC());
         } else {
           INTERP_MODE_ID_READ(INTERP_INSTR_SBC());
         }
@@ -2744,12 +2871,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     default:
-      log_do_log(k_log_instruction,
-                 k_log_unimplemented,
-                 "pc $%.4x opcode $%.2x",
-                 pc,
-                 opcode);
-      __builtin_trap();
+      assert(0);
       break;
     }
 
@@ -2914,7 +3036,9 @@ check_irq:
                                irq_pending,
                                hit_special)) {
         /* The instruction callback can elect to exit the interpreter. */
-        break;
+        if (!*p_debug_interrupt) {
+          break;
+        }
       }
     }
 

@@ -2440,8 +2440,64 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xE300);
 
-  /* End of test. */
+  /* Test a dynamic operand attempt on BIT zpg. */
   set_new_index(p_buf, 0x2300);
+  emit_LDA(p_buf, k_imm, 0x24);   /* BIT $00 */
+  emit_STA(p_buf, k_abs, 0x5300);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5301);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5302);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x5301);
+  emit_JSR(p_buf, 0x5300);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_STX(p_buf, k_zpg, 0xA1);
+  emit_LDX(p_buf, k_imm, 0xA1);
+  emit_STX(p_buf, k_abs, 0x5301);
+  emit_CLV(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x5300);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE340);
+
+  /* Test for a loss of flags with the countdown sub optimization and
+   * self-modifying code.
+   */
+  set_new_index(p_buf, 0x2340);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_PHA(p_buf);
+  emit_PLP(p_buf);                /* I only. */
+  emit_LDA(p_buf, k_imm, 0xA9);   /* LDA #0 */
+  emit_STA(p_buf, k_abs, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5341);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5342);
+  emit_JSR(p_buf, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x08);   /* PHP */
+  emit_STA(p_buf, k_abs, 0x5340);
+  emit_LDA(p_buf, k_imm, 0x68);   /* PLA */
+  emit_STA(p_buf, k_abs, 0x5341);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Set Z flag. */
+  emit_JSR(p_buf, 0x5340);
+  emit_REQUIRE_EQ(p_buf, 0x36);   /* Check Z flag wasn't trashed. */
+  emit_JMP(p_buf, k_abs, 0xE380);
+
+  /* Test for another value combination of CMP vs. N flag.
+   * Yes, ARM64 inturbo hit this bug even though everything else passes.
+   */
+  set_new_index(p_buf, 0x2380);
+  emit_LDA(p_buf, k_imm, 0xEC);
+  emit_CMP(p_buf, k_imm, 0x00);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE3C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x23C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

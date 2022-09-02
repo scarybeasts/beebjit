@@ -336,7 +336,7 @@ main(int argc, const char* argv[]) {
   /* Test that abx RMW instructions do read-read-write. */
   set_new_index(p_buf, 0x04C0);
   emit_SEI(p_buf);
-  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x69);
   emit_STZ(p_buf, k_abs, 0xFE68);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_STA(p_buf, k_abs, 0xFE69);
@@ -345,7 +345,8 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x01);
   emit_STA(p_buf, k_abs, 0xFE68);
   emit_STZ(p_buf, k_abs, 0xFE69);
-  emit_DEC(p_buf, k_abx, 0xFE68);
+  /* Hit $FE68 with page crossing. */
+  emit_DEC(p_buf, k_abx, 0xFDFF);
   emit_LDA(p_buf, k_abs, 0xFE6D);
   emit_AND(p_buf, k_imm, 0x20);
   emit_REQUIRE_EQ(p_buf, 0);
@@ -355,8 +356,31 @@ main(int argc, const char* argv[]) {
   emit_CLI(p_buf);
   emit_JMP(p_buf, k_abs, 0xC500);
 
-  /* Exit sequence. */
+  /* Test that abx RMW instructions do read-read-write. */
   set_new_index(p_buf, 0x0500);
+  emit_SEI(p_buf);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STZ(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE6D);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  /* Hit $FE68 without page crossing -- causes 65c12 spurious read. */
+  emit_DEC(p_buf, k_abx, 0xFE68);
+  emit_LDA(p_buf, k_abs, 0xFE6D);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_REQUIRE_EQ(p_buf, 0xFB);
+  emit_CLI(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC540);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0540);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */

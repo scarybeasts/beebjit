@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "defs_6502.h"
+#include "jit_metadata.h"
 #include "jit_opcode.h"
 #include "jit_optimizer.h"
 #include "log.h"
@@ -42,11 +43,8 @@ struct jit_compiler {
   struct asm_jit_struct* p_asm;
   struct timing_struct* p_timing;
   struct memory_access* p_memory_access;
+  struct jit_metadata* p_jit_metadata;
   uint8_t* p_mem_read;
-  void* (*get_block_host_address)(void* p, uint16_t addr);
-  void* p_host_address_object;
-  uint32_t* p_jit_ptrs;
-  int32_t* p_code_blocks;
   int debug;
   int log_dynamic;
   uint8_t* p_opcode_types;
@@ -65,8 +63,6 @@ struct jit_compiler {
   struct util_buffer* p_tmp_buf;
   struct util_buffer* p_single_uopcode_buf;
   struct util_buffer* p_single_uopcode_epilog_buf;
-  void* p_jit_ptr_no_code;
-  void* p_jit_ptr_dynamic_operand;
 
   uint32_t len_asm_jmp;
   uint32_t len_asm_invalidated;
@@ -86,82 +82,25 @@ struct jit_compiler {
   int32_t addr_x_fixup[k_6502_addr_space_size];
   int32_t addr_y_fixup[k_6502_addr_space_size];
 
-  /* State used within jit_compiler_compile_block() and subroutines. */
+  /* State used within compilation routines and subroutines. */
   struct jit_opcode_details opcode_details[k_max_addr_space_per_compile];
   struct jit_opcode_details* p_last_opcode;
   uint16_t start_addr_6502;
+  int32_t sub_instruction_addr_6502;
   int has_unresolved_jumps;
 };
-
-static void
-jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
-  void* p_host_ptr =
-      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
-                                         addr);
-  asm_jit_invalidate_code_at(p_host_ptr);
-}
-
-static int32_t
-jit_compiler_get_current_opcode(struct jit_compiler* p_compiler,
-                                uint16_t addr_6502) {
-  return p_compiler->history[addr_6502].opcode;
-}
-
-int
-jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
-  void* p_host_ptr =
-      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
-                                         addr_6502);
-  uintptr_t jit_ptr = (uintptr_t) p_compiler->p_jit_ptrs[addr_6502];
-  void* p_jit_ptr;
-
-  jit_ptr |= K_JIT_ADDR;
-  p_jit_ptr = (void*) jit_ptr;
-
-  (void) p_host_ptr;
-  assert(p_jit_ptr != p_host_ptr);
-
-  /* TODO: this shouldn't be necessary. Is invalidating a range not clearing
-   * JIT pointers properly?
-   */
-  if (jit_compiler_get_current_opcode(p_compiler, addr_6502) == -1) {
-    return 0;
-  }
-
-  if (p_jit_ptr == p_compiler->p_jit_ptr_no_code) {
-    return 0;
-  }
-  /* Need to explicitly handle dynamic opcodes. The expectation is that they
-   * always show as self-modified. We can't rely on the JIT code bytes in memory
-   * on ARM64, because of the way the invalidation write works.
-   */
-  if (p_jit_ptr == p_compiler->p_jit_ptr_dynamic_operand) {
-    return 1;
-  }
-
-  assert(p_compiler->p_code_blocks[addr_6502] != -1);
-
-
-  return asm_jit_is_invalidated_code_at(p_jit_ptr);
-}
 
 struct jit_compiler*
 jit_compiler_create(struct asm_jit_struct* p_asm,
                     struct timing_struct* p_timing,
                     struct memory_access* p_memory_access,
-                    void* (*get_block_host_address)(void*, uint16_t),
-                    void* p_host_address_object,
-                    uint32_t* p_jit_ptrs,
-                    void* p_jit_ptr_no_code,
-                    void* p_jit_ptr_dynamic_operand,
-                    int32_t* p_code_blocks,
+                    struct jit_metadata* p_jit_metadata,
                     struct bbc_options* p_options,
                     int debug,
                     uint8_t* p_opcode_types,
                     uint8_t* p_opcode_modes,
                     uint8_t* p_opcode_mem,
                     uint8_t* p_opcode_cycles) {
-  uint32_t i;
   struct util_buffer* p_tmp_buf;
   uint8_t buf[256];
   struct asm_uop tmp_uop;
@@ -177,11 +116,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   p_compiler->p_asm = p_asm;
   p_compiler->p_timing = p_timing;
   p_compiler->p_memory_access = p_memory_access;
+  p_compiler->p_jit_metadata = p_jit_metadata;
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
-  p_compiler->get_block_host_address = get_block_host_address;
-  p_compiler->p_host_address_object = p_host_address_object;
-  p_compiler->p_jit_ptrs = p_jit_ptrs;
-  p_compiler->p_code_blocks = p_code_blocks;
   p_compiler->debug = debug;
   p_compiler->p_opcode_types = p_opcode_types;
   p_compiler->p_opcode_modes = p_opcode_modes;
@@ -231,15 +167,6 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   p_compiler->p_tmp_buf = p_tmp_buf;
   p_compiler->p_single_uopcode_buf = util_buffer_create();
   p_compiler->p_single_uopcode_epilog_buf = util_buffer_create();
-
-  p_compiler->p_jit_ptr_no_code = p_jit_ptr_no_code;
-  p_compiler->p_jit_ptr_dynamic_operand = p_jit_ptr_dynamic_operand;
-
-  for (i = 0; i < k_6502_addr_space_size; ++i) {
-    p_compiler->p_jit_ptrs[i] =
-        (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_no_code;
-    p_compiler->p_code_blocks[i] = -1;
-  }
 
   /* Calculate lengths of sequences we need to know. */
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
@@ -306,9 +233,8 @@ jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
       p_compiler->has_unresolved_jumps = 1;
     }
   } else {
-    void* p_host_address_object = p_compiler->p_host_address_object;
-    p_ret = p_compiler->get_block_host_address(p_host_address_object,
-                                               addr_6502);
+    p_ret = jit_metadata_get_host_block_address(p_compiler->p_jit_metadata,
+                                                addr_6502);
   }
   return p_ret;
 }
@@ -366,6 +292,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Don't try and handle address space wraps in opcode fetch. */
   if ((addr_6502 + p_details->num_bytes_6502) >= k_6502_addr_space_size) {
     use_interp = 1;
+    p_details->num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
   }
 
   p_details->p_host_address_prefix_end = NULL;
@@ -1024,6 +951,10 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     asm_make_uop0(p_uop, k_opcode_addr_check);
     break;
   case k_zpg:
+    if (optype == k_bit) {
+      /* x64 backend currently has trouble with BIT_addr. */
+      return;
+    }
     /* Examples: Exile. */
     p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
     assert(p_uop != NULL);
@@ -1039,9 +970,10 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
   p_opcode->is_dynamic_operand = 1;
 }
 
-static uint16_t
+static uint32_t
 jit_compiler_get_end_addr_6502(struct jit_compiler* p_compiler) {
-  uint16_t end_addr_6502;
+  /* Must be uint32_t because the end address could be 0x10000. */
+  uint32_t end_addr_6502;
   int32_t addr_6502;
   struct jit_opcode_details* p_details = p_compiler->p_last_opcode;
 
@@ -1049,6 +981,7 @@ jit_compiler_get_end_addr_6502(struct jit_compiler* p_compiler) {
   assert(addr_6502 != -1);
   end_addr_6502 = (uint16_t) addr_6502;
   end_addr_6502 += p_details->num_bytes_6502;
+  assert(end_addr_6502 <= k_6502_addr_space_size);
 
   return end_addr_6502;
 }
@@ -1165,9 +1098,9 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
 }
 
 static void
-jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
-                            int32_t* p_out_sub_instruction_addr_6502) {
+jit_compiler_check_dynamics(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
+  struct jit_metadata* p_jit_metadata = p_compiler->p_jit_metadata;
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
@@ -1191,10 +1124,24 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
      */
     addr_6502 = p_details->addr_6502;
     opcode_6502 = p_details->opcode_6502;
-    if (jit_has_invalidated_code(p_compiler, addr_6502)) {
+    if (jit_metadata_has_invalidated_code(p_jit_metadata, addr_6502)) {
       is_self_modify_invalidated = 1;
-      p_details->self_modify_invalidated = 1;
     }
+    /* Also consider the opcode self-modified if it is already a dynamic
+     * operand. The dynamic opcode case is handled by
+     * jit_metadata_has_invalidated_code() above.
+     * This is needed to avoid losing dynamic operand status if there are a
+     * lot of recompiles going on for the block (i.e. block splits and
+     * invalidations due to other self-modifying code in the same block).
+     */
+    if (p_details->num_bytes_6502 > 1) {
+      void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_jit_metadata,
+                                                      (addr_6502 + 1));
+      if (jit_metadata_is_jit_ptr_dynamic(p_jit_metadata, p_jit_ptr)) {
+        is_self_modify_invalidated = 1;
+      }
+    }
+    p_details->self_modify_invalidated = is_self_modify_invalidated;
 
     jit_compiler_get_dynamic_history(p_compiler,
                                      &new_opcode_count,
@@ -1239,7 +1186,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
                      "compiling sub-instruction at $%.4X",
                      addr_6502);
         }
-        *p_out_sub_instruction_addr_6502 = next_addr_6502;
+        p_compiler->sub_instruction_addr_6502 = next_addr_6502;
         jit_compiler_make_last_opcode(p_compiler, p_details);
         break;
       }
@@ -1349,8 +1296,8 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
   uint16_t addr_6502 = p_compiler->start_addr_6502;
   uint32_t block_epilog_len = 0;
   void* p_host_address_base =
-      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
-                                         addr_6502);
+      jit_metadata_get_host_block_address(p_compiler->p_jit_metadata,
+                                          addr_6502);
 
   util_buffer_setup(p_tmp_buf, p_host_address_base, K_JIT_BYTES_PER_BYTE);
   util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
@@ -1443,8 +1390,8 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
          */
         addr_6502++;
         p_host_address_base =
-            p_compiler->get_block_host_address(
-                p_compiler->p_host_address_object, addr_6502);
+            jit_metadata_get_host_block_address(p_compiler->p_jit_metadata,
+                                                addr_6502);
         util_buffer_setup(p_tmp_buf,
                           p_host_address_base,
                           K_JIT_BYTES_PER_BYTE);
@@ -1527,7 +1474,9 @@ static void
 jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   uint16_t addr_6502;
+  struct jit_metadata* p_jit_metadata = p_compiler->p_jit_metadata;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
+  int32_t start_addr_6502 = p_compiler->start_addr_6502;
   uint32_t cycles = 0;
   uint32_t jit_ptr = 0;
 
@@ -1559,16 +1508,12 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
     }
 
     addr_6502 = p_details->addr_6502;
-    /* Handle address space wraps. */
-    if ((addr_6502 + num_bytes_6502) > k_6502_addr_space_size) {
-      num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
-    }
     for (i = 0; i < num_bytes_6502; ++i) {
-      p_compiler->p_jit_ptrs[addr_6502] = (uint32_t) jit_ptr;
-      p_compiler->p_code_blocks[addr_6502] = p_compiler->start_addr_6502;
+      jit_metadata_set_jit_ptr(p_jit_metadata, addr_6502, jit_ptr);
+      jit_metadata_set_code_block(p_jit_metadata, addr_6502, start_addr_6502);
 
       if (addr_6502 != p_compiler->start_addr_6502) {
-        jit_invalidate_jump_target(p_compiler, addr_6502);
+        jit_metadata_invalidate_jump_target(p_jit_metadata, addr_6502);
         p_compiler->addr_is_block_start[addr_6502] = 0;
         p_compiler->addr_is_block_continuation[addr_6502] = 0;
       }
@@ -1583,15 +1528,14 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
-          p_compiler->p_jit_ptrs[addr_6502] =
-              (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
+          jit_metadata_make_jit_ptr_dynamic(p_jit_metadata, addr_6502);
         }
       } else if (needs_bail_metadata) {
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
-          p_compiler->p_jit_ptrs[addr_6502] =
-              (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
+          jit_metadata_make_jit_ptr_dynamic(p_jit_metadata, addr_6502);
         }
+        /* TODO: is this correct? Shouldn't it add history always? */
         jit_compiler_add_history(p_compiler,
                                  addr_6502,
                                  opcode_6502,
@@ -1614,14 +1558,13 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 }
 
 uint32_t
-jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                           int is_invalidation,
-                           uint16_t start_addr_6502) {
+jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
+                                   int is_invalidation,
+                                   uint16_t start_addr_6502) {
   uint32_t i_opcodes;
   struct jit_opcode_details* p_details;
-  uint16_t end_addr_6502;
+  uint32_t end_addr_6502;
   int is_block_start = 0;
-  int32_t sub_instruction_addr_6502 = -1;
 
   for (i_opcodes = 0; i_opcodes < k_max_addr_space_per_compile; ++i_opcodes) {
     p_compiler->opcode_details[i_opcodes].addr_6502 = -1;
@@ -1630,6 +1573,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   p_compiler->start_addr_6502 = start_addr_6502;
   p_compiler->p_last_opcode = NULL;
+  p_compiler->sub_instruction_addr_6502 = -1;
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
@@ -1656,9 +1600,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* 2) Work out if we'll be compiling any dynamic opcodes / operands.
    * NOTE: may truncate p_compiler->total_num_opcodes.
+   * NOTE: sets p_compiler->sub_instruction_addr_6502
    */
-  jit_compiler_check_dynamics(p_compiler,
-                              &sub_instruction_addr_6502);
+  jit_compiler_check_dynamics(p_compiler);
 
   /* If the block didn't end with an explicit jump, put it in. */
   p_details = p_compiler->p_last_opcode;
@@ -1677,18 +1621,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
-  /* 3) Walk the opcode list; add countdown checks and calculate cycle counts.
+  /* 3) Run the pre-rewrite optimizer across the list of opcodes. */
+  if (!p_compiler->option_no_optimize) {
+    jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
+  }
+
+  /* 4) Walk the opcode list; add countdown checks and calculate cycle counts.
+   * This must be done after the pre-rewrite optimized path above, which might
+   * adjust cycle counts to be more concrete.
    */
   jit_compiler_setup_cycle_counts(p_compiler);
-
-  /* 4) Run the pre-rewrite optimizer across the list of opcodes. */
-  if (!p_compiler->option_no_optimize) {
-    struct jit_opcode_details* p_last_details =
-        jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
-    if (p_last_details != NULL) {
-      jit_compiler_make_last_opcode(p_compiler, p_last_details);
-    }
-  }
 
   /* 5) Offer the asm backend the chance to rewrite. Most significantly,
    * this is used as a coalesce pass. For example, the CISC-y x64 can take our
@@ -1701,6 +1643,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   if (!p_compiler->option_no_optimize) {
     jit_optimizer_optimize_post_rewrite(&p_compiler->opcode_details[0]);
   }
+
+  end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
+  return (end_addr_6502 - p_compiler->start_addr_6502);
+}
+
+void
+jit_compiler_execute_compile_block(struct jit_compiler* p_compiler) {
+  int32_t sub_instruction_addr_6502 = p_compiler->sub_instruction_addr_6502;
+
+  assert(p_compiler->p_last_opcode != NULL);
 
   /* 7) Emit the uop stream to the output buffer. */
   p_compiler->has_unresolved_jumps = 0;
@@ -1720,15 +1672,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   if (sub_instruction_addr_6502 != -1) {
     struct asm_uop tmp_uop;
     struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
-    void* p_host_address_base = p_compiler->get_block_host_address(
-        p_compiler->p_host_address_object, sub_instruction_addr_6502);
+    void* p_host_address_base =
+        jit_metadata_get_host_block_address(p_compiler->p_jit_metadata,
+                                            sub_instruction_addr_6502);
     util_buffer_setup(p_tmp_buf, p_host_address_base, K_JIT_BYTES_PER_BYTE);
     asm_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
     asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   }
 
-  end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
-  return (end_addr_6502 - p_compiler->start_addr_6502);
+  p_compiler->p_last_opcode = NULL;
 }
 
 int64_t
