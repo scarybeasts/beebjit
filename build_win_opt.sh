@@ -8,7 +8,7 @@ x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
     -O3 -DNDEBUG -flto -o beebjit.exe \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
-    jit_compiler.c cpu_driver.c \
+    jit_compiler.c jit_metadata.c cpu_driver.c \
     jit_optimizer.c jit_opcode.c keyboard.c \
     teletext.c render.c mc6850.c serial_ula.c \
     log.c test.c adc.c cmos.c joystick.c \
@@ -24,4 +24,4 @@ x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
     asm/asm_common.c asm/asm_common.S \
     asm/asm_inturbo.c asm/asm_inturbo.S \
     asm/asm_jit.c asm/asm_jit.S \
-    -lgdi32 -lwinmm
+    -lgdi32 -lwinmm -Wl,--default-image-base-low

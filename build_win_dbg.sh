@@ -24,4 +24,4 @@ x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
     asm/asm_common.c asm/asm_common.S \
     asm/asm_inturbo.c asm/asm_inturbo.S \
     asm/asm_jit.c asm/asm_jit.S \
-    -lgdi32 -lwinmm
+    -lgdi32 -lwinmm -Wl,--default-image-base-low
