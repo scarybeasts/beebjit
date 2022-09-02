@@ -1271,11 +1271,6 @@ bbc_set_fast_mode_callback(void* p, int is_fast) {
                                                      p_bbc->p_video);
 }
 
-int
-bbc_get_fast_flag(struct bbc_struct* p_bbc) {
-  return p_bbc->fast_flag;
-}
-
 void
 bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast) {
   bbc_set_fast_mode_callback((void*) p_bbc, is_fast);
