@@ -526,7 +526,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3 + page_crossing);                                 \
     INTERP_MEMORY_READ(addr);                                                 \
+    v2 = v;                                                                   \
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    v = v2;                                                                   \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     goto check_irq;                                                           \
