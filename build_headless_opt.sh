@@ -7,7 +7,7 @@ gcc -Wall -W -Werror \
     -O3 -DNDEBUG -flto -DBEEBJIT_HEADLESS -o beebjit \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
-    jit_compiler.c cpu_driver.c \
+    jit_compiler.c jit_metadata.c cpu_driver.c \
     jit_optimizer.c jit_opcode.c keyboard.c \
     teletext.c render.c mc6850.c serial_ula.c \
     log.c test.c adc.c cmos.c joystick.c \
