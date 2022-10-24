@@ -121,8 +121,12 @@ asm_jit_enter(void* p_context,
               int64_t countdown,
               void* p_mem_base) {
   (void) p_context;
-  (void) jump_addr;
+  (void) p_start_addr;
   (void) countdown;
   (void) p_mem_base;
   return 0;
+}
+
+void
+asm_jit_interp_trampoline(void) {
 }

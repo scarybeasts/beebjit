@@ -304,6 +304,16 @@ asm_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_DEX(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_DEY(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf) {
   (void) p_buf;
 }
@@ -315,6 +325,16 @@ asm_emit_instruction_EOR_scratch_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_INX(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_INY(struct util_buffer* p_buf) {
   (void) p_buf;
 }
 

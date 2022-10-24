@@ -154,3 +154,7 @@ void
 asm_emit_pull_word_to_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
 }
+
+void
+asm_debug_trampoline(void) {
+}
