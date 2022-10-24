@@ -148,7 +148,9 @@ os_window_create(uint32_t width, uint32_t height) {
 
   (void) XkbSetDetectableAutoRepeat(p_window->d, True, &bool_ret);
   if (bool_ret != True) {
-    errx(1, "can't set detect auto repeat");
+    log_do_log(k_log_misc,
+               k_log_warning,
+               "XkbSetDetectableAutoRepeat doesn't work");
   }
 
   s = DefaultScreen(p_window->d);
