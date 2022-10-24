@@ -264,6 +264,7 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
 {
   ssize_t ret;
   uint8_t val = 'C';
+  (void) notification;
   /* Signal the main beebjit event loop. */
   ret = write(_osWindow->pipe_write, &val, 1);
   if (ret != 1) {
