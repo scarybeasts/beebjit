@@ -89,6 +89,9 @@ void util_file_copy(const char* p_src_file_name, const char* p_dst_file_name);
 int util_get_u32_option(uint32_t* p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);
+int util_get_u32_hex_option(uint32_t* p_opt_out,
+                            const char* p_opt_str,
+                            const char* p_opt_name);
 int util_get_u64_option(uint64_t* p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);

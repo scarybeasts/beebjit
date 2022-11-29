@@ -47,9 +47,10 @@ static uint8_t s_teletext_generated_glyphs[96 * 16 * 20];
 static uint8_t s_teletext_generated_gfx[96 * 16 * 20];
 static uint8_t s_teletext_generated_sep_gfx[96 * 16 * 20];
 
-static struct render_character_1MHz s_render_character_1MHz_black;
 
 struct teletext_struct {
+  struct render_character_1MHz render_character_1MHz_black;
+  uint32_t background_color;
   uint8_t data_pipeline[3];
   uint8_t dispen_pipeline[2];
   uint32_t palette[8];
@@ -241,10 +242,6 @@ teletext_generate(void) {
     teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],
                               &doubled_gfx_glyph[0]);
   }
-
-  for (i = 0; i < 16; ++i) {
-    s_render_character_1MHz_black.host_pixels[i] = 0xff000000;
-  }
 }
 
 static inline void
@@ -299,6 +296,17 @@ teletext_new_frame_started(struct teletext_struct* p_teletext) {
   p_teletext->flash_visible_this_frame = (p_teletext->flash_count >= 16);
 }
 
+static void
+teletext_generate_black_character(struct teletext_struct* p_teletext) {
+  uint32_t i;
+  uint32_t rgba = (0xff000000 | p_teletext->background_color);
+
+  for (i = 0; i < 16; ++i) {
+    p_teletext->render_character_1MHz_black.host_pixels[i] = rgba;
+  }
+
+}
+
 struct teletext_struct*
 teletext_create(void) {
   uint32_t i;
@@ -330,12 +338,21 @@ teletext_create(void) {
     p_teletext->palette[i] = color;
   }
 
+  p_teletext->background_color = 0;
+  teletext_generate_black_character(p_teletext);
+
   return p_teletext;
 }
 
 void
 teletext_destroy(struct teletext_struct* p_teletext) {
   util_free(p_teletext);
+}
+
+void
+teletext_set_black_rgb(struct teletext_struct* p_teletext, uint32_t rgb) {
+  p_teletext->background_color = rgb;
+  teletext_generate_black_character(p_teletext);
 }
 
 static inline void
@@ -514,13 +531,15 @@ teletext_render(struct teletext_struct* p_teletext,
   uint8_t* p_src_data = p_teletext->p_render_character;
   uint32_t render_fg_color = p_teletext->render_fg_color;
   uint32_t bg_color = p_teletext->bg_color;
+  struct render_character_1MHz* p_black =
+      &p_teletext->render_character_1MHz_black;
 
   if (!p_teletext->curr_dispen) {
     if (p_out) {
-      *p_out = s_render_character_1MHz_black;
+      *p_out = *p_black;
     }
     if (p_next_out) {
-      *p_next_out = s_render_character_1MHz_black;
+      *p_next_out = *p_black;
     }
     return;
   }

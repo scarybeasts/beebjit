@@ -95,6 +95,7 @@ render_create(struct teletext_struct* p_teletext,
   uint32_t width;
   uint32_t height;
   uint32_t i;
+  uint32_t background_color = 0;
 
   /* The border appears on all screen edges, and 1 character unit is the width /
    * height of a MODE 4 glyph / character.
@@ -133,6 +134,10 @@ render_create(struct teletext_struct* p_teletext,
   if (util_has_option(p_opt_flags, "video:no-deinterlace-bitmap")) {
     p_render->do_deinterlace_bitmap = 0;
   }
+  (void) util_get_u32_hex_option(&background_color,
+                                 p_opt_flags,
+                                 "video:background=");
+  background_color |= 0xff000000;
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
@@ -174,16 +179,20 @@ render_create(struct teletext_struct* p_teletext,
   render_dirty_all_tables(p_render);
 
   for (i = 0; i < 16; ++i) {
-    p_render->render_character_1MHz_black.host_pixels[i] = 0xff000000;
+    p_render->render_character_1MHz_black.host_pixels[i] = background_color;
   }
   for (i = 0; i < 8; ++i) {
-    p_render->render_character_2MHz_black.host_pixels[i] = 0xff000000;
+    p_render->render_character_2MHz_black.host_pixels[i] = background_color;
   }
   for (i = 0; i < 256; ++i) {
     p_render->render_table_1MHz_black.values[i] =
         p_render->render_character_1MHz_black;
     p_render->render_table_2MHz_black.values[i] =
         p_render->render_character_2MHz_black;
+  }
+
+  if (background_color != 0) {
+    teletext_set_black_rgb(p_teletext, background_color);
   }
 
   return p_render;
@@ -1010,7 +1019,9 @@ render_clear_buffer(struct render_struct* p_render) {
   uint32_t i;
   uint32_t size = (render_get_buffer_size(p_render) / 4);
   uint32_t* p_buf = p_render->p_buffer;
+
   for (i = 0; i < size; ++i) {
+    /* Full alpha and black. */
     p_buf[i] = 0xff000000;
   }
 }
