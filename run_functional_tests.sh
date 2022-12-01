@@ -18,4 +18,20 @@ echo 'Checking E00 DFS ROM in sideways RAM.'
     -autoboot \
     -commands 'b 1900;c;q'
 
+echo 'Checking 6502 instruction timings (with cycle stretch).'
+# The test itself writes the number of failures to $FCD0, so breakpoint
+# expressions are used to trap and consider the write.
+./beebjit -0 test/misc/6502timing1M.ssd \
+     -mode jit \
+     -headless -fast -accurate -debug \
+     -autoboot \
+     -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
+
+echo 'Checking 65C12 instruction timings (with cycle stretch).'
+./beebjit -0 test/misc/65C12timing1M.ssd \
+     -master \
+     -headless -fast -accurate -debug \
+     -autoboot \
+     -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
+
 echo 'Functional tests OK.'

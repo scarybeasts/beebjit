@@ -3,6 +3,20 @@ clearly into the sound / display / demo / etc. categories.
 Copyrights remain with their respective authors.
 
 
+- 6502timing1M.ssd
+By Dominic Plunkett.
+Tests the timing of all 6502 instructions, with cycle stretching.
+From:
+https://stardot.org.uk/forums/viewtopic.php?f=55&t=25298
+https://github.com/dp111/6502Timing
+
+- 65C12timing1M.ssd
+By Dominic Plunkett.
+Tests the timing of all 65C12 instructions, with cycle stretching.
+From:
+https://stardot.org.uk/forums/viewtopic.php?f=55&t=25298
+https://github.com/dp111/6502Timing
+
 - glitch.ssd
 Test cases that hammer CRTC / ULA registers and may even look pretty.
 
