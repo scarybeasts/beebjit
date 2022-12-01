@@ -97,6 +97,7 @@ struct video_struct {
   int log_timer;
   int opt_do_show_frame_boundaries;
   int opt_do_hack_legacy_quest_cap;
+  int opt_do_hack_legacy_shift_mode7;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -1334,6 +1335,8 @@ video_create(uint8_t* p_bbc_mem,
       p_options->p_opt_flags, "video:frame-boundaries");
   p_video->opt_do_hack_legacy_quest_cap = util_has_option(
       p_options->p_opt_flags, "video:hack-legacy-quest-cap");
+  p_video->opt_do_hack_legacy_shift_mode7 = util_has_option(
+      p_options->p_opt_flags, "video:hack-legacy-shift-mode7");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
@@ -1777,6 +1780,26 @@ video_framing_changed(struct video_struct* p_video) {
   video_update_timer(p_video);
 }
 
+static void
+video_check_hack_legacy_shift_mode7(struct video_struct* p_video) {
+  if (!p_video->opt_do_hack_legacy_shift_mode7) {
+    return;
+  }
+
+  /* If's a MODE 7 setup, shift it left to mimic the old beebjit display (which
+   * is centered the same as the other modes).
+   */
+  if (!(p_video->video_ula_control & k_ula_teletext) ||
+      (p_video->skew_dispen_index != 1) ||
+      (p_video->cursor_skew != 2)) {
+    return;
+  }
+
+  p_video->crtc_registers[k_crtc_reg_horiz_position] = 52;
+
+  video_framing_changed(p_video);
+}
+
 void
 video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t index;
@@ -1844,6 +1867,8 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
                              !!(val & 0x20));
 
   video_mode_updated(p_video);
+
+  video_check_hack_legacy_shift_mode7(p_video);
 }
 
 uint8_t
@@ -2093,6 +2118,8 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     video_recalculate_framing_sanity(p_video);
     video_framing_changed(p_video);
   }
+
+  video_check_hack_legacy_shift_mode7(p_video);
 }
 
 uint8_t
