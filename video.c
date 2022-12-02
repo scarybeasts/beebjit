@@ -1795,6 +1795,8 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   int new_flash;
   int new_clock_speed;
   int old_clock_speed;
+  int new_is_teletext;
+  int old_is_teletext;
 
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
@@ -1820,20 +1822,27 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   old_flash = video_get_flash(p_video);
   old_clock_speed = video_get_clock_speed(p_video);
   new_clock_speed = !!(val & k_ula_clock_speed);
+  old_is_teletext = !!(p_video->video_ula_control & k_ula_teletext);
+  new_is_teletext = !!(val & k_ula_teletext);
 
   if (new_clock_speed != old_clock_speed) {
     if (!p_video->is_rendering_active) {
+      /* Must be called before updating p_video->video_ula_control. */
       video_advance_crtc_timing(p_video);
     }
-    p_video->video_ula_control = val;
     p_video->clock_tick_multiplier = 1;
     if (new_clock_speed == 0) {
       p_video->clock_tick_multiplier = 2;
     }
-    video_framing_changed(p_video);
   }
 
   p_video->video_ula_control = val;
+
+  if ((new_clock_speed != old_clock_speed) ||
+      (new_is_teletext != old_is_teletext)) {
+    /* Must be called after updating p_video->video_ula_control. */
+    video_framing_changed(p_video);
+  }
 
   new_flash = video_get_flash(p_video);
   if (old_flash != new_flash) {
