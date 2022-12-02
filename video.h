@@ -74,4 +74,6 @@ void video_get_crtc_state(struct video_struct* p_video,
                           int* p_is_in_vert_adjust,
                           int* p_is_in_dummy_raster);
 
+int video_has_paint_timer_triggered(struct video_struct* p_video);
+
 #endif /* BEEBJIT_VIDEO_H */

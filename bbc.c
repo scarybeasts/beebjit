@@ -1171,7 +1171,8 @@ bbc_framebuffer_ready_callback(void* p,
   struct bbc_message message;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  int do_wait_for_render = !p_bbc->fast_flag;
+  int do_wait_for_render = !p_bbc->fast_flag ||
+                           video_has_paint_timer_triggered(p_bbc->p_video);
 
   message.data[0] = k_message_vsync;
   message.data[1] = do_full_render;

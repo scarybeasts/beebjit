@@ -2185,4 +2185,9 @@ video_get_crtc_state(struct video_struct* p_video,
   *p_is_in_dummy_raster = p_video->in_dummy_raster;
 }
 
+int
+video_has_paint_timer_triggered(struct video_struct* p_video) {
+  return p_video->has_paint_timer_triggered;
+}
+
 #include "test-video.c"
