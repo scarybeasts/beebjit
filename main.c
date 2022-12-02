@@ -184,8 +184,8 @@ beebjit_main(void) {
       if (keyboard_num_remaps < k_max_keyboard_remaps) {
         uint8_t from;
         uint8_t to;
-        (void) sscanf(val1, "%"PRIu8, &from);
-        (void) sscanf(val2, "%"PRIu8, &to);
+        (void) sscanf(val1, "%"SCNu8, &from);
+        (void) sscanf(val2, "%"SCNu8, &to);
         keyboard_remap_from[keyboard_num_remaps] = from;
         keyboard_remap_to[keyboard_num_remaps] = to;
         keyboard_num_remaps++;
