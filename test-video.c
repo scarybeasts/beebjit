@@ -333,10 +333,10 @@ video_test_full_frame_timers() {
   test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
                   video_test_get_timer());
   /* ULA control: flash and pixels per character. Making sure to keep the clock
-   * rate at 1MHz.
+   * rate at 1MHz and Teletext mode on.
    */
-  video_ula_write(g_p_video, 0, 0x00);
-  video_ula_write(g_p_video, 0, 0xE5);
+  video_ula_write(g_p_video, 0, 0x02);
+  video_ula_write(g_p_video, 0, 0xE7);
   test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
                   video_test_get_timer());
   /* CRTC start address. */
