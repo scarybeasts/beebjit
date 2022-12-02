@@ -66,6 +66,7 @@ struct keyboard_struct {
   struct keyboard_state* p_physical_keyboard;
   struct keyboard_state* p_active;
   uint8_t keyboard_links;
+  uint8_t remap[256];
 
   int log_replay;
 };
@@ -663,6 +664,7 @@ keyboard_rewind_timer_fired(void* p) {
 
 struct keyboard_struct*
 keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
+  uint32_t i;
   struct keyboard_struct* p_keyboard =
       util_mallocz(sizeof(struct keyboard_struct));
 
@@ -680,6 +682,10 @@ keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
       timing_register_timer(p_timing, keyboard_replay_timer_tick, p_keyboard);
   p_keyboard->rewind_timer_id =
       timing_register_timer(p_timing, keyboard_rewind_timer_fired, p_keyboard);
+
+  for (i = 0; i < sizeof(p_keyboard->remap); ++i) {
+    p_keyboard->remap[i] = i;
+  }
 
   p_keyboard->log_replay = util_has_option(p_options->p_log_flags,
                                            "keyboard:replay");
@@ -1097,6 +1103,10 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   for (i = 0; i < num_keys; ++i) {
     uint8_t key = p_keyboard->queue_key[i];
     uint8_t is_down = p_keyboard->queue_isdown[i];
+
+    /* Physical keyboard remapping, as per -key-remap command line option. */
+    key = p_keyboard->remap[key];
+
     keys[i] = key;
     is_downs[i] = is_down;
   }
@@ -1121,4 +1131,11 @@ keyboard_release_all_physical_keys(struct keyboard_struct* p_keyboard) {
   }
 
   keyboard_apply_physical_keys(p_keyboard, keys, is_downs, 256);
+}
+
+void
+keyboard_add_remap(struct keyboard_struct* p_keyboard,
+                   uint8_t from,
+                   uint8_t to) {
+  p_keyboard->remap[from] = to;
 }

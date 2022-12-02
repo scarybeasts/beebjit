@@ -35,6 +35,7 @@ static const uint32_t k_sound_default_num_periods = 4;
 enum {
   k_max_discs_per_drive = 4,
   k_max_tapes = 4,
+  k_max_keyboard_remaps = 16,
 };
 
 static int s_argc;
@@ -138,6 +139,9 @@ beebjit_main(void) {
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
   int is_exit_on_max_frames_flag = 0;
+  uint32_t keyboard_num_remaps = 0;
+  uint8_t keyboard_remap_from[k_max_keyboard_remaps];
+  uint8_t keyboard_remap_to[k_max_keyboard_remaps];
 
   if (asm_jit_is_default()) {
     mode = k_cpu_mode_jit;
@@ -175,6 +179,17 @@ beebjit_main(void) {
     } else if (has_2 && (!strcmp(arg, "-create-hfe"))) {
       p_create_hfe_file = val1;
       p_create_hfe_spec = val2;
+      i_args += 2;
+    } else if (has_2 && (!strcmp(arg, "-key-remap"))) {
+      if (keyboard_num_remaps < k_max_keyboard_remaps) {
+        uint8_t from;
+        uint8_t to;
+        (void) sscanf(val1, "%"PRIu8, &from);
+        (void) sscanf(val2, "%"PRIu8, &to);
+        keyboard_remap_from[keyboard_num_remaps] = from;
+        keyboard_remap_to[keyboard_num_remaps] = to;
+        keyboard_num_remaps++;
+      }
       i_args += 2;
     } else if (has_1 && !strcmp(arg, "-os")) {
       os_rom_name = val1;
@@ -376,6 +391,7 @@ beebjit_main(void) {
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
 "-dfs12             : for a model B with an 8271, load newer DFS v1.2 ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
+"-key-remap  <f> <t>: remap physical key from / to. See EXAMPLES.\n"
 "");
       exit(0);
     } else {
@@ -578,6 +594,11 @@ beebjit_main(void) {
   }
   if (keyboard_links != -1) {
     keyboard_set_links(p_keyboard, keyboard_links);
+  }
+  for (i = 0; i < keyboard_num_remaps; i++) {
+    keyboard_add_remap(p_keyboard,
+                       keyboard_remap_from[i],
+                       keyboard_remap_to[i]);
   }
 
   p_render = bbc_get_render(p_bbc);

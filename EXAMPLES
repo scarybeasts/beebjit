@@ -216,3 +216,14 @@ runs even without -debug and the appeal of it is that it runs at full speed.
 Certain debug commands won't work without -debug though, such as those that
 require examining state at every instruction. Most notably, this includes
 breakpoints.)
+
+
+17) Keyboard remapping.
+
+This example plays Thrust, but with the Z / X keys being usable for left / right
+in addition to Caps Lock / Ctrl.
+The constants for "normal" keys are defined by their ASCII codes.
+The constants for special keys are defined here:
+https://github.com/scarybeasts/beebjit/blob/master/keyboard.h
+
+./beebjit -0 ~/Downloads/Superior/Thrust.ssd -key-remap 90 135 -key-remap 88 132
