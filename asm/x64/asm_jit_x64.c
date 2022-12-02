@@ -19,6 +19,8 @@
 
 #define K_JIT_TRAMPOLINE_BYTES             16
 
+void* g_p_trampolines_base = (void*) NULL;
+
 enum {
   k_opcode_x64_check_page_crossing_ABX = 0x1000,
   k_opcode_x64_check_page_crossing_ABY,
@@ -410,6 +412,11 @@ asm_jit_create(void* p_jit_base,
 
   os_alloc_make_mapping_read_write_exec(p_jit_base, K_JIT_SIZE);
 
+  /* Little dance to avoid GCC 11 bug with -Werror=stringop-overflow. */
+  if (g_p_trampolines_base == NULL) {
+    g_p_trampolines_base = (void*) K_JIT_TRAMPOLINES_ADDR;
+  }
+
   /* This is the mapping that holds trampolines to jump out of JIT. These
    * one-per-6502-address trampolines enable the core JIT code to be simpler
    * and smaller, at the expense of more complicated bridging between JIT and
@@ -417,7 +424,7 @@ asm_jit_create(void* p_jit_base,
    */
   mapping_size = (k_6502_addr_space_size * K_JIT_TRAMPOLINE_BYTES);
   s_p_mapping_trampolines =
-      os_alloc_get_mapping((void*) K_JIT_TRAMPOLINES_ADDR, mapping_size);
+      os_alloc_get_mapping(g_p_trampolines_base, mapping_size);
   p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
   os_alloc_make_mapping_read_write_exec(p_trampolines, mapping_size);
   util_buffer_setup(p_temp_buf, p_trampolines, mapping_size);

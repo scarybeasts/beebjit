@@ -5,6 +5,7 @@
 #include "asm_jit.h"
 #include "../os_alloc.h"
 
+void* g_p_asm_tables_base = NULL;
 static const size_t k_asm_tables_size = 4096;
 
 static int s_inited;
@@ -29,7 +30,12 @@ asm_tables_init() {
     return;
   }
 
-  p_mapping = os_alloc_get_mapping((void*) K_ASM_TABLE_ADDR, k_asm_tables_size);
+  /* Little dance to avoid GCC 11 bug with -Werror=stringop-overflow. */
+  if (g_p_asm_tables_base == NULL) {
+    g_p_asm_tables_base = (void*) K_ASM_TABLE_ADDR;
+  }
+
+  p_mapping = os_alloc_get_mapping(g_p_asm_tables_base, k_asm_tables_size);
   p_base = os_alloc_get_mapping_addr(p_mapping);
 
   p_dst = (p_base + K_ASM_TABLE_6502_FLAGS_TO_X64_OFFSET);
