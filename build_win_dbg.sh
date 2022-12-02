@@ -5,6 +5,7 @@
 x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
     -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
+    -Wl,--disable-dynamicbase,--image-base 0x00400000 \
     -g -gdwarf-2 -o beebjit.exe \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
