@@ -182,12 +182,12 @@ beebjit_main(void) {
       i_args += 2;
     } else if (has_2 && (!strcmp(arg, "-key-remap"))) {
       if (keyboard_num_remaps < k_max_keyboard_remaps) {
-        uint8_t from;
-        uint8_t to;
-        (void) sscanf(val1, "%"PRIu8, &from);
-        (void) sscanf(val2, "%"PRIu8, &to);
-        keyboard_remap_from[keyboard_num_remaps] = from;
-        keyboard_remap_to[keyboard_num_remaps] = to;
+        uint32_t from;
+        uint32_t to;
+        (void) sscanf(val1, "%"PRIu32, &from);
+        (void) sscanf(val2, "%"PRIu32, &to);
+        keyboard_remap_from[keyboard_num_remaps] = (uint8_t) from;
+        keyboard_remap_to[keyboard_num_remaps] = (uint8_t) to;
         keyboard_num_remaps++;
       }
       i_args += 2;
