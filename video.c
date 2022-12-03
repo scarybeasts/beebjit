@@ -1241,9 +1241,22 @@ video_wall_time_vsync_hit(struct video_struct* p_video) {
 }
 
 static void
-video_do_custom_paint_event(struct video_struct* p_video) {
+video_paint_timer_fired(void* p) {
+  /* The dance for when we render (draw pixels), paint (blast render buffer to
+   * screen), etc. is getting complicated.
+   * This paint timer here is not part of the default path. It is only used
+   * when some unusual custom options are used.
+   */
+  struct video_struct* p_video = (struct video_struct*) p;
   struct timing_struct* p_timing = p_video->p_timing;
   uint32_t timer_id = p_video->paint_timer_id;
+
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "paint timer fired, ticks %"PRId64,
+               timing_get_total_timer_ticks(p_video->p_timing));
+  }
 
   if (!p_video->externally_clocked) {
     /* For accurate mode, this triggers the start of painting, and paint will
@@ -1266,25 +1279,6 @@ video_do_custom_paint_event(struct video_struct* p_video) {
     video_do_paint(p_video);
     (void) timing_set_timer_value(p_timing, timer_id, p_video->paint_cycles);
   }
-}
-
-static void
-video_paint_timer_fired(void* p) {
-  /* The dance for when we render (draw pixels), paint (blast render buffer to
-   * screen), etc. is getting complicated.
-   * This paint timer here is not part of the default path. It is only used
-   * when some unusual custom options are used.
-   */
-  struct video_struct* p_video = (struct video_struct*) p;
-
-  if (p_video->log_timer) {
-    log_do_log(k_log_video,
-               k_log_info,
-               "paint timer fired, ticks %"PRId64,
-               timing_get_total_timer_ticks(p_video->p_timing));
-  }
-
-  video_do_custom_paint_event(p_video);
 }
 
 struct video_struct*
