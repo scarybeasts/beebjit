@@ -26,10 +26,12 @@ int g_test_fast_flag = 0;
 static void
 video_test_framebuffer_ready_callback(void* p,
                                       int do_full_paint,
-                                      int framing_changed) {
+                                      int framing_changed,
+                                      int do_wait_for_paint) {
   (void) p;
   (void) do_full_paint;
   (void) framing_changed;
+  (void) do_wait_for_paint;
 
   g_video_test_framebuffer_ready_calls++;
 }

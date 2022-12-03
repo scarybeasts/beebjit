@@ -1167,19 +1167,23 @@ bbc_cpu_receive_message(struct bbc_struct* p_bbc,
 static void
 bbc_framebuffer_ready_callback(void* p,
                                int do_full_render,
-                               int framing_changed) {
+                               int framing_changed,
+                               int do_wait_for_paint) {
   struct bbc_message message;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  int do_wait_for_render = !p_bbc->fast_flag;
+
+  if (!p_bbc->fast_flag) {
+    do_wait_for_paint = 1;
+  }
 
   message.data[0] = k_message_vsync;
   message.data[1] = do_full_render;
   message.data[2] = framing_changed;
   message.data[3] = timing_get_total_timer_ticks(p_bbc->p_timing);
-  message.data[4] = do_wait_for_render;
+  message.data[4] = do_wait_for_paint;
   bbc_cpu_send_message(p_bbc, &message);
-  if (do_wait_for_render) {
+  if (do_wait_for_paint) {
     struct bbc_message message;
     bbc_cpu_receive_message(p_bbc, &message);
     assert(message.data[0] == k_message_render_done);

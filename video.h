@@ -22,7 +22,8 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   void (*p_framebuffer_ready_callback)
                                       (void* p,
                                        int do_full_paint,
-                                       int framing_changed),
+                                       int framing_changed,
+                                       int do_wait_for_paint),
                                   void* p_framebuffer_ready_object,
                                   int* p_fast_flag,
                                   struct bbc_options* p_options);

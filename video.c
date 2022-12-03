@@ -90,7 +90,7 @@ struct video_struct {
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   uint32_t timer_id;
-  void (*p_framebuffer_ready_callback)(void*, int, int);
+  void (*p_framebuffer_ready_callback)(void*, int, int, int);
   void* p_framebuffer_ready_object;
   int* p_fast_flag;
 
@@ -282,7 +282,8 @@ video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
    */
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                         do_full_render,
-                                        do_clear_after_paint);
+                                        do_clear_after_paint,
+                                        p_video->has_paint_timer_triggered);
 }
 
 static void
@@ -1291,7 +1292,8 @@ video_create(uint8_t* p_bbc_mem,
              struct via_struct* p_system_via,
              void (*p_framebuffer_ready_callback)(void* p,
                                                   int do_full_paint,
-                                                  int framing_changed),
+                                                  int framing_changed,
+                                                  int do_wait_for_paint),
              void* p_framebuffer_ready_object,
              int* p_fast_flag,
              struct bbc_options* p_options) {
