@@ -1902,11 +1902,9 @@ debug_callback_common(struct debug_struct* p_debug,
   while (1) {
     size_t i;
     size_t j;
-    char parse_string[256];
     uint8_t disc_data[64];
     uint8_t disc_clocks[64];
     uint16_t parse_addr;
-    uint64_t parse_u64;
     int ret;
     char input_buf[k_max_input_len];
     uint32_t num_strings;
@@ -1915,15 +1913,13 @@ debug_callback_common(struct debug_struct* p_debug,
     const char* p_param_str;
     const char* p_param_1_str;
     const char* p_param_2_str;
-    int32_t parse_int;
-    int32_t parse_int2;
-
-    int32_t parse_int3 = -1;
-    int32_t parse_int4 = -1;
-    int32_t parse_int5 = -1;
-    int32_t parse_int6 = -1;
-    int32_t parse_int7 = -1;
-    int32_t parse_int8 = -1;
+    const char* p_param_3_str;
+    int32_t parse_int = -1;
+    int32_t parse_int2 = -1;
+    int32_t parse_hex_int = -1;
+    int32_t parse_hex_int2 = -1;
+    int32_t parse_hex_int3 = -1;
+    uint64_t parse_u64_int = 0;
     struct util_string_list_struct* p_pending_commands =
         p_debug->p_pending_commands;
     struct util_string_list_struct* p_command_strings =
@@ -1982,17 +1978,23 @@ debug_callback_common(struct debug_struct* p_debug,
     if (num_strings > 0) {
       p_command = util_string_list_get_string(p_command_strings, 0);
     }
-    parse_int = -1;
     p_param_1_str = NULL;
     if (num_strings > 1) {
       p_param_1_str = util_string_list_get_string(p_command_strings, 1);
-      parse_int = (int32_t) util_parse_u64(p_param_1_str, 0);
+      parse_u64_int = util_parse_u64(p_param_1_str, 0);
+      parse_int = (int32_t) parse_u64_int;
+      parse_hex_int = (int32_t) util_parse_u64(p_param_1_str, 1);
     }
-    parse_int2 = -1;
     p_param_2_str = NULL;
     if (num_strings > 2) {
       p_param_2_str = util_string_list_get_string(p_command_strings, 2);
       parse_int2 = (int32_t) util_parse_u64(p_param_2_str, 0);
+      parse_hex_int2 = (int32_t) util_parse_u64(p_param_2_str, 1);
+    }
+    p_param_3_str = NULL;
+    if (num_strings > 3) {
+      p_param_3_str = util_string_list_get_string(p_command_strings, 3);
+      parse_hex_int3 = (int32_t) util_parse_u64(p_param_3_str, 1);
     }
 
     if (!strcmp(p_command, "q")) {
@@ -2047,17 +2049,17 @@ debug_callback_common(struct debug_struct* p_debug,
       p_debug->next_or_finish_stop_addr = finish_addr;
       p_debug->debug_running = 1;
       break;
-    } else if (sscanf(input_buf, "m %"PRIx32, &parse_int) == 1) {
+    } else if (!strcmp(p_command, "m")) {
       for (j = 0; j < 4; ++j) {
-        debug_print_hex_line(p_mem_read, (uint16_t) parse_int, 0x10000, 0);
-        parse_int += 16;
+        debug_print_hex_line(p_mem_read, (uint16_t) parse_hex_int, 0x10000, 0);
+        parse_hex_int += 16;
       }
       /* Continue where we left off if just enter is hit next. */
       (void) snprintf(&p_debug->previous_commands[0],
                       k_max_input_len,
                       "m %x",
-                      (uint16_t) parse_int);
-    } else if (sscanf(input_buf, "breakat %"PRIu64, &parse_u64) == 1) {
+                      (uint16_t) parse_hex_int);
+    } else if (!strcmp(p_command, "breakat")) {
       uint64_t ticks_delta;
       struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
@@ -2065,8 +2067,8 @@ debug_callback_common(struct debug_struct* p_debug,
       if (timing_timer_is_running(p_timing, timer_id)) {
         (void) timing_stop_timer(p_timing, timer_id);
       }
-      if (parse_u64 > ticks) {
-        ticks_delta = (parse_u64 - ticks);
+      if (parse_u64_int > ticks) {
+        ticks_delta = (parse_u64_int - ticks);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
     } else if (!strcmp(p_command, "seek")) {
@@ -2086,7 +2088,7 @@ debug_callback_common(struct debug_struct* p_debug,
       debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bl") || !strcmp(p_command, "blist")) {
       debug_dump_breakpoints(p_debug);
-    } else if ((sscanf(input_buf, "db %"PRId32, &parse_int) == 1) &&
+    } else if (!strcmp(p_command, "db") &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, parse_int);
@@ -2176,39 +2178,27 @@ debug_callback_common(struct debug_struct* p_debug,
           (void) printf("sequence found at %.4X\n", addr);
         }
       }
-    } else if ((sscanf(input_buf, "inv %"PRIx32, &parse_int) == 1) &&
+    } else if (!strcmp(p_command, "inv") &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
-    } else if ((sscanf(input_buf,
-                      "loadmem %255s %"PRIx32,
-                      parse_string,
-                      &parse_int) == 2) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536)) {
-      parse_string[255] = '\0';
-      debug_load_raw(p_debug, parse_string, parse_int);
-    } else if ((sscanf(input_buf,
-                      "savemem %255s %"PRIx32" %"PRIx32,
-                      parse_string,
-                      &parse_int,
-                      &parse_int2) == 3) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536) &&
-               (parse_int2 >= 0) &&
-               (parse_int2 < 65536)) {
-      parse_string[255] = '\0';
-      debug_save_raw(p_debug, parse_string, parse_int, parse_int2);
-    } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
-      parse_string[255] = '\0';
-      state_save(p_bbc, parse_string);
-    } else if (!strcmp(input_buf, "d") ||
-               (!strncmp(input_buf, "d ", 2) &&
-                    (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1))) {
-      if (parse_int == -1) {
-        parse_int = p_debug->reg_pc;
+    } else if (!strcmp(p_command, "loadmem") &&
+               (parse_hex_int2 >= 0) &&
+               (parse_hex_int2 < 65536)) {
+      debug_load_raw(p_debug, p_param_1_str, parse_hex_int2);
+    } else if (!strcmp(p_command, "savemem") &&
+               (parse_hex_int2 >= 0) &&
+               (parse_hex_int2 < 65536) &&
+               (parse_hex_int3 >= 0) &&
+               (parse_hex_int3 < 65536)) {
+      debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
+    } else if (!strcmp(p_command, "ss")) {
+      state_save(p_bbc, p_param_1_str);
+    } else if (!strcmp(p_command, "d")) {
+      if (parse_hex_int == -1) {
+        parse_hex_int = p_debug->reg_pc;
       }
-      parse_addr = debug_disass(p_debug, p_cpu_driver, parse_int);
+      parse_addr = debug_disass(p_debug, p_cpu_driver, parse_hex_int);
       /* Continue where we left off if just enter is hit next. */
       (void) snprintf(&p_debug->previous_commands[0],
                       k_max_input_len,
@@ -2239,7 +2229,7 @@ debug_callback_common(struct debug_struct* p_debug,
                             cycles,
                             ticks,
                             countdown);
-    } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
+    } else if (!strcmp(p_command, "ddrive") &&
                (parse_int >= 0) &&
                (parse_int <= 3)) {
       struct disc_struct* p_disc;
@@ -2256,8 +2246,7 @@ debug_callback_common(struct debug_struct* p_debug,
       } else {
         disc_tool_set_is_side_upper(p_tool, 0);
       }
-    } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
-               (parse_int >= 0)) {
+    } else if (!strcmp(p_command, "dtrack") && (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
     } else if (!strcmp(p_command, "dsec")) {
       uint32_t i_sectors;
@@ -2279,8 +2268,7 @@ debug_callback_common(struct debug_struct* p_debug,
         p_sectors++;
       }
       (void) printf("\n");
-    } else if ((sscanf(input_buf, "drsec %"PRId32, &parse_int) == 1) &&
-               (parse_int >= 0)) {
+    } else if (!strcmp(p_command, "drsec") && (parse_int >= 0)) {
       uint32_t byte_length;
       uint32_t data_chunks;
       uint8_t sector_data[k_disc_tool_max_sector_length];
@@ -2293,17 +2281,15 @@ debug_callback_common(struct debug_struct* p_debug,
       for (i = 0; i < data_chunks; ++i) {
         debug_print_hex_line(&sector_data[0], (i * 16), byte_length, 0);
       }
-    } else if (sscanf(input_buf, "dset %"PRIx32, &parse_int) == 1) {
-      disc_tool_fill_fm_data(p_tool, parse_int);
-    } else if (!strcmp(input_buf, "dpos") ||
-               (sscanf(input_buf, "dpos %"PRId32, &parse_int) == 1)) {
+    } else if (!strcmp(p_command, "dset")) {
+      disc_tool_fill_fm_data(p_tool, parse_hex_int);
+    } else if (!strcmp(p_command, "dpos")) {
       if (parse_int >= 0) {
         disc_tool_set_byte_pos(p_tool, parse_int);
       } else {
         (void) printf("dpos is %d\n", disc_tool_get_byte_pos(p_tool));
       }
-    } else if (!strcmp(input_buf, "drfm") ||
-               (sscanf(input_buf, "drfm %"PRId32, &parse_int) == 1)) {
+    } else if (!strcmp(p_command, "drfm")) {
       int is_iffy_pulse;
       if (parse_int >= 0) {
         disc_tool_set_byte_pos(p_tool, parse_int);
@@ -2317,8 +2303,7 @@ debug_callback_common(struct debug_struct* p_debug,
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), 64, parse_int);
       }
-    } else if (!strcmp(input_buf, "drfmc") ||
-               (sscanf(input_buf, "drfmc %"PRId32, &parse_int) == 1)) {
+    } else if (!strcmp(p_command, "drfmc")) {
       int is_iffy_pulse;
       if (parse_int >= 0) {
         disc_tool_set_byte_pos(p_tool, parse_int);
@@ -2333,39 +2318,26 @@ debug_callback_common(struct debug_struct* p_debug,
         debug_print_hex_line(&disc_data[0], (j * 16), 64, parse_int);
         debug_print_hex_line(&disc_clocks[0], (j * 16), 64, parse_int);
       }
-    } else if ((strncmp(input_buf, "dwfmc", 5) == 0) &&
-               (sscanf(input_buf,
-                      "dwfmc %"PRIx32" %"PRIx32,
-                       &parse_int,
-                       &parse_int2) == 2)) {
-      uint8_t data = parse_int;
-      uint8_t clocks = parse_int2;
+    } else if (!strcmp(p_command, "dwfmc")) {
+      uint8_t data = (uint8_t) parse_hex_int;
+      uint8_t clocks = (uint8_t) parse_hex_int2;
       disc_tool_write_fm_data(p_tool, &clocks, &data, 1);
-    } else if ((ret = sscanf(input_buf,
-                             "dwfm "
-                             "%"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32
-                             "%"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32,
-                             &parse_int,
-                             &parse_int2,
-                             &parse_int3,
-                             &parse_int4,
-                             &parse_int5,
-                             &parse_int6,
-                             &parse_int7,
-                             &parse_int8)) > 0) {
-      disc_data[0] = parse_int;
-      disc_data[1] = parse_int2;
-      disc_data[2] = parse_int3;
-      disc_data[3] = parse_int4;
-      disc_data[4] = parse_int5;
-      disc_data[5] = parse_int6;
-      disc_data[6] = parse_int7;
-      disc_data[7] = parse_int8;
-      disc_tool_write_fm_data(p_tool, NULL, &disc_data[0], ret);
-    } else if (sscanf(input_buf, "keydown %"PRId32, &parse_int) == 1) {
+    } else if (!strcmp(p_command, "dwfm") && (num_strings > 1)) {
+      uint32_t i_seq;
+      uint32_t sequence_len = (num_strings - 1);
+      if (sequence_len > 64) {
+        sequence_len = 64;
+      }
+      for (i_seq = 0; i_seq < sequence_len; ++i_seq) {
+        p_param_str =
+            util_string_list_get_string(p_command_strings, (i_seq + 1));
+        disc_data[i_seq] = (uint8_t) util_parse_u64(p_param_str, 1);
+      }
+      disc_tool_write_fm_data(p_tool, NULL, &disc_data[0], sequence_len);
+    } else if (!strcmp(p_command, "keydown")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_pressed(p_keyboard, (uint8_t) parse_int);
-    } else if (sscanf(input_buf, "keyup %"PRId32, &parse_int) == 1) {
+    } else if (!strcmp(p_command, "keyup")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_released(p_keyboard, (uint8_t) parse_int);
     } else if (!strcmp(p_command, "?") ||
