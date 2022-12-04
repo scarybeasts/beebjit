@@ -169,8 +169,7 @@ beebjit_main(void) {
     }
 
     if (has_2 && !strcmp(arg, "-rom")) {
-      int32_t bank = -1;
-      (void) sscanf(val1, "%"PRIx32, &bank);
+      int32_t bank = (int32_t) util_parse_u64(val1, 1);
       if (bank < 0 || bank >= k_bbc_num_roms) {
         util_bail("ROM bank number out of range");
       }
@@ -182,12 +181,10 @@ beebjit_main(void) {
       i_args += 2;
     } else if (has_2 && (!strcmp(arg, "-key-remap"))) {
       if (keyboard_num_remaps < k_max_keyboard_remaps) {
-        uint32_t from;
-        uint32_t to;
-        (void) sscanf(val1, "%"PRIu32, &from);
-        (void) sscanf(val2, "%"PRIu32, &to);
-        keyboard_remap_from[keyboard_num_remaps] = (uint8_t) from;
-        keyboard_remap_to[keyboard_num_remaps] = (uint8_t) to;
+        uint8_t from = (uint8_t) util_parse_u64(val1, 0);
+        uint8_t to = (uint8_t) util_parse_u64(val2, 0);
+        keyboard_remap_from[keyboard_num_remaps] = from;
+        keyboard_remap_to[keyboard_num_remaps] = to;
         keyboard_num_remaps++;
       }
       i_args += 2;
@@ -244,7 +241,7 @@ beebjit_main(void) {
       util_free(p_old_log_flags);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-pc")) {
-      (void) sscanf(val1, "%"PRIx32, &pc);
+      pc = (uint16_t) util_parse_u64(val1, 1);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-mode")) {
       if (!strcmp(val1, "jit")) {
@@ -258,33 +255,32 @@ beebjit_main(void) {
       }
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-swram")) {
-      int32_t bank = -1;
-      (void) sscanf(val1, "%"PRIx32, &bank);
+      int32_t bank = (int32_t) util_parse_u64(val1, 1);
       if ((bank < 0) || (bank >= k_bbc_num_roms)) {
         util_bail("RAM bank number out of range");
       }
       sideways_ram[bank] = 1;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-cycles")) {
-      (void) sscanf(val1, "%"PRIu64, &cycles);
+      cycles = util_parse_u64(val1, 0);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-frame-cycles")) {
-      (void) sscanf(val1, "%"PRIu64, &frame_cycles);
+      frame_cycles = util_parse_u64(val1, 0);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-max-frames")) {
-      (void) sscanf(val1, "%"PRIu32, &max_frames);
+      max_frames = (uint32_t) util_parse_u64(val1, 0);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-frames-dir")) {
       p_frames_dir = val1;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-expect")) {
-      (void) sscanf(val1, "%"PRIx32, &expect);
+      expect = (uint32_t) util_parse_u64(val1, 1);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-log-file")) {
       log_set_log_filename(val1);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-keyboard-links")) {
-      (void) sscanf(val1, "%"PRIx32, &keyboard_links);
+      keyboard_links = (uint32_t) util_parse_u64(val1, 1);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-commands")) {
       p_commands = val1;

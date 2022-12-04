@@ -613,7 +613,7 @@ util_hex_char_to_val(char hex_char) {
 
 uint64_t
 util_parse_u64(const char* p_str, int force_hex) {
-  uint64_t ret = 0;
+  uint64_t ret = (uint64_t) -1;
 
   if (p_str[0] != '\0') {
     if ((p_str[0] == '$') || (p_str[0] == '&')) {
