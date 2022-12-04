@@ -373,6 +373,7 @@ beebjit_main(void) {
 "-print             : if -debug, print every instruction run.\n"
 "-mode              : CPU emulation driver: jit,interp,inturbo (default jit).\n"
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
+"-accurate          : run accurately; only does anything with -fast.\n"
 "-log-file       <f>: log to file <f> as well as stdout.\n"
 "-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
