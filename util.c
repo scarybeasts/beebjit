@@ -611,6 +611,28 @@ util_hex_char_to_val(char hex_char) {
   return val;
 }
 
+uint64_t
+util_parse_u64(const char* p_str, int force_hex) {
+  uint64_t ret = 0;
+
+  if (p_str[0] != '\0') {
+    if ((p_str[0] == '$') || (p_str[0] == '&')) {
+      p_str++;
+      force_hex = 1;
+    } else if ((p_str[0] == '0') && (p_str[1] == 'x')) {
+      p_str += 2;
+      force_hex = 1;
+    }
+  }
+
+  if (force_hex) {
+    (void) sscanf(p_str, "%"PRIx64, &ret);
+  } else {
+    (void) sscanf(p_str, "%"PRId64, &ret);
+  }
+  return ret;
+}
+
 uint8_t
 util_parse_hex2(const char* p_str) {
   uint8_t val;

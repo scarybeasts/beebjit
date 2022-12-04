@@ -1063,21 +1063,6 @@ debug_print_registers(uint8_t reg_a,
                 countdown);
 }
 
-static int32_t
-debug_parse_number(const char* p_str, int is_hex) {
-  int32_t ret = -1;
-
-  if ((p_str[0] == '$') || (p_str[0] == '&')) {
-    (void) sscanf((p_str + 1), "%"PRIx32, &ret);
-  } else if (is_hex) {
-    (void) sscanf(p_str, "%"PRIx32, &ret);
-  } else {
-    (void) sscanf(p_str, "%"PRId32, &ret);
-  }
-
-  return ret;
-}
-
 static void
 debug_make_sub_instruction_active(struct debug_struct* p_debug) {
   if (p_debug->is_sub_instruction_active) {
@@ -1572,7 +1557,7 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
         i_params++;
       }
     } else {
-      value = debug_parse_number(p_param_str, 1);
+      value = (int32_t) util_parse_u64(p_param_str, 1);
       if (!is_memory_range) {
         p_breakpoint->has_exec_range = 1;
         if (p_breakpoint->exec_start == -1) {
@@ -2001,13 +1986,13 @@ debug_callback_common(struct debug_struct* p_debug,
     p_param_1_str = NULL;
     if (num_strings > 1) {
       p_param_1_str = util_string_list_get_string(p_command_strings, 1);
-      parse_int = debug_parse_number(p_param_1_str, 0);
+      parse_int = (int32_t) util_parse_u64(p_param_1_str, 0);
     }
     parse_int2 = -1;
     p_param_2_str = NULL;
     if (num_strings > 2) {
       p_param_2_str = util_string_list_get_string(p_command_strings, 2);
-      parse_int2 = debug_parse_number(p_param_2_str, 0);
+      parse_int2 = (int32_t) util_parse_u64(p_param_2_str, 0);
     }
 
     if (!strcmp(p_command, "q")) {
@@ -2141,11 +2126,11 @@ debug_callback_common(struct debug_struct* p_debug,
       }
       sequence_len = (num_strings - 2);
       p_param_str = util_string_list_get_string(p_command_strings, 1);
-      addr_start = (uint16_t) debug_parse_number(p_param_str, 1);
+      addr_start = (uint16_t) util_parse_u64(p_param_str, 1);
       for (i_seq = 0; i_seq < sequence_len; ++i_seq) {
         p_param_str =
             util_string_list_get_string(p_command_strings, (i_seq + 2));
-        parse_int = debug_parse_number(p_param_str, 1);
+        parse_int = (int32_t) util_parse_u64(p_param_str, 1);
         bbc_memory_write(p_bbc,
                          (uint16_t) (addr_start + i_seq),
                          (uint8_t) parse_int);
@@ -2161,13 +2146,13 @@ debug_callback_common(struct debug_struct* p_debug,
       }
       sequence_len = (num_strings - 3);
       p_param_str = util_string_list_get_string(p_command_strings, 1);
-      parse_int = debug_parse_number(p_param_str, 1);
+      parse_int = (int32_t) util_parse_u64(p_param_str, 1);
       if ((parse_int < 0) || (parse_int > 0xFFFF)) {
         break;
       }
       addr_start = (uint32_t) parse_int;
       p_param_str = util_string_list_get_string(p_command_strings, 2);
-      parse_int = debug_parse_number(p_param_str, 1);
+      parse_int = (int32_t) util_parse_u64(p_param_str, 1);
       if ((parse_int < 0) || (parse_int > 0xFFFF)) {
         break;
       }
@@ -2181,7 +2166,7 @@ debug_callback_common(struct debug_struct* p_debug,
           uint16_t seq_addr = (uint16_t) (addr + i_seq);
           p_param_str = util_string_list_get_string(p_command_strings,
                                                     (i_seq + 3));
-          expect = (uint8_t) debug_parse_number(p_param_str, 1);
+          expect = (uint8_t) util_parse_u64(p_param_str, 1);
           actual = p_mem_read[seq_addr];
           if (actual != expect) {
             break;
