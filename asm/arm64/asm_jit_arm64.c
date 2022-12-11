@@ -329,6 +329,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_load_carry_uop;
   struct asm_uop* p_save_carry_uop;
   struct asm_uop* p_load_overflow_uop;
+  struct asm_uop* p_save_overflow_uop;
   struct asm_uop* p_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
@@ -353,6 +354,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_load_carry_uop,
                           &p_save_carry_uop,
                           &p_load_overflow_uop,
+                          &p_save_overflow_uop,
                           &p_flags_uop,
                           &p_inv_uop,
                           &p_addr_check_uop,
@@ -378,6 +380,13 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   case k_opcode_ROR_value:
   case k_opcode_SLO:
     assert(p_save_carry_uop != NULL);
+    p_save_carry_uop->is_eliminated = 1;
+    p_save_carry_uop->is_merged = 1;
+    break;
+  case k_opcode_ADC:
+  case k_opcode_ADD:
+    assert(p_save_carry_uop != NULL);
+    assert(p_save_overflow_uop != NULL);
     p_save_carry_uop->is_eliminated = 1;
     p_save_carry_uop->is_merged = 1;
     break;
@@ -440,16 +449,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     assert(p_main_uop != NULL);
     is_imm = 1;
     switch (p_main_uop->uopcode) {
-    case k_opcode_ADC:
-      p_mode_uop->backend_tag = k_opcode_arm64_value_set_hi;
-      p_mode_uop->value1 = (value1 << 8);
-      p_main_uop->backend_tag = k_opcode_arm64_ADC_IMM;
-      break;
-    case k_opcode_ADD:
-      p_mode_uop->backend_tag = k_opcode_arm64_value_set_hi;
-      p_mode_uop->value1 = (value1 << 8);
-      p_main_uop->backend_tag = k_opcode_arm64_ADD_IMM;
-      break;
+    case k_opcode_ADC: break;
+    case k_opcode_ADD: break;
     case k_opcode_ALR: break;
     case k_opcode_AND:
       if (asm_calculate_immr_imms(&immr, &imms, value1)) {

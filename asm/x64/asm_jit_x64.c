@@ -1095,6 +1095,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_load_carry_uop;
   struct asm_uop* p_save_carry_uop;
   struct asm_uop* p_load_overflow_uop;
+  struct asm_uop* p_save_overflow_uop;
   struct asm_uop* p_nz_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
@@ -1119,6 +1120,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_load_carry_uop,
                           &p_save_carry_uop,
                           &p_load_overflow_uop,
+                          &p_save_overflow_uop,
                           &p_nz_flags_uop,
                           &p_inv_uop,
                           &p_addr_check_uop,

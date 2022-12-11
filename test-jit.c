@@ -1033,10 +1033,10 @@ jit_test_compile_binary(void) {
   expect_len = 2;
 #elif defined(__aarch64__)
   /* and   x5, x5, #0xfffffffffffffff7
-   * mov   x20, #0x1000000
-   * adds  w0, w20, w0, lsl #24
+   * mov   x20, #0x1
+   * add   x4, x20, x0
    */
-  p_expect = "\xa5\xf8\x7c\x92" "\x14\x20\xa0\xd2" "\x80\x62\x00\x2b";
+  p_expect = "\xa5\xf8\x7c\x92" "\x34\x00\x80\xd2" "\x84\x02\x00\x8b";
   expect_len = 12;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -1068,19 +1068,22 @@ jit_test_compile_binary(void) {
    * how the ARM64 backend handles carry.
    */
   /* tbnz  w5, #3, 0x300190068
-   * mov   x20, #0x1000000
-   * add   x20, x20, x6
-   * lsl   x0, x0, #24
-   * orr   x0, x0, #0xffffff
-   * adds  w0, w0, w20
-   * lsr   x0, x0, #24
-   * cset  x6, cs
+   * mov   x20, #0x1
+   * add   x4, x20, x6
+   * add   x4, x4, x0
+   * add   x8, x6, x20, lsl #24
+   * ubfx  x6, x4, #8, #1
+   * lsl   x9, x0, #24
+   * orr   x9, x9, #0xffffff
+   * cmn   w9, w8
+   * and   x0, x4, #0xff
    * ldrb  w20, [x27, 0x41]
    */
-  p_expect = "\x05\x03\x18\x37" "\x14\x20\xa0\xd2" "\x94\x02\x06\x8b"
-             "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x14\x2b"
-             "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x74\x0b\x41\x39";
-  expect_len = 36;
+  p_expect = "\x05\x03\x18\x37" "\x34\x00\x80\xd2" "\x84\x02\x06\x8b"
+             "\x84\x00\x00\x8b" "\xc8\x60\x14\x8b" "\x86\x20\x48\xd3"
+             "\x09\x9c\x68\xd3" "\x29\x5d\x40\xb2" "\x3f\x01\x08\x2b"
+             "\x80\x1c\x40\x92" "\x74\x0b\x41\x39";
+  expect_len = 44;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 

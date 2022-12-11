@@ -625,11 +625,16 @@ ASM_SYM(asm_jit_write_inv_ABS_load_END):
 .globl ASM_SYM(asm_jit_ADC)
 .globl ASM_SYM(asm_jit_ADC_END)
 ASM_SYM(asm_jit_ADC):
-  add REG_VALUE, REG_6502_CF, REG_VALUE, lsl #24
-  lsl REG_6502_A, REG_6502_A, #24
-  orr REG_6502_A, REG_6502_A, #0x00FFFFFF
-  adds REG_6502_A_32, REG_6502_A_32, REG_VALUE_32
-  lsr REG_6502_A, REG_6502_A, #24
+  add REG_JIT_SCRATCH, REG_VALUE, REG_6502_CF
+  add REG_JIT_SCRATCH, REG_JIT_SCRATCH, REG_6502_A
+
+  add REG_SCRATCH1, REG_6502_CF, REG_VALUE, lsl #24
+  ubfx REG_6502_CF, REG_JIT_SCRATCH, #8, #1
+  lsl REG_SCRATCH2, REG_6502_A, #24
+  orr REG_SCRATCH2, REG_SCRATCH2, #0x00FFFFFF
+  adds wzr, REG_SCRATCH2_32, REG_SCRATCH1_32
+
+  and REG_6502_A, REG_JIT_SCRATCH, #0xFF
 
 ASM_SYM(asm_jit_ADC_END):
   ret
@@ -638,11 +643,7 @@ ASM_SYM(asm_jit_ADC_END):
 .globl ASM_SYM(asm_jit_ADC_IMM)
 .globl ASM_SYM(asm_jit_ADC_IMM_END)
 ASM_SYM(asm_jit_ADC_IMM):
-  add REG_VALUE, REG_VALUE, REG_6502_CF
-  lsl REG_6502_A, REG_6502_A, #24
-  orr REG_6502_A, REG_6502_A, #0x00FFFFFF
-  adds REG_6502_A_32, REG_6502_A_32, REG_VALUE_32
-  lsr REG_6502_A, REG_6502_A, #24
+# TODO: restore an IMM variant that bakes in the IMM constant.
 
 ASM_SYM(asm_jit_ADC_IMM_END):
   ret
@@ -651,9 +652,11 @@ ASM_SYM(asm_jit_ADC_IMM_END):
 .globl ASM_SYM(asm_jit_ADD)
 .globl ASM_SYM(asm_jit_ADD_END)
 ASM_SYM(asm_jit_ADD):
-  lsl REG_6502_A, REG_6502_A, #24
-  adds REG_6502_A_32, REG_6502_A_32, REG_VALUE_32, lsl #24
-  lsr REG_6502_A, REG_6502_A, #24
+  add REG_JIT_SCRATCH, REG_VALUE, REG_6502_A
+  ubfx REG_6502_CF, REG_JIT_SCRATCH, #8, #1
+  lsl REG_SCRATCH1, REG_6502_A, #24
+  and REG_6502_A, REG_JIT_SCRATCH, #0xFF
+  adds wzr, REG_SCRATCH1_32, REG_VALUE_32, lsl #24
 
 ASM_SYM(asm_jit_ADD_END):
   ret
@@ -662,8 +665,7 @@ ASM_SYM(asm_jit_ADD_END):
 .globl ASM_SYM(asm_jit_ADD_IMM)
 .globl ASM_SYM(asm_jit_ADD_IMM_END)
 ASM_SYM(asm_jit_ADD_IMM):
-  adds REG_6502_A_32, REG_VALUE_32, REG_6502_A_32, lsl #24
-  lsr REG_6502_A, REG_6502_A, #24
+# TODO: restore an IMM variant that bakes in the IMM constant.
 
 ASM_SYM(asm_jit_ADD_IMM_END):
   ret
