@@ -306,7 +306,7 @@ video_do_paint(struct video_struct* p_video) {
 
 static inline int
 video_is_at_vsync_raise(struct video_struct* p_video) {
-  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+  if (timing_get_scaled_total_timer_ticks(p_video->p_timing) ==
       (uint64_t) p_video->last_vsync_raise_ticks) {
     assert(p_video->in_vsync);
     return 1;
@@ -316,7 +316,7 @@ video_is_at_vsync_raise(struct video_struct* p_video) {
 
 static int
 video_is_at_vsync_lower(struct video_struct* p_video) {
-  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+  if (timing_get_scaled_total_timer_ticks(p_video->p_timing) ==
       (uint64_t) p_video->last_vsync_lower_ticks) {
     assert(!p_video->in_vsync);
     return 1;
@@ -456,12 +456,12 @@ video_update_VSYNC(struct video_struct* p_video) {
     }
 
     p_video->last_vsync_raise_ticks =
-        timing_get_total_timer_ticks(p_video->p_timing);
+        timing_get_scaled_total_timer_ticks(p_video->p_timing);
   } else {
     teletext_VSYNC_changed(p_video->p_teletext, 0);
 
     p_video->last_vsync_lower_ticks =
-        timing_get_total_timer_ticks(p_video->p_timing);
+        timing_get_scaled_total_timer_ticks(p_video->p_timing);
   }
 }
 

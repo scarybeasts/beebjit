@@ -22,6 +22,7 @@ struct render_struct* g_p_render = NULL;
 struct video_struct* g_p_video = NULL;
 uint32_t g_video_test_framebuffer_ready_calls = 0;
 int g_test_fast_flag = 0;
+uint32_t g_timing_scale_factor = 1;
 
 static void
 video_test_framebuffer_ready_callback(void* p,
@@ -42,7 +43,7 @@ video_test_init() {
   g_p_options.p_log_flags = "";
   g_p_options.accurate = 1;
   g_p_bbc_mem = util_mallocz(0x10000);
-  g_p_timing = timing_create(1);
+  g_p_timing = timing_create(g_timing_scale_factor);
   g_p_teletext = teletext_create();
   g_p_render = render_create(g_p_teletext, &g_p_options);
   g_p_video = video_create(g_p_bbc_mem,
@@ -1173,14 +1174,7 @@ video_test_vsync_mux() {
 }
 
 static void
-video_test_inactive_non_interlace() {
-  /* Tests that state is maintained correctly when skipping rendering some
-   * frames on account of fast mode.
-   * Non-interlaced version; there was an assert regression with this setup.
-   */
-  g_test_fast_flag = 1;
-
-  /* Use a non-interlaced MODE4 setup. */
+video_test_setup_mode_4_non_interlaced() {
   video_crtc_write(g_p_video, 0, 4);
   video_crtc_write(g_p_video, 1, 38);
   video_crtc_write(g_p_video, 0, 5);
@@ -1193,6 +1187,17 @@ video_test_inactive_non_interlace() {
   video_crtc_write(g_p_video, 1, 0);
   video_crtc_write(g_p_video, 0, 9);
   video_crtc_write(g_p_video, 1, 7);
+}
+
+static void
+video_test_inactive_non_interlace() {
+  /* Tests that state is maintained correctly when skipping rendering some
+   * frames on account of fast mode.
+   * Non-interlaced version; there was an assert regression with this setup.
+   */
+  g_test_fast_flag = 1;
+
+  video_test_setup_mode_4_non_interlaced();
 
   test_expect_u32(1, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->num_vsyncs);
@@ -1242,6 +1247,29 @@ video_test_inactive_non_interlace() {
   test_expect_u32(2, g_p_video->num_vsyncs);
   test_expect_u32(2, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
+}
+
+void video_test_scale_factor() {
+  /* Test for an assert that occured when the video system was operating with
+   * a timing scale.
+   */
+  assert(g_timing_scale_factor == 8);
+  (void) timing_advance_time_delta(g_p_timing, 4);
+  video_test_setup_mode_4_non_interlaced();
+
+  (void) timing_advance_time_delta(g_p_timing, (k_ticks_mode4ni_to_vsync * 8));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing,
+                                   ((k_ticks_mode7_per_scanline * 2 * 8) - 1));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+
+  (void) timing_advance_time_delta(g_p_timing, 1);
 }
 
 void
@@ -1329,4 +1357,10 @@ video_test() {
   video_test_init();
   video_test_inactive_non_interlace();
   video_test_end();
+
+  g_timing_scale_factor = 8;
+  video_test_init();
+  video_test_scale_factor();
+  video_test_end();
+  g_timing_scale_factor = 1;
 }
