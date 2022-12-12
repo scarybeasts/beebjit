@@ -623,7 +623,7 @@ beebjit_main(void) {
     render_create_internal_buffer(p_render);
   }
 
-  if (!headless_flag && !util_has_option(p_opt_flags, "sound:off")) {
+  if (!util_has_option(p_opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
     uint32_t sound_sample_rate = k_sound_default_rate;
