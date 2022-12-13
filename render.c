@@ -244,6 +244,20 @@ render_get_vert_pos(struct render_struct* p_render) {
   return p_render->vert_beam_pos;
 }
 
+uint32_t
+render_get_buffer_crc32(struct render_struct* p_render) {
+  uint32_t crc = util_crc32_init();
+
+  if (p_render->p_buffer != NULL) {
+    uint32_t bytes = render_get_buffer_size(p_render);
+    crc = util_crc32_add(crc, (uint8_t*) p_render->p_buffer, bytes);
+  }
+
+  crc = util_crc32_finish(crc);
+
+  return crc;
+}
+
 static inline void
 render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;

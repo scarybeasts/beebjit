@@ -95,9 +95,6 @@ struct video_struct {
   int* p_fast_flag;
 
   int log_timer;
-  int opt_do_show_frame_boundaries;
-  int opt_do_hack_legacy_quest_cap;
-  int opt_do_hack_legacy_shift_mode7;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -113,7 +110,11 @@ struct video_struct {
   /* Options. */
   uint32_t frames_skip;
   uint32_t frame_skip_counter;
-  int is_opt_always_clear_frame_buffer;
+  int opt_is_always_clear_frame_buffer;
+  int opt_is_show_frame_boundaries;
+  int opt_is_hack_legacy_quest_cap;
+  int opt_is_hack_legacy_shift_mode7;
+  int opt_is_always_render;
 
   /* Timing. */
   uint64_t wall_time;
@@ -262,7 +263,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->address_counter = address_counter;
   p_video->address_counter_saved = address_counter;
 
-  if (p_video->opt_do_show_frame_boundaries) {
+  if (p_video->opt_is_show_frame_boundaries) {
     render_horiz_line(p_video->p_render, 0xffff0000);
   }
 }
@@ -275,6 +276,8 @@ video_get_clock_speed(struct video_struct* p_video) {
 void
 video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
   int do_full_render = p_video->externally_clocked;
+  int do_wait_for_paint = (p_video->opt_is_always_render ||
+                           p_video->has_paint_timer_triggered);
 
   /* NOTE: in accurate mode, it would be more correct to clear the
    * buffer from the framing change to the end of that frame, as well
@@ -283,7 +286,7 @@ video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                         do_full_render,
                                         do_clear_after_paint,
-                                        p_video->has_paint_timer_triggered);
+                                        do_wait_for_paint);
 }
 
 static void
@@ -299,7 +302,8 @@ video_do_paint(struct video_struct* p_video) {
   p_video->frame_skip_counter = p_video->frames_skip;
 
   do_clear_after_paint = (p_video->is_framing_changed_for_render ||
-                          p_video->is_opt_always_clear_frame_buffer);
+                          p_video->opt_is_always_clear_frame_buffer);
+
   video_force_paint(p_video, do_clear_after_paint);
   p_video->is_framing_changed_for_render = 0;
 }
@@ -329,6 +333,10 @@ video_check_go_inactive(struct video_struct* p_video) {
   assert(!p_video->externally_clocked);
 
   assert(p_video->is_rendering_active);
+
+  if (p_video->opt_is_always_render) {
+    return;
+  }
 
   /* If we're in fast mode, give rendering and painting a rest after each
    * paint.
@@ -426,7 +434,7 @@ video_update_VSYNC(struct video_struct* p_video) {
     is_new_vsync = p_video->is_odd_vsync;
   }
 
-  if (p_video->opt_do_hack_legacy_quest_cap) {
+  if (p_video->opt_is_hack_legacy_quest_cap) {
     if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
       is_new_vsync = p_video->is_even_vsync;
     } else {
@@ -1327,12 +1335,14 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_address_register = 0;
 
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
-  p_video->opt_do_show_frame_boundaries = util_has_option(
+  p_video->opt_is_show_frame_boundaries = util_has_option(
       p_options->p_opt_flags, "video:frame-boundaries");
-  p_video->opt_do_hack_legacy_quest_cap = util_has_option(
+  p_video->opt_is_hack_legacy_quest_cap = util_has_option(
       p_options->p_opt_flags, "video:hack-legacy-quest-cap");
-  p_video->opt_do_hack_legacy_shift_mode7 = util_has_option(
+  p_video->opt_is_hack_legacy_shift_mode7 = util_has_option(
       p_options->p_opt_flags, "video:hack-legacy-shift-mode7");
+  p_video->opt_is_always_render = util_has_option(
+      p_options->p_opt_flags, "video:always-render");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
@@ -1358,7 +1368,7 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u64_option(&p_video->paint_cycles,
                              p_options->p_opt_flags,
                              "video:paint-cycles=");
-  p_video->is_opt_always_clear_frame_buffer = util_has_option(
+  p_video->opt_is_always_clear_frame_buffer = util_has_option(
       p_options->p_opt_flags, "video:always-clear");
 
   if (p_system_via) {
@@ -1764,7 +1774,7 @@ video_framing_changed(struct video_struct* p_video) {
 
 static void
 video_check_hack_legacy_shift_mode7(struct video_struct* p_video) {
-  if (!p_video->opt_do_hack_legacy_shift_mode7) {
+  if (!p_video->opt_is_hack_legacy_shift_mode7) {
     return;
   }
 

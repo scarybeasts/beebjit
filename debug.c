@@ -1308,6 +1308,21 @@ debug_read_variable_nmi(void* p, uint32_t index) {
   return state_6502_has_nmi_high(p_debug->p_state_6502);
 }
 
+static int64_t
+debug_read_variable_frame_buffer_crc32(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return render_get_buffer_crc32(p_debug->p_render);
+}
+
+static int64_t
+debug_read_variable_bail(void* p, uint32_t index) {
+  (void) p;
+  (void) index;
+  util_bail("debug bail (variable)");
+  return -1;
+}
+
 static expression_var_read_func_t
 debug_get_read_variable_function(void* p, const char* p_name) {
   expression_var_read_func_t ret = NULL;
@@ -1367,6 +1382,10 @@ debug_get_read_variable_function(void* p, const char* p_name) {
   } else if (!strcmp(p_name, "nmi")) {
     needs_sub_instruction = 1;
     ret = debug_read_variable_nmi;
+  } else if (!strcmp(p_name, "frame_buffer_crc32")) {
+    ret = debug_read_variable_frame_buffer_crc32;
+  } else if (!strcmp(p_name, "bail")) {
+    ret = debug_read_variable_bail;
   }
 
   if (needs_sub_instruction) {
@@ -2000,7 +2019,7 @@ debug_callback_common(struct debug_struct* p_debug,
     if (!strcmp(p_command, "q")) {
       exit(0);
     } else if (!strcmp(p_command, "bail")) {
-      util_bail("debug bailing!");
+      util_bail("debug bail (command)");
     } else if (!strcmp(p_command, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
       (void) printf("print now: %d\n", p_debug->debug_running_print);

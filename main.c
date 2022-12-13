@@ -620,6 +620,7 @@ beebjit_main(void) {
 
     window_handle = os_window_get_handle(p_window);
   } else if (frame_cycles > 0) {
+    /* TODO: push this down into video.c. */
     render_create_internal_buffer(p_render);
   }
 
