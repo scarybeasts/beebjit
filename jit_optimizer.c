@@ -396,7 +396,9 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
     struct asm_uop* p_addr_add_uop = NULL;
     struct asm_uop* p_addr_load_uop = NULL;
     int is_write = 0;
-    int is_simple_addr = 1;
+    int is_exact_addr = 0;
+    int is_abx_aby_addr = 0;
+    int is_unknown_addr = 0;
     int is_changing_addr_reg = 0;
     int is_tricky_opcode = 0;
 
@@ -430,8 +432,25 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
       }
 
       if ((uopcode > k_opcode_addr_begin) && (uopcode < k_opcode_addr_end)) {
-        if (uopcode != k_opcode_addr_set) {
-          is_simple_addr = 0;
+        switch (uopcode) {
+        case k_opcode_addr_set:
+          assert(!is_exact_addr);
+          assert(!is_abx_aby_addr);
+          assert(!is_unknown_addr);
+          is_exact_addr = 1;
+          break;
+        case k_opcode_addr_add_x:
+        case k_opcode_addr_add_y:
+          if (!is_unknown_addr) {
+            is_abx_aby_addr = 1;
+          }
+          is_exact_addr = 0;
+          break;
+        default:
+          is_unknown_addr = 1;
+          is_exact_addr = 0;
+          is_abx_aby_addr = 0;
+          break;
         }
         if (!p_uop->is_eliminated) {
           is_changing_addr_reg = 1;
@@ -459,11 +478,15 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
      */
     is_write = !!(p_opcode->opmem_6502 & k_opmem_write_flag);
     if (is_write && (curr_base_addr_index != -1)) {
-      uint16_t simple_addr = p_addr_set_uop->value1;
+      uint16_t addr = p_addr_set_uop->value1;
       uint16_t curr_base_addr_index_next = (uint8_t) (curr_base_addr_index + 1);
-      if (is_simple_addr &&
-          (curr_base_addr_index != simple_addr) &&
-          (curr_base_addr_index_next != simple_addr)) {
+      if (is_exact_addr &&
+          (curr_base_addr_index != addr) &&
+          (curr_base_addr_index_next != addr)) {
+        /* This write doesn't affect the cached base address. */
+      } else if (is_abx_aby_addr &&
+                 (addr > curr_base_addr_index) &&
+                 (addr > curr_base_addr_index_next)) {
         /* This write doesn't affect the cached base address. */
       } else {
         curr_base_addr_index = -1;

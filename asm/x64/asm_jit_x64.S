@@ -505,12 +505,12 @@ ASM_SYM(asm_jit_load_overflow_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_mode_ABX)
-.globl ASM_SYM(asm_jit_mode_ABX_END)
-ASM_SYM(asm_jit_mode_ABX):
-  lea REG_ADDR_32, [REG_6502_X_64 + 0x7fffffff]
+.globl ASM_SYM(asm_jit_mode_ABX_to_temp_addr)
+.globl ASM_SYM(asm_jit_mode_ABX_to_temp_addr_END)
+ASM_SYM(asm_jit_mode_ABX_to_temp_addr):
+  lea REG_SCRATCH2_32, [REG_6502_X_64 + 0x7fffffff]
 
-ASM_SYM(asm_jit_mode_ABX_END):
+ASM_SYM(asm_jit_mode_ABX_to_temp_addr_END):
   ret
 
 
@@ -532,12 +532,12 @@ ASM_SYM(asm_jit_mode_abx_store_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_mode_ABY)
-.globl ASM_SYM(asm_jit_mode_ABY_END)
-ASM_SYM(asm_jit_mode_ABY):
-  lea REG_ADDR_32, [REG_6502_Y_64 + 0x7fffffff]
+.globl ASM_SYM(asm_jit_mode_ABY_to_temp_addr)
+.globl ASM_SYM(asm_jit_mode_ABY_to_temp_addr_END)
+ASM_SYM(asm_jit_mode_ABY_to_temp_addr):
+  lea REG_SCRATCH2_32, [REG_6502_Y_64 + 0x7fffffff]
 
-ASM_SYM(asm_jit_mode_ABY_END):
+ASM_SYM(asm_jit_mode_ABY_to_temp_addr_END):
   ret
 
 
@@ -756,6 +756,17 @@ ASM_SYM(asm_jit_write_inv):
                         REG_ADDR * 4]
 
 ASM_SYM(asm_jit_write_inv_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_write_inv_from_temp_addr)
+.globl ASM_SYM(asm_jit_write_inv_from_temp_addr_END)
+ASM_SYM(asm_jit_write_inv_from_temp_addr):
+  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
+                        REG_SCRATCH2 * 4]
+
+ASM_SYM(asm_jit_write_inv_from_temp_addr_END):
   ret
 
 
