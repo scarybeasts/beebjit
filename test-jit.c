@@ -1464,14 +1464,18 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3C00);
 #if defined(__x86_64__)
-  /* add    bl, 2 */
+  /* add    bl, 2
+   * inc    cl
+   */
   p_expect = "\x80\xc3\x02" "\xfe\xc1";
   expect_len = 5;
 #elif defined(__aarch64__)
-  /* ...
+  /* add   x1, x1, #0x2
+   * and   x1, x1, #0xff
+   * add   x2, x2, #0x1
    */
-  p_expect = "\xbb\xbb\xbb\xbb";
-  expect_len = 4;
+  p_expect = "\x21\x08\x00\x91" "\x21\x1c\x40\x92" "\x42\x04\x00\x91";
+  expect_len = 12;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }

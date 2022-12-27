@@ -888,12 +888,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_CPX: ASM(CPX); break;
   case k_opcode_CPY: ASM(CPY); break;
   case k_opcode_DEC_value: ASM(DEC); break;
-  case k_opcode_DEX: asm_emit_instruction_DEX(p_buf); break;
-  case k_opcode_DEY: asm_emit_instruction_DEY(p_buf); break;
+  case k_opcode_DEX: ASM_IMM12(DEX_n_sub); ASM(INX_n_and); break;
+  case k_opcode_DEY: ASM_IMM12(DEY_n_sub); ASM(INY_n_and); break;
   case k_opcode_EOR: ASM(EOR); break;
   case k_opcode_INC_value: ASM(INC); break;
-  case k_opcode_INX: asm_emit_instruction_INX(p_buf); break;
-  case k_opcode_INY: asm_emit_instruction_INY(p_buf); break;
+  case k_opcode_INX: ASM_IMM12(INX_n_add); ASM(INX_n_and); break;
+  case k_opcode_INY: ASM_IMM12(INY_n_add); ASM(INY_n_and); break;
   case k_opcode_JMP: ASM_IMM26(JMP); break;
   case k_opcode_LDA: ASM(LDA); break;
   case k_opcode_LDA_zero_and_flags: ASM(LDA_zero_and_flags); break;

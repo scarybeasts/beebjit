@@ -893,6 +893,22 @@ ASM_SYM(asm_jit_DEC_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_DEX_n_sub)
+.globl ASM_SYM(asm_jit_DEX_n_sub_END)
+ASM_SYM(asm_jit_DEX_n_sub):
+  sub REG_6502_X, REG_6502_X, #4095
+ASM_SYM(asm_jit_DEX_n_sub_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_DEY_n_sub)
+.globl ASM_SYM(asm_jit_DEY_n_sub_END)
+ASM_SYM(asm_jit_DEY_n_sub):
+  sub REG_6502_Y, REG_6502_Y, #4095
+ASM_SYM(asm_jit_DEY_n_sub_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_EOR)
 .globl ASM_SYM(asm_jit_EOR_END)
 ASM_SYM(asm_jit_EOR):
@@ -918,6 +934,36 @@ ASM_SYM(asm_jit_INC):
   add REG_VALUE, REG_VALUE, #1
 
 ASM_SYM(asm_jit_INC_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_INX_n_add)
+.globl ASM_SYM(asm_jit_INX_n_add_END)
+.globl ASM_SYM(asm_jit_INX_n_and)
+.globl ASM_SYM(asm_jit_INX_n_and_END)
+ASM_SYM(asm_jit_INX_n_add):
+  add REG_6502_X, REG_6502_X, #4095
+ASM_SYM(asm_jit_INX_n_add_END):
+  ret
+
+ASM_SYM(asm_jit_INX_n_and):
+  and REG_6502_X, REG_6502_X, #0xFF
+ASM_SYM(asm_jit_INX_n_and_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_INY_n_add)
+.globl ASM_SYM(asm_jit_INY_n_add_END)
+.globl ASM_SYM(asm_jit_INY_n_and)
+.globl ASM_SYM(asm_jit_INY_n_and_END)
+ASM_SYM(asm_jit_INY_n_add):
+  add REG_6502_Y, REG_6502_Y, #4095
+ASM_SYM(asm_jit_INY_n_add_END):
+  ret
+
+ASM_SYM(asm_jit_INY_n_and):
+  and REG_6502_Y, REG_6502_Y, #0xFF
+ASM_SYM(asm_jit_INY_n_and_END):
   ret
 
 
