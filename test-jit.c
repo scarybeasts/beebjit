@@ -1450,6 +1450,30 @@ jit_test_compile_binary(void) {
   expect_len = 20;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check for INX coalesing. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3C00), 0x100);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INY(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3C00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3C00);
+#if defined(__x86_64__)
+  /* add    bl, 2 */
+  p_expect = "\x80\xc3\x02" "\xfe\xc1";
+  expect_len = 5;
+#elif defined(__aarch64__)
+  /* ...
+   */
+  p_expect = "\xbb\xbb\xbb\xbb";
+  expect_len = 4;
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

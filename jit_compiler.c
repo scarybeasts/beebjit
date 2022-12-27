@@ -550,12 +550,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_cpx: asm_make_uop0(p_uop, k_opcode_CPX); p_uop++; break;
   case k_cpy: asm_make_uop0(p_uop, k_opcode_CPY); p_uop++; break;
   case k_dec: asm_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
-  case k_dex: asm_make_uop0(p_uop, k_opcode_DEX); p_uop++; break;
-  case k_dey: asm_make_uop0(p_uop, k_opcode_DEY); p_uop++; break;
+  case k_dex: asm_make_uop1(p_uop, k_opcode_DEX, 1); p_uop++; break;
+  case k_dey: asm_make_uop1(p_uop, k_opcode_DEY, 1); p_uop++; break;
   case k_eor: asm_make_uop0(p_uop, k_opcode_EOR); p_uop++; break;
   case k_inc: asm_make_uop0(p_uop, k_opcode_INC_value); p_uop++; break;
-  case k_inx: asm_make_uop0(p_uop, k_opcode_INX); p_uop++; break;
-  case k_iny: asm_make_uop0(p_uop, k_opcode_INY); p_uop++; break;
+  case k_inx: asm_make_uop1(p_uop, k_opcode_INX, 1); p_uop++; break;
+  case k_iny: asm_make_uop1(p_uop, k_opcode_INY, 1); p_uop++; break;
   case k_jmp:
     if (opmode == k_ind) {
       asm_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);

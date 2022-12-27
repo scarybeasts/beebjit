@@ -2516,8 +2516,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x66);
   emit_JMP(p_buf, k_abs, 0xE400);
 
-  /* End of test. */
+  /* Test DEX coalesing with known values. */
   set_new_index(p_buf, 0x2400);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_LDX(p_buf, k_imm, 0x02);
+  emit_DEX(p_buf);
+  emit_DEX(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE440);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2440);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

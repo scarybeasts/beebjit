@@ -1458,6 +1458,24 @@ ASM_SYM(asm_jit_DEC_ZPG_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_DEX_n)
+.globl ASM_SYM(asm_jit_DEX_n_END)
+ASM_SYM(asm_jit_DEX_n):
+  sub bl, 1
+
+ASM_SYM(asm_jit_DEX_n_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_DEY_n)
+.globl ASM_SYM(asm_jit_DEY_n_END)
+ASM_SYM(asm_jit_DEY_n):
+  sub cl, 1
+
+ASM_SYM(asm_jit_DEY_n_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_EOR_ABS)
 .globl ASM_SYM(asm_jit_EOR_ABS_END)
 ASM_SYM(asm_jit_EOR_ABS):
@@ -1574,6 +1592,24 @@ ASM_SYM(asm_jit_INC_ZPG):
   inc BYTE PTR [REG_MEM + 0x7f]
 
 ASM_SYM(asm_jit_INC_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_INX_n)
+.globl ASM_SYM(asm_jit_INX_n_END)
+ASM_SYM(asm_jit_INX_n):
+  add bl, 1
+
+ASM_SYM(asm_jit_INX_n_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_INY_n)
+.globl ASM_SYM(asm_jit_INY_n_END)
+ASM_SYM(asm_jit_INY_n):
+  add cl, 1
+
+ASM_SYM(asm_jit_INY_n_END):
   ret
 
 

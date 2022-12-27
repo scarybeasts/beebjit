@@ -15,29 +15,41 @@ static void
 jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_prev_opcode = NULL;
   int32_t prev_optype = -1;
-  int32_t uopcode = -1;
   struct jit_opcode_details* p_opcode;
+
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
     uint8_t optype;
+    int32_t uopcode = -1;
 
     if (p_opcode->ends_block) {
       continue;
     }
 
-    if (p_opcode->opmode_6502 != k_acc) {
+    optype = p_opcode->optype_6502;
+    if (p_opcode->opmode_6502 == k_acc) {
+      switch (optype) {
+      case k_asl: uopcode = k_opcode_ASL_acc; break;
+      case k_lsr: uopcode = k_opcode_LSR_acc; break;
+      case k_rol: uopcode = k_opcode_ROL_acc; break;
+      case k_ror: uopcode = k_opcode_ROR_acc; break;
+      default: assert(0); break;
+      }
+    } else {
+      switch (optype) {
+      case k_inx: uopcode = k_opcode_INX; break;
+      case k_iny: uopcode = k_opcode_INY; break;
+      case k_dex: uopcode = k_opcode_DEX; break;
+      case k_dey: uopcode = k_opcode_DEY; break;
+      default: break;
+      }
+    }
+    if (uopcode == -1) {
       p_prev_opcode = NULL;
       continue;
     }
-    optype = p_opcode->optype_6502;
-    switch (optype) {
-    case k_asl: uopcode = k_opcode_ASL_acc; break;
-    case k_lsr: uopcode = k_opcode_LSR_acc; break;
-    case k_rol: uopcode = k_opcode_ROL_acc; break;
-    case k_ror: uopcode = k_opcode_ROR_acc; break;
-    default: assert(0); break;
-    }
+
     if ((p_prev_opcode != NULL) && (optype == prev_optype)) {
       int32_t index;
       struct asm_uop* p_uop = jit_opcode_find_uop(p_prev_opcode,
@@ -184,7 +196,8 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     struct asm_uop* p_uop;
     int32_t load_uopcode_old = -1;
     int32_t load_uopcode_new = -1;
-    uint8_t load_uopcode_value = 0;
+    uint8_t load_uopcode_value_base = 0;
+    int32_t load_uopcode_value_scale = 0;
     int do_eliminate_check_bcd = 0;
     int do_eliminate_load_carry = 0;
 
@@ -218,7 +231,8 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_DEX;
       load_uopcode_new = k_opcode_LDX;
-      load_uopcode_value = (p_opcode->reg_x - 1);
+      load_uopcode_value_base = p_opcode->reg_x;
+      load_uopcode_value_scale = -1;
       break;
     case k_dey:
       if (p_opcode->reg_y == k_value_unknown) {
@@ -226,7 +240,8 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_DEY;
       load_uopcode_new = k_opcode_LDY;
-      load_uopcode_value = (p_opcode->reg_y - 1);
+      load_uopcode_value_base = p_opcode->reg_y;
+      load_uopcode_value_scale = -1;
       break;
     case k_inx:
       if (p_opcode->reg_x == k_value_unknown) {
@@ -234,7 +249,8 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_INX;
       load_uopcode_new = k_opcode_LDX;
-      load_uopcode_value = (p_opcode->reg_x + 1);
+      load_uopcode_value_base = p_opcode->reg_x;
+      load_uopcode_value_scale = 1;
       break;
     case k_iny:
       if (p_opcode->reg_y == k_value_unknown) {
@@ -242,7 +258,8 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_INY;
       load_uopcode_new = k_opcode_LDY;
-      load_uopcode_value = (p_opcode->reg_y + 1);
+      load_uopcode_value_base = p_opcode->reg_y;
+      load_uopcode_value_scale = 1;
       break;
     case k_sbc:
       if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
@@ -310,7 +327,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_TAX;
       load_uopcode_new = k_opcode_LDX;
-      load_uopcode_value = p_opcode->reg_a;
+      load_uopcode_value_base = p_opcode->reg_a;
       break;
     case k_tay:
       if (p_opcode->reg_a == k_value_unknown) {
@@ -318,7 +335,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_TAY;
       load_uopcode_new = k_opcode_LDY;
-      load_uopcode_value = p_opcode->reg_a;
+      load_uopcode_value_base = p_opcode->reg_a;
       break;
     case k_txa:
       if (p_opcode->reg_x == k_value_unknown) {
@@ -326,7 +343,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_TXA;
       load_uopcode_new = k_opcode_LDA;
-      load_uopcode_value = p_opcode->reg_x;
+      load_uopcode_value_base = p_opcode->reg_x;
       break;
     case k_tya:
       if (p_opcode->reg_y == k_value_unknown) {
@@ -334,7 +351,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       }
       load_uopcode_old = k_opcode_TYA;
       load_uopcode_new = k_opcode_LDA;
-      load_uopcode_value = p_opcode->reg_y;
+      load_uopcode_value_base = p_opcode->reg_y;
       break;
     default:
       break;
@@ -373,9 +390,12 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     }
 
     if (load_uopcode_old != -1) {
+      uint8_t value;
       p_uop = jit_opcode_find_uop(p_opcode, &index, load_uopcode_old);
       assert(p_uop != NULL);
-      asm_make_uop1(p_uop, k_opcode_value_set, load_uopcode_value);
+      value = load_uopcode_value_base;
+      value += (load_uopcode_value_scale * p_uop->value1);
+      asm_make_uop1(p_uop, k_opcode_value_set, value);
       p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
       asm_make_uop0(p_uop, load_uopcode_new);
     }

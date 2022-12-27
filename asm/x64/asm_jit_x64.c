@@ -94,6 +94,8 @@ enum {
   k_opcode_x64_CPY_ZPG,
   k_opcode_x64_DEC_ABS,
   k_opcode_x64_DEC_ZPG,
+  k_opcode_x64_DEX_n,
+  k_opcode_x64_DEY_n,
   k_opcode_x64_EOR_ABS,
   k_opcode_x64_EOR_ABX,
   k_opcode_x64_EOR_ABY,
@@ -105,6 +107,8 @@ enum {
   k_opcode_x64_EOR_ZPG,
   k_opcode_x64_INC_ABS,
   k_opcode_x64_INC_ZPG,
+  k_opcode_x64_INX_n,
+  k_opcode_x64_INY_n,
   k_opcode_x64_LDA_addr,
   k_opcode_x64_LDA_addr_n,
   k_opcode_x64_LDA_addr_X,
@@ -1240,8 +1244,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     break;
   }
 
-  /* Intel uses a different instruction sequence for shifts and rotates other
-   * than by 1.
+  /* Intel uses a different instruction sequence for shifts, rotates,
+   * increments, etc. other than by 1.
    */
   if ((p_mode_uop == NULL) && (p_main_uop->value1 != 1)) {
     switch (uopcode) {
@@ -1256,6 +1260,18 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       break;
     case k_opcode_ROR_acc:
       p_main_uop->backend_tag = k_opcode_x64_ROR_ACC_n;
+      break;
+    case k_opcode_INX:
+      p_main_uop->backend_tag = k_opcode_x64_INX_n;
+      break;
+    case k_opcode_INY:
+      p_main_uop->backend_tag = k_opcode_x64_INY_n;
+      break;
+    case k_opcode_DEX:
+      p_main_uop->backend_tag = k_opcode_x64_DEX_n;
+      break;
+    case k_opcode_DEY:
+      p_main_uop->backend_tag = k_opcode_x64_DEY_n;
       break;
     default:
       break;
@@ -1953,6 +1969,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_CPY_ZPG: ASM_ADDR_U8(CPY_ZPG); break;
   case k_opcode_x64_DEC_ABS: ASM_ADDR_U32(DEC_ABS); break;
   case k_opcode_x64_DEC_ZPG: ASM_ADDR_U8(DEC_ZPG); break;
+  case k_opcode_x64_DEX_n: ASM_U8(DEX_n); break;
+  case k_opcode_x64_DEY_n: ASM_U8(DEY_n); break;
   case k_opcode_x64_EOR_ABS: ASM_ADDR_U32(EOR_ABS); break;
   case k_opcode_x64_EOR_ABX: ASM_ADDR_U32_RAW(EOR_ABX); break;
   case k_opcode_x64_EOR_ABY: ASM_ADDR_U32_RAW(EOR_ABY); break;
@@ -1964,6 +1982,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_EOR_ZPG: ASM_ADDR_U8(EOR_ZPG); break;
   case k_opcode_x64_INC_ABS: ASM_ADDR_U32(INC_ABS); break;
   case k_opcode_x64_INC_ZPG: ASM_ADDR_U8(INC_ZPG); break;
+  case k_opcode_x64_INX_n: ASM_U8(INX_n); break;
+  case k_opcode_x64_INY_n: ASM_U8(INY_n); break;
   case k_opcode_x64_LDA_addr: ASM(LDA_addr); break;
   case k_opcode_x64_LDA_addr_n: ASM_ADDR_U8(LDA_addr_n); break;
   case k_opcode_x64_LDA_addr_X: ASM(LDA_addr_X); break;
