@@ -456,9 +456,7 @@ jit_cleanup_stale_code(struct jit_struct* p_jit) {
   struct jit_metadata* p_metadata = p_jit->p_metadata;
   int32_t curr_code_block = -1;
 
-  if (p_jit->log_compile) {
-    log_do_log(k_log_jit, k_log_info, "starting stale code sweep");
-  }
+  log_do_log(k_log_jit, k_log_info, "starting stale code sweep");
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     int32_t next_code_block = jit_metadata_get_code_block(p_metadata, i);
