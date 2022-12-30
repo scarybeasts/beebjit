@@ -1918,6 +1918,12 @@ debug_callback_common(struct debug_struct* p_debug,
   p_tool = p_debug->p_tool;
   disc_tool_set_disc(p_tool, disc_drive_get_disc(bbc_get_drive_0(p_bbc)));
 
+  if (!p_debug->debug_active) {
+    log_do_log(k_log_misc,
+               k_log_info,
+               "running without -debug; some commands won't work");
+  }
+
   while (1) {
     size_t i;
     size_t j;
