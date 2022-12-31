@@ -628,8 +628,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     assert((p_via->PCR & 0xA0) != 0x20);
 
     if (!is_raw) {
-      via_clear_interrupt(p_via, k_int_CB1);
-      via_clear_interrupt(p_via, k_int_CB2);
+      via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
     }
 
     /* A read of VIA port B mixes input and output as indicated by DDRB. */
@@ -656,8 +655,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
     if (!is_raw) {
-      via_clear_interrupt(p_via, k_int_CA1);
-      via_clear_interrupt(p_via, k_int_CA2);
+      via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
     }
   /* Fall through. */
   case k_via_ORAnh:
@@ -804,8 +802,7 @@ via_write_internal(struct via_struct* p_via,
     /* Pulse output not supported yet. */
     assert((p_via->PCR & 0xE0) != 0xA0);
     p_via->ORB = val;
-    via_clear_interrupt(p_via, k_int_CB1);
-    via_clear_interrupt(p_via, k_int_CB2);
+    via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
     via_update_port_b(p_via);
     break;
   case k_via_ORA:
@@ -815,8 +812,7 @@ via_write_internal(struct via_struct* p_via,
     assert((p_via->PCR & 0x0E) != 0x08);
     /* Pulse output not supported yet. */
     assert((p_via->PCR & 0x0E) != 0x0A);
-    via_clear_interrupt(p_via, k_int_CA1);
-    via_clear_interrupt(p_via, k_int_CA2);
+    via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
   /* Fall through. */
   case k_via_ORAnh:
     p_via->ORA = val;
