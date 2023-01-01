@@ -489,9 +489,6 @@ sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct cmos_struct* p_cmos = bbc_get_cmos(p_bbc);
-  uint8_t bus_val = via_calculate_port_a(p_via);
-  uint8_t keyrow = ((bus_val >> 4) & 7);
-  uint8_t keycol = (bus_val & 0xf);
   int fire = 0;
   uint8_t IC32 = bbc_get_IC32(p_bbc);
   uint8_t peripheral_a = 0xFF;
@@ -501,6 +498,10 @@ sysvia_update_port_a(struct via_struct* p_via) {
   }
 
   if (!(IC32 & 0x08)) {
+    uint8_t bus_val = via_calculate_port_a(p_via);
+    uint8_t keyrow = ((bus_val >> 4) & 7);
+    uint8_t keycol = (bus_val & 0xf);
+
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       peripheral_a &= 0x7F;
     }
@@ -518,16 +519,17 @@ sysvia_update_port_a(struct via_struct* p_via) {
     }
   }
 
-  p_via->peripheral_a = peripheral_a;
-
   via_set_CA2(p_via, fire);
 
   if (!(IC32 & 1)) {
+    uint8_t bus_val = via_calculate_port_a(p_via);
     struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
     /* Make sure the bus value is uptodate with any keyboard action. */
     bus_val &= peripheral_a;
     sound_sn_write(p_sound, bus_val);
   }
+
+  p_via->peripheral_a = peripheral_a;
 }
 
 static void
