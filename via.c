@@ -45,6 +45,8 @@ struct via_struct {
   struct timing_struct* p_timing;
   uint32_t t1_timer_id;
   uint32_t t2_timer_id;
+  int t1_fired;
+  int t2_fired;
 
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
@@ -225,6 +227,8 @@ via_do_fire_t1(struct via_struct* p_via) {
   uint32_t timer_id = p_via->t1_timer_id;
   assert(timing_get_firing(p_timing, timer_id));
 
+  p_via->t1_fired = 1;
+
   via_raise_interrupt(p_via, k_int_TIMER1);
   /* EMU NOTE: PB7 is maintained regardless of whether PB7 mode is active.
    * Confirmed on a real beeb.
@@ -248,6 +252,8 @@ via_do_fire_t2(struct via_struct* p_via) {
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t timer_id = p_via->t2_timer_id;
   assert(timing_get_firing(p_timing, timer_id));
+
+  p_via->t2_fired = 1;
 
   via_raise_interrupt(p_via, k_int_TIMER2);
   timing_set_firing(p_timing, timer_id, 0);
@@ -278,32 +284,6 @@ via_t2_fired(void* p) {
   via_do_fire_t2(p_via);
 }
 
-static int
-via_is_t1_firing(struct via_struct* p_via, int32_t ticks_add) {
-  int32_t val;
-  struct timing_struct* p_timing = p_via->p_timing;
-  uint32_t timer_id = p_via->t1_timer_id;
-  if (!timing_get_firing(p_timing, timer_id)) {
-    return 0;
-  }
-
-  val = via_get_t1c_raw(p_via);
-  return ((val - ticks_add) == -1);
-}
-
-static int
-via_is_t2_firing(struct via_struct* p_via, int32_t ticks_add) {
-  int32_t val;
-  struct timing_struct* p_timing = p_via->p_timing;
-  uint32_t timer_id = p_via->t2_timer_id;
-  if (!timing_get_firing(p_timing, timer_id)) {
-    return 0;
-  }
-
-  val = via_get_t2c_raw(p_via);
-  return ((val - ticks_add) == -1);
-}
-
 struct via_struct*
 via_create(int id,
            int externally_clocked,
@@ -332,6 +312,9 @@ via_power_on_reset(struct via_struct* p_via) {
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t t1_timer_id = p_via->t1_timer_id;
   uint32_t t2_timer_id = p_via->t2_timer_id;
+
+  p_via->t1_fired = 0;
+  p_via->t2_fired = 0;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
@@ -602,19 +585,12 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   int32_t t2_val;
   uint8_t ret;
 
-  /* Will T1/T2 interrupt fire at the mid cycle?
-   * Work it out now because we can't tell after advancing the timing.
-   */
-  int t1_firing = 0;
-  int t2_firing = 0;
   uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-  if ((reg == k_via_T1CL) || (reg == k_via_T1CH)) {
-    t1_firing = via_is_t1_firing(p_via, ticks);
-  } else if (reg == k_via_T2CL) {
-    t2_firing = via_is_t2_firing(p_via, ticks);
-  }
+  p_via->t1_fired = 0;
+  p_via->t2_fired = 0;
 
-  /* Advance to the VIA mid-cycle.
+  /* Advance to the VIA mid-cycle. May update t1/t2_fired.
+   *
    * EMU NOTE: do this first before processing the read. Interrupts fire at
    * the mid-cycle and the read needs any results from that to be correct.
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
@@ -677,11 +653,11 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     ret = p_via->DDRA;
     break;
   case k_via_T1CL:
-    if (!t1_firing && !is_raw) {
+    if (!p_via->t1_fired && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
     t1_val = via_get_t1c(p_via);
-    if (t1_firing) {
+    if (p_via->t1_fired) {
       /* If the timer is firing, return -1. Need to force this because the raw
        * timer value is set to the relatch value plus one which must not be
        * exposed.
@@ -692,7 +668,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     break;
   case k_via_T1CH:
     t1_val = via_get_t1c(p_via);
-    if (t1_firing) {
+    if (p_via->t1_fired) {
       /* If the timer is firing, return -1. Need to force this because the raw
        * timer value is set to the relatch value plus one which must not be
        * exposed.
@@ -708,7 +684,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     ret = (p_via->T1L >> 8);
     break;
   case k_via_T2CL:
-    if (!t2_firing && !is_raw) {
+    if (!p_via->t2_fired && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
     t2_val = via_get_t2c(p_via);
@@ -765,19 +741,17 @@ via_write_internal(struct via_struct* p_via,
   int32_t timer_val;
   uint8_t new_IFR;
 
-  /* Will T1/T2 interrupt fire at the mid cycle?
-   * Work it out now because we can't tell after advancing the timing.
-   */
   uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-  int t1_firing = via_is_t1_firing(p_via, ticks);
-  int t2_firing = via_is_t2_firing(p_via, ticks);
   struct timing_struct* p_timing = p_via->p_timing;
+
+  p_via->t1_fired = 0;
+  p_via->t2_fired = 0;
 
   /* TODO: the way things have worked out, it looks like we'll have less
    * complexity if we apply the write right away and then fix up. There will
    * likely be less fixing up that way around.
    */
-  /* Advance to the VIA mid-cycle. */
+  /* Advance to the VIA mid-cycle. May update t1/t2_fired. */
   if (!is_raw) {
     via_advance_ticks(p_via, (ticks + 1));
   }
@@ -827,12 +801,12 @@ via_write_internal(struct via_struct* p_via,
      * as a write to change the latch, the newly written value must take effect.
      * Finally hit by the second(?) stage Nightshade tape loader at $7300.
      */
-    if (t1_firing && (p_via->ACR & 0x40)) {
+    if (p_via->t1_fired && (p_via->ACR & 0x40)) {
       via_load_T1(p_via);
     }
     break;
   case k_via_T1CH:
-    if (!t1_firing) {
+    if (!p_via->t1_fired) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
@@ -857,7 +831,7 @@ via_write_internal(struct via_struct* p_via,
      */
     (void) via_get_t1c_raw(p_via);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-    if (!t1_firing) {
+    if (!p_via->t1_fired) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     } else if (p_via->ACR & 0x40) {
       via_load_T1(p_via);
@@ -867,7 +841,7 @@ via_write_internal(struct via_struct* p_via,
     p_via->T2L = ((p_via->T2L & 0xFF00) | val);
     break;
   case k_via_T2CH:
-    if (!t2_firing) {
+    if (!p_via->t2_fired) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
     p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
@@ -897,7 +871,7 @@ via_write_internal(struct via_struct* p_via,
      * See: tests.ssd:VIA.AC3
      * See: tests.ssd:VIA.AC2
      */
-    if (t1_firing && (!(val & 0x40))) {
+    if (p_via->t1_fired && (!(val & 0x40))) {
       timing_set_firing(p_timing, p_via->t1_timer_id, 0);
     }
 
@@ -932,14 +906,14 @@ via_write_internal(struct via_struct* p_via,
     break;
   case k_via_IFR:
     new_IFR = (p_via->IFR & ~(val & 0x7F));
-    if (t1_firing) {
+    if (p_via->t1_fired) {
       /* Timer firing wins over a write to IFR. */
       new_IFR |= k_int_TIMER1;
     }
     /* EMU TODO: assuming the same logic applies for T2, although it's untested
      * on a real BBC.
      */
-    if (t2_firing) {
+    if (p_via->t2_fired) {
       /* Timer firing wins over a write to IFR. */
       new_IFR |= k_int_TIMER2;
     }
