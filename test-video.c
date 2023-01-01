@@ -57,7 +57,9 @@ video_test_init() {
                            NULL,
                            &g_test_fast_flag,
                            &g_p_options);
+  render_create_internal_buffer(g_p_render);
   video_power_on_reset(g_p_video);
+  g_p_video->is_rendering_active = 1;
   g_test_fast_flag = 0;
 }
 

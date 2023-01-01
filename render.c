@@ -229,6 +229,11 @@ render_get_buffer(struct render_struct* p_render) {
   return p_render->p_buffer;
 }
 
+int
+render_has_buffer(struct render_struct* p_render) {
+  return (p_render->p_buffer != NULL);
+}
+
 uint32_t
 render_get_buffer_size(struct render_struct* p_render) {
   return (p_render->width * p_render->height * 4);

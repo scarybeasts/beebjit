@@ -1966,7 +1966,9 @@ debug_callback_common(struct debug_struct* p_debug,
        * scanline by scanline.
        */
       video_advance_crtc_timing(p_debug->p_video);
-      video_force_paint(p_debug->p_video, 0);
+      if (render_has_buffer(p_debug->p_render)) {
+        video_force_paint(p_debug->p_video, 0);
+      }
 
       p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {

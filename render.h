@@ -43,6 +43,7 @@ uint32_t render_get_buffer_crc32(struct render_struct* p_render);
 
 uint32_t* render_get_buffer(struct render_struct* p_render);
 void render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer);
+int render_has_buffer(struct render_struct* p_render);
 void render_create_internal_buffer(struct render_struct* p_render);
 
 void render_set_mode(struct render_struct* p_render,

@@ -554,6 +554,31 @@ beebjit_main(void) {
     bbc_set_autoboot(p_bbc, 1);
   }
 
+  /* Set up the render buffer before calling bbc_power_on_reset().
+   * This is needed so the video subsystem can work out if rendering should be
+   * active or not.
+   */
+  p_render = bbc_get_render(p_bbc);
+  p_keyboard = bbc_get_keyboard(p_bbc);
+  if (!headless_flag) {
+    p_window = os_window_create(render_get_width(p_render),
+                                render_get_height(p_render));
+    if (p_window == NULL) {
+      util_bail("os_window_create failed");
+    }
+    window_open = 1;
+    os_window_set_name(p_window, "beebjit technology preview");
+    os_window_set_keyboard_callback(p_window, p_keyboard);
+    os_window_set_focus_lost_callback(p_window, bbc_focus_lost_callback, p_bbc);
+    p_render_buffer = os_window_get_buffer(p_window);
+    render_set_buffer(p_render, p_render_buffer);
+
+    window_handle = os_window_get_handle(p_window);
+  } else if (frame_cycles > 0) {
+    /* TODO: push this down into video.c. */
+    render_create_internal_buffer(p_render);
+  }
+
   /* Do the power on reset before any of the below options that change state:
    * - Loading a state file.
    * - Setting the PC.
@@ -582,7 +607,6 @@ beebjit_main(void) {
   }
 
   /* Set up keyboard capture / replay / links. */
-  p_keyboard = bbc_get_keyboard(p_bbc);
   if (capture_name) {
     keyboard_set_capture_file_name(p_keyboard, capture_name);
   }
@@ -598,30 +622,9 @@ beebjit_main(void) {
                        keyboard_remap_to[i]);
   }
 
-  p_render = bbc_get_render(p_bbc);
-
   p_poller = os_poller_create();
   if (p_poller == NULL) {
     util_bail("os_poller_create failed");
-  }
-
-  if (!headless_flag) {
-    p_window = os_window_create(render_get_width(p_render),
-                                render_get_height(p_render));
-    if (p_window == NULL) {
-      util_bail("os_window_create failed");
-    }
-    window_open = 1;
-    os_window_set_name(p_window, "beebjit technology preview");
-    os_window_set_keyboard_callback(p_window, p_keyboard);
-    os_window_set_focus_lost_callback(p_window, bbc_focus_lost_callback, p_bbc);
-    p_render_buffer = os_window_get_buffer(p_window);
-    render_set_buffer(p_render, p_render_buffer);
-
-    window_handle = os_window_get_handle(p_window);
-  } else if (frame_cycles > 0) {
-    /* TODO: push this down into video.c. */
-    render_create_internal_buffer(p_render);
   }
 
   if (!headless_flag && !util_has_option(p_opt_flags, "sound:off")) {
@@ -695,6 +698,8 @@ beebjit_main(void) {
       }
 
       assert(message.data[0] == k_message_vsync);
+      assert(render_has_buffer(p_render));
+
       do_full_render = message.data[1];
       do_clear_after_paint = message.data[2];
       cycles = message.data[3];
@@ -706,25 +711,23 @@ beebjit_main(void) {
           (save_frame_count < max_frames)) {
         save_frame = 1;
       }
-      if (window_open || save_frame) {
-        if (do_full_render) {
-          video_render_full_frame(p_video);
+      if (do_full_render) {
+        video_render_full_frame(p_video);
+      }
+      render_process_full_buffer(p_render);
+      if (window_open) {
+        os_window_sync_buffer_to_screen(p_window);
+      }
+      if (save_frame) {
+        main_save_frame(p_frames_dir, save_frame_count, p_render);
+        save_frame_count++;
+        if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
+          log_do_log(k_log_misc, k_log_info, "save frame count exit");
+          exit(0);
         }
-        render_process_full_buffer(p_render);
-        if (window_open) {
-          os_window_sync_buffer_to_screen(p_window);
-        }
-        if (save_frame) {
-          main_save_frame(p_frames_dir, save_frame_count, p_render);
-          save_frame_count++;
-          if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
-            log_do_log(k_log_misc, k_log_info, "save frame count exit");
-            exit(0);
-          }
-        }
-        if (do_clear_after_paint) {
-          render_clear_buffer(p_render);
-        }
+      }
+      if (do_clear_after_paint) {
+        render_clear_buffer(p_render);
       }
       if (do_ack_rendered) {
         message.data[0] = k_message_render_done;

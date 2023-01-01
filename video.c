@@ -279,6 +279,8 @@ video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
   int do_wait_for_paint = (p_video->opt_is_always_render ||
                            p_video->has_paint_timer_triggered);
 
+  assert(render_has_buffer(p_video->p_render));
+
   /* NOTE: in accurate mode, it would be more correct to clear the
    * buffer from the framing change to the end of that frame, as well
    * as for the next frame.
@@ -366,6 +368,10 @@ video_check_go_active(struct video_struct* p_video) {
   }
 
   if (!p_video->is_wall_time_vsync_hit) {
+    return;
+  }
+
+  if (!render_has_buffer(p_video->p_render)) {
     return;
   }
 
@@ -1260,6 +1266,8 @@ video_paint_timer_fired(void* p) {
   struct timing_struct* p_timing = p_video->p_timing;
   uint32_t timer_id = p_video->paint_timer_id;
 
+  assert(render_has_buffer(p_video->p_render));
+
   if (p_video->log_timer) {
     log_do_log(k_log_video,
                k_log_info,
@@ -1558,13 +1566,8 @@ video_power_on_reset(struct video_struct* p_video) {
 
   /* Other state that needs resetting. */
   p_video->is_framing_changed_for_render = 1;
-  if ((p_video->paint_start_cycles != 0) && !p_video->is_rendering_active) {
-    /* Nothing. */
-  } else {
-    /* TODO: default these next two to 0 and change unit test? */
-    p_video->is_wall_time_vsync_hit = 1;
-    p_video->is_rendering_active = 1;
-  }
+  p_video->is_wall_time_vsync_hit = 0;
+  p_video->is_rendering_active = 0;
   p_video->frame_skip_counter = 0;
   p_video->prev_system_ticks = 0;
 
@@ -1622,14 +1625,18 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     return;
   }
 
-  if (p_video->paint_start_cycles > 0) {
-    return;
-  }
-
   p_system_via = p_video->p_system_via;
   via_set_CA1(p_system_via, 0);
   via_set_CA1(p_system_via, 1);
   p_video->num_vsyncs++;
+
+  if (!p_video->is_rendering_active) {
+    return;
+  }
+
+  if (p_video->paint_start_cycles > 0) {
+    return;
+  }
 
   video_do_paint(p_video);
 }
