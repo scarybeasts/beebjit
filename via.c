@@ -761,8 +761,6 @@ via_write_internal(struct via_struct* p_via,
                    int is_raw) {
   uint32_t t2_timer_id;
   int32_t timer_val;
-  int32_t t1_val;
-  int32_t t2_val;
   uint8_t new_IFR;
 
   /* Will T1/T2 interrupt fire at the mid cycle?
@@ -781,17 +779,6 @@ via_write_internal(struct via_struct* p_via,
   if (!is_raw) {
     via_advance_ticks(p_via, (ticks + 1));
   }
-
-  /* This is a bit subtle but we need to read the T1C value in order to force
-   * the deferred calculation of timer value for one shot timers that have shot.
-   * Such a timer decrements indefinitely and negatively without timer events
-   * firing.
-   * The deferred calculation needs to know what the effective T1L value was
-   * during the run. Since via_write may change T1L, do the deferred
-   * calculation first.
-   */
-  t1_val = via_get_t1c(p_via);
-  (void) t1_val;
 
   switch (reg) {
   case k_via_ORB:
@@ -828,6 +815,10 @@ via_write_internal(struct via_struct* p_via,
     break;
   case k_via_T1CL:
   case k_via_T1LL:
+    /* We don't reload the timer, so tick it based on the current latch value
+     * before we change the latch value.
+     */
+    (void) via_get_t1c_raw(p_via);
     /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
     p_via->T1L = ((p_via->T1L & 0xFF00) | val);
     /* EMU NOTE: If we reloaded the timer from the latch at the same VIA cycle
@@ -859,6 +850,10 @@ via_write_internal(struct via_struct* p_via,
     /* EMU TODO: assuming the same logic of not canceling interrupts applies
      * here for T1LH writes vs. IFR, but it's untest on a real BBC.
      */
+    /* We don't reload the timer, so tick it based on the current latch value
+     * before we change the latch value.
+     */
+    (void) via_get_t1c_raw(p_via);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     if (!t1_firing) {
       via_clear_interrupt(p_via, k_int_TIMER1);
@@ -909,7 +904,7 @@ via_write_internal(struct via_struct* p_via,
       if (val & 0x20) {
         /* Stop T2 if that bit is set. */
         if (timing_timer_is_running(p_timing, t2_timer_id)) {
-          t2_val = via_get_t2c(p_via);
+          int32_t t2_val = via_get_t2c(p_via);
           /* The value freezes after ticking one more time. */
           via_set_t2c(p_via, (t2_val - 1));
           (void) timing_stop_timer(p_timing, t2_timer_id);
@@ -917,7 +912,7 @@ via_write_internal(struct via_struct* p_via,
       } else {
         /* Otherwise start it. */
         if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
-          t2_val = via_get_t2c(p_via);
+          int32_t t2_val = via_get_t2c(p_via);
           /* The value starts ticking next cycle. */
           via_set_t2c(p_via, (t2_val + 1));
           (void) timing_start_timer(p_timing, t2_timer_id);
