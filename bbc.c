@@ -108,6 +108,7 @@ struct bbc_struct {
   uint64_t rewind_to_cycles;
   uint32_t log_count_shadow_speed;
   uint32_t log_count_misc_unimplemented;
+  struct util_file* p_printer_file;
 
   /* Machine configuration. */
   int is_master;
@@ -1345,6 +1346,45 @@ bbc_setup_indirect_mappings(struct bbc_struct* p_bbc,
       K_BBC_MEM_INACCESSIBLE_LEN);
 }
 
+static void
+bbc_CA2_changed_callback(void* p, int level, int output) {
+  struct bbc_struct* p_bbc;
+  struct via_struct* p_user_via;
+  uint8_t val;
+
+  if (level || !output) {
+    return;
+  }
+
+  p_bbc = (struct bbc_struct*) p;
+
+  if (p_bbc->p_printer_file == NULL) {
+    p_bbc->p_printer_file = util_file_try_open("beebjit.printer", 1, 1);
+    if (p_bbc->p_printer_file == NULL) {
+      log_do_log(k_log_misc, k_log_error, "FAILED to create printer file");
+    } else {
+      log_do_log(k_log_misc, k_log_info, "created printer file");
+    }
+  }
+
+  p_user_via = p_bbc->p_user_via;
+  val = via_calculate_port_a(p_user_via);
+
+  if (p_bbc->p_printer_file != NULL) {
+    /* Replace CR with LF. */
+    if (val == 0x0D) {
+      val = 0x0A;
+    }
+    util_file_write(p_bbc->p_printer_file, &val, 1);
+  }
+
+  /* This is the world's fastest printer. It acks the character simultaneously
+   * with it being transmitted!
+   */
+  via_set_CA1(p_user_via, 0);
+  via_set_CA1(p_user_via, 1);
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            int is_master,
@@ -1632,6 +1672,11 @@ bbc_create(int mode,
                                     bbc_set_fast_mode_callback,
                                     (void*) p_bbc);
 
+  /* Set up a virtual printer that prints to a file. */
+  via_set_CA2_changed_callback(p_bbc->p_user_via,
+                               bbc_CA2_changed_callback,
+                               p_bbc);
+
   p_debug = debug_create(p_bbc, debug_flag, &p_bbc->options);
 
   p_bbc->p_debug = p_debug;
@@ -1661,6 +1706,10 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 
   (void) p_running;
   assert(!*p_running);
+
+  if (p_bbc->p_printer_file != NULL) {
+    util_file_close(p_bbc->p_printer_file);
+  }
 
   if (*p_thread_allocated) {
     (void) os_thread_destroy(p_bbc->p_thread_cpu);
@@ -1841,6 +1890,8 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   assert(p_bbc->is_romsel_invalidated == 0);
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
+  /* For our virtual printer to indicate ready. */
+  via_set_CA1(p_bbc->p_user_via, 1);
   sound_power_on_reset(p_bbc->p_sound);
   /* Reset serial before the tape so that playing has been stopped. */
   mc6850_power_on_reset(p_bbc->p_serial);

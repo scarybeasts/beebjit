@@ -48,6 +48,8 @@ struct via_struct {
   int t1_fired;
   int t2_fired;
 
+  void (*p_CA2_changed_callback)(void* p, int level, int output);
+  void* p_CA2_changed_object;
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
   void (*p_timing_advancer)(void* p, uint64_t ticks);
@@ -380,6 +382,15 @@ via_power_on_reset(struct via_struct* p_via) {
 }
 
 void
+via_set_CA2_changed_callback(struct via_struct* p_via,
+                             void (*p_CA2_changed_callback)
+                                 (void* p, int level, int output),
+                             void* p_CA2_changed_object) {
+  p_via->p_CA2_changed_callback = p_CA2_changed_callback;
+  p_via->p_CA2_changed_object = p_CA2_changed_object;
+}
+
+void
 via_set_CB2_changed_callback(struct via_struct* p_via,
                              void (*p_CB2_changed_callback)
                                  (void* p, int level, int output),
@@ -441,7 +452,7 @@ via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta) {
   via_time_advance(p_via, delta);
 }
 
-static uint8_t
+uint8_t
 via_calculate_port_a(struct via_struct* p_via) {
   uint8_t ora = p_via->ORA;
   uint8_t ddra = p_via->DDRA;
@@ -457,7 +468,7 @@ via_calculate_port_a(struct via_struct* p_via) {
   return val;
 }
 
-static uint8_t
+uint8_t
 via_calculate_port_b(struct via_struct* p_via) {
   uint8_t orb = p_via->ORB;
   uint8_t ddrb = p_via->DDRB;
@@ -898,9 +909,14 @@ via_write_internal(struct via_struct* p_via,
     break;
   case k_via_PCR:
     p_via->PCR = val;
+    if ((val & 0x0E) == 0x0C) {
+      via_set_CA2(p_via, 0);
+    } else if ((val & 0x0E) == 0x0E) {
+      via_set_CA2(p_via, 1);
+    }
     if ((val & 0xE0) == 0xC0) {
       via_set_CB2(p_via, 0);
-    } else if (val & 0x80) {
+    } else if ((val & 0xE0) == 0xE0) {
       via_set_CB2(p_via, 1);
     }
     break;
@@ -979,12 +995,24 @@ via_set_CA1(struct via_struct* p_via, int level) {
 void
 via_set_CA2(struct via_struct* p_via, int level) {
   int trigger_level;
+  int output;
 
   if (level == p_via->CA2) {
     return;
   }
 
-  /* TODO: here and CA1, don't IRQ in output mode. */
+  p_via->CA2 = level;
+
+  output = !!(p_via->PCR & 0x08);
+
+  if (p_via->p_CA2_changed_callback) {
+    p_via->p_CA2_changed_callback(p_via->p_CA2_changed_object, level, output);
+  }
+
+  if (output) {
+    return;
+  }
+
   trigger_level = !!(p_via->PCR & 0x04);
   if (level == trigger_level) {
     via_raise_interrupt(p_via, k_int_CA2);

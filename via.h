@@ -26,6 +26,10 @@ void via_destroy(struct via_struct* p_via);
 
 void via_power_on_reset(struct via_struct* p_via);
 
+void via_set_CA2_changed_callback(struct via_struct* p_via,
+                                  void (*p_CA2_changed_callback)
+                                      (void* p, int level, int output),
+                                  void* p_CA2_changed_object);
 void via_set_CB2_changed_callback(struct via_struct* p_via,
                                   void (*p_CB2_changed_callback)
                                       (void* p, int level, int output),
@@ -39,6 +43,8 @@ void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
+uint8_t via_calculate_port_a(struct via_struct* p_via);
+uint8_t via_calculate_port_b(struct via_struct* p_via);
 void via_update_port_a(struct via_struct* p_via);
 void via_update_port_b(struct via_struct* p_via);
 
