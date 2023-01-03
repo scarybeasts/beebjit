@@ -63,7 +63,7 @@ void via_set_peripheral_b(struct via_struct* p_via, uint8_t val);
 /* These are used by the debugger. In particular, for reads, side effects of
  * the read are minimized.
  */
-uint8_t via_read_raw(struct via_struct* p_via, uint8_t reg);
+uint8_t via_read_no_side_effects(struct via_struct* p_via, uint8_t reg);
 void via_write_raw(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
 void via_get_registers(struct via_struct* p_via,

@@ -588,7 +588,9 @@ via_load_T1(struct via_struct* p_via) {
 }
 
 static uint8_t
-via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
+via_read_internal(struct via_struct* p_via,
+                  uint8_t reg,
+                  int do_avoid_side_effects) {
   uint8_t orb;
   uint8_t ddrb;
   uint8_t port_val;
@@ -607,7 +609,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  if (!is_raw) {
+  if (!do_avoid_side_effects) {
     via_advance_ticks(p_via, (ticks + 1));
   }
 
@@ -616,7 +618,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0xA0) != 0x20);
 
-    if (!is_raw) {
+    if (!do_avoid_side_effects) {
       via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
     }
 
@@ -643,7 +645,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   case k_via_ORA:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
-    if (!is_raw) {
+    if (!do_avoid_side_effects) {
       via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
     }
   /* Fall through. */
@@ -664,7 +666,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     ret = p_via->DDRA;
     break;
   case k_via_T1CL:
-    if (!p_via->t1_fired && !is_raw) {
+    if (!p_via->t1_fired && !do_avoid_side_effects) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
     t1_val = via_get_t1c(p_via);
@@ -695,7 +697,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     ret = (p_via->T1L >> 8);
     break;
   case k_via_T2CL:
-    if (!p_via->t2_fired && !is_raw) {
+    if (!p_via->t2_fired && !do_avoid_side_effects) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
     t2_val = via_get_t2c(p_via);
@@ -726,7 +728,7 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     break;
   }
 
-  if (!is_raw) {
+  if (!do_avoid_side_effects) {
     via_advance_ticks(p_via, 1);
   }
 
@@ -739,7 +741,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 }
 
 uint8_t
-via_read_raw(struct via_struct* p_via, uint8_t reg) {
+via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
   return via_read_internal(p_via, reg, 1);
 }
 

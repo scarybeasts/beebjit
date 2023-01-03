@@ -1278,8 +1278,7 @@ static int64_t
 debug_read_variable_sysvia_r(void* p, uint32_t index) {
   if (index < k_via_num_mapped_registers) {
     struct debug_struct* p_debug = (struct debug_struct*) p;
-    /* This hits the normal VIA read path, with side effects possible. */
-    return via_read_raw(p_debug->p_system_via, index);
+    return via_read_no_side_effects(p_debug->p_system_via, index);
   }
   return -1;
 }
@@ -1288,8 +1287,7 @@ static int64_t
 debug_read_variable_uservia_r(void* p, uint32_t index) {
   if (index < k_via_num_mapped_registers) {
     struct debug_struct* p_debug = (struct debug_struct*) p;
-    /* This hits the normal VIA read path, with side effects possible. */
-    return via_read_raw(p_debug->p_user_via, index);
+    return via_read_no_side_effects(p_debug->p_user_via, index);
   }
   return -1;
 }
