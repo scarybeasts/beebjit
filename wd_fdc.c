@@ -15,7 +15,9 @@ static const uint32_t k_wd_fdc_1770_settle_ms = 30;
 enum {
   k_wd_fdc_command_restore = 0x00,
   k_wd_fdc_command_seek = 0x10,
+  k_wd_fdc_command_step_in_no_update = 0x40,
   k_wd_fdc_command_step_in_with_update = 0x50,
+  k_wd_fdc_command_step_out_no_update = 0x60,
   k_wd_fdc_command_step_out_with_update = 0x70,
   k_wd_fdc_command_read_sector = 0x80,
   k_wd_fdc_command_read_sector_multi = 0x90,
@@ -257,12 +259,16 @@ wd_fdc_check_verify(struct wd_fdc_struct* p_fdc) {
 }
 
 static void
-wd_fdc_do_seek_step(struct wd_fdc_struct* p_fdc, int step_direction) {
+wd_fdc_do_seek_step(struct wd_fdc_struct* p_fdc,
+                    int step_direction,
+                    int do_update_tr) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   assert(p_current_drive != NULL);
 
   disc_drive_seek_track(p_current_drive, step_direction);
-  p_fdc->track_register += step_direction;
+  if (do_update_tr) {
+    p_fdc->track_register += step_direction;
+  }
   /* TRK0 signal may have raised or lowered. */
   wd_fdc_update_type_I_status_bits(p_fdc);
   wd_fdc_start_timer(p_fdc,
@@ -294,7 +300,7 @@ wd_fdc_do_seek_step_or_verify(struct wd_fdc_struct* p_fdc) {
     return;
   }
 
-  wd_fdc_do_seek_step(p_fdc, step_direction);
+  wd_fdc_do_seek_step(p_fdc, step_direction, 1);
 }
 
 static void
@@ -317,11 +323,17 @@ wd_fdc_dispatch_command(struct wd_fdc_struct* p_fdc) {
   case k_wd_fdc_command_seek:
     wd_fdc_do_seek_step_or_verify(p_fdc);
     break;
+  case k_wd_fdc_command_step_in_no_update:
+    wd_fdc_do_seek_step(p_fdc, 1, 0);
+    break;
   case k_wd_fdc_command_step_in_with_update:
-    wd_fdc_do_seek_step(p_fdc, 1);
+    wd_fdc_do_seek_step(p_fdc, 1, 1);
+    break;
+  case k_wd_fdc_command_step_out_no_update:
+    wd_fdc_do_seek_step(p_fdc, -1, 0);
     break;
   case k_wd_fdc_command_step_out_with_update:
-    wd_fdc_do_seek_step(p_fdc, -1);
+    wd_fdc_do_seek_step(p_fdc, -1, 1);
     break;
   case k_wd_fdc_command_read_sector:
   case k_wd_fdc_command_read_sector_multi:
@@ -361,7 +373,9 @@ wd_fdc_timer_fired(void* p) {
     assert(p_fdc->state != k_wd_fdc_state_timer_wait);
     break;
   case k_wd_fdc_timer_seek:
-    if ((p_fdc->command == k_wd_fdc_command_step_in_with_update) ||
+    if ((p_fdc->command == k_wd_fdc_command_step_in_no_update) ||
+        (p_fdc->command == k_wd_fdc_command_step_in_with_update) ||
+        (p_fdc->command == k_wd_fdc_command_step_out_no_update) ||
         (p_fdc->command == k_wd_fdc_command_step_out_with_update)) {
       wd_fdc_check_verify(p_fdc);
     } else {
@@ -637,7 +651,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   switch (command) {
   case k_wd_fdc_command_restore:
   case k_wd_fdc_command_seek:
+  case k_wd_fdc_command_step_in_no_update:
   case k_wd_fdc_command_step_in_with_update:
+  case k_wd_fdc_command_step_out_no_update:
   case k_wd_fdc_command_step_out_with_update:
     p_fdc->command_type = 1;
     p_fdc->is_command_verify = !!(val & k_wd_fdc_command_bit_type_I_verify);
