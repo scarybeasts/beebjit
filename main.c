@@ -125,6 +125,8 @@ beebjit_main(void) {
   int opus_flag = 0;
   int dfs12_flag = 0;
   int is_master_flag = 0;
+  int is_mos35_flag = 0;
+  int is_compact_flag = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
   int32_t pc = -1;
@@ -332,16 +334,11 @@ beebjit_main(void) {
       is_exit_on_max_frames_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
-      config_apply_master_128_mos320(&os_rom_name,
-                                     &rom_names[0],
-                                     &sideways_ram[0],
-                                     &wd_1770_type);
+    } else if (!strcmp(arg, "-mos35")) {
+      is_mos35_flag = 1;
     } else if (!strcmp(arg, "-compact")) {
       is_master_flag = 1;
-      config_apply_master_compact(&os_rom_name,
-                                  &rom_names[0],
-                                  &sideways_ram[0],
-                                  &wd_1770_type);
+      is_compact_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
@@ -373,6 +370,7 @@ beebjit_main(void) {
 "-log-file       <f>: log to file <f> as well as stdout.\n"
 "-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
+"-mos35             : if -master given, use MOS 3.50.\n"
 "-compact           : set up a BBC Master Compact.\n"
 "-help              : show this help text.\n"
 "-more              : show more, less common options.\n"
@@ -396,6 +394,25 @@ beebjit_main(void) {
                  k_log_warning,
                  "unknown command line option or missing argument: %s",
                  arg);
+    }
+  }
+
+  if (is_master_flag) {
+    if (is_compact_flag) {
+      config_apply_master_compact(&os_rom_name,
+                                  &rom_names[0],
+                                  &sideways_ram[0],
+                                  &wd_1770_type);
+    } else if (is_mos35_flag) {
+      config_apply_master_128_mos350(&os_rom_name,
+                                     &rom_names[0],
+                                     &sideways_ram[0],
+                                     &wd_1770_type);
+    } else {
+      config_apply_master_128_mos320(&os_rom_name,
+                                     &rom_names[0],
+                                     &sideways_ram[0],
+                                     &wd_1770_type);
     }
   }
 
