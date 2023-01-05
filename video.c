@@ -1630,7 +1630,7 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   via_set_CA1(p_system_via, 1);
   p_video->num_vsyncs++;
 
-  if (!p_video->is_rendering_active) {
+  if (!render_has_buffer(p_video->p_render)) {
     return;
   }
 
