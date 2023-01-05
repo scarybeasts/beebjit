@@ -402,7 +402,6 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC540);
 
   /* Check T1 value at expiry in continuous mode. */
-  /* Also checks that IFR flag is visible the same VIA cycle the IRQ fires. */
   set_new_index(p_buf, 0x0540);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
@@ -884,8 +883,124 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 14);
   emit_JMP(p_buf, k_abs, 0xCCC0);
 
-  /* Exit sequence. */
+  /* Check T2 interrupt isn't late. */
   set_new_index(p_buf, 0x0CC0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_abs, 0xFE4D);
+  emit_LDA(p_buf, k_imm, 0xA0);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_LDX(p_buf, k_imm, 0x42);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE48);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE49);
+  emit_CLI(p_buf);                /* 2 cycles. At timer value 1. */
+  emit_INC(p_buf, k_zpg, 0x00);   /* 5 cycles. At timer value 0, -1. */
+                                  /* Interrupt here (3rd cycle of INC). */
+  emit_INX(p_buf);                /* Used to check if interrupt is late. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x42);
+  emit_JMP(p_buf, k_abs, 0xCD00);
+
+  /* Check VSYNC IRQ isn't indicated if it comes in right at the end of an IFR
+   * read.
+   */
+  set_new_index(p_buf, 0x0D00);
+  /* 2MHz video. */
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0xFE20);
+  /* CRTC R9, R4, R5 to 0 (1 line frame), R8 to 0 (interlace off), R7 to 1
+   * (vsync), R0 to 3.
+   */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  emit_LDA(p_buf, k_imm, 0x09);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  emit_LDA(p_buf, k_imm, 0x05);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  /* Wait to settle.
+   * We're in 2Mhz mode but these waits should be good enough if we switched
+   * to 1MHz.
+   */
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_DEX(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_BNE(p_buf, -6);
+  /* R0 to 0. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  /* Wait to settle. */
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -3);
+  /* IRQ on positive vsync edge. */
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE4C);
+  /* Clear IRQs. */
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4D);
+  /* R0 to 31 (32 ticks line). */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x1F);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  /* R4 to 3. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  /* R7 to 1. */
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE01);
+  /* New frame. */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  /* End of IFR read co-incides with vsync / CA1. */
+  emit_LDA(p_buf, k_abs, 0xFE4D);
+  /* That's too late for the VIA to have returned it. */
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_JMP(p_buf, k_abs, 0xCDC0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0DC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
