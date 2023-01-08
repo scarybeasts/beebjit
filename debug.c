@@ -76,6 +76,7 @@ struct debug_struct {
   uint8_t* p_opcode_cycles;
   struct util_string_list_struct* p_command_strings;
   struct util_string_list_struct* p_pending_commands;
+  int opt_is_print_ticks;
 
   /* Modifiable register / machine state. */
   uint8_t reg_a;
@@ -1671,6 +1672,7 @@ debug_print_status_line(struct debug_struct* p_debug,
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
+  char ticks_buf[32];
   const char* p_address_info;
   uint8_t reg_flags = p_debug->reg_flags;
 
@@ -1713,9 +1715,18 @@ debug_print_status_line(struct debug_struct* p_debug,
     p_address_info = &sub_tag[0];
   }
 
+  if (p_debug->opt_is_print_ticks) {
+    snprintf(ticks_buf,
+             sizeof(ticks_buf),
+             "[ticks=%"PRIu64"] ",
+             timing_get_total_timer_ticks(p_debug->p_timing));
+  } else {
+    ticks_buf[0] = '\0';
+  }
+
   (void) printf("[%s] %.4"PRIX16": %-14s "
                 "[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" F=%s] "
-                "%s\n",
+                "%s%s\n",
                 p_address_info,
                 p_debug->reg_pc,
                 opcode_buf,
@@ -1724,6 +1735,7 @@ debug_print_status_line(struct debug_struct* p_debug,
                 p_debug->reg_y,
                 p_debug->reg_s,
                 flags_buf,
+                ticks_buf,
                 extra_buf);
   (void) fflush(stdout);
 }
@@ -2512,6 +2524,8 @@ debug_create(struct bbc_struct* p_bbc,
   if (util_has_option(p_options->p_opt_flags, "debug:sub-instruction")) {
     debug_make_sub_instruction_active(p_debug);
   }
+  p_debug->opt_is_print_ticks = util_has_option(p_options->p_opt_flags,
+                                                "debug:print-ticks");
 
   os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
 
