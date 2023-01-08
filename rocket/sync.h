@@ -20,6 +20,8 @@ extern "C" {
 #define SYNC_DEPRECATED(msg)
 #endif
 
+#include "track.h"
+
 struct sync_device;
 struct sync_track;
 
@@ -31,14 +33,14 @@ struct sync_cb {
 	void (*pause)(void *, int);
 	void (*set_row)(void *, int);
 	int (*is_playing)(void *);
-	void (*write_key)(void *, FILE *, char, int, float);	/* write a key out - type, row, value */
-	void (*read_key)(void *, FILE *, char *, int *, float *);	/* read a key in - type, row, value */
+	void (*write_key)(void*, FILE*, char, int, key_value);	/* write a key out - type, row, value */
+	void (*read_key)(void*, FILE*, char*, int*, key_value*);	/* read a key in - type, row, value */
 };
 #define SYNC_DEFAULT_PORT 1338
 int sync_tcp_connect(struct sync_device *, const char *, unsigned short);
 int SYNC_DEPRECATED("use sync_tcp_connect instead") sync_connect(struct sync_device *, const char *, unsigned short);
 int sync_update(struct sync_device *, int, struct sync_cb *, void *);
-int sync_save_tracks(const struct sync_device *, struct sync_cb *, void *);
+void sync_save_tracks(const struct sync_device *, struct sync_cb*, void *);
 #endif /* defined(SYNC_PLAYER) */
 
 struct sync_io_cb {
@@ -48,8 +50,10 @@ struct sync_io_cb {
 };
 void sync_set_io_cb(struct sync_device *d, struct sync_io_cb *cb);
 
-const struct sync_track *sync_get_track(struct sync_device *, const char *);
+const struct sync_track *sync_get_track(struct sync_device *, const char *, enum track_type);
 double sync_get_val(const struct sync_track *, double);
+unsigned char sync_get_event(const struct sync_track*, double);
+unsigned short sync_get_colour(const struct sync_track*, double);
 
 #ifdef __cplusplus
 }

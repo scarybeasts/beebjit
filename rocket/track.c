@@ -8,45 +8,71 @@
 
 static double key_linear(const struct track_key k[2], double row)
 {
-	double t = (row - k[0].row) / (k[1].row - k[0].row);
-	return k[0].value + (k[1].value - k[0].value) * t;
+	double t = (row - k[0].row) / ((double)k[1].row - k[0].row);
+	return k[0].value.val + ((double)k[1].value.val - k[0].value.val) * t;
 }
 
 static double key_smooth(const struct track_key k[2], double row)
 {
-	double t = (row - k[0].row) / (k[1].row - k[0].row);
+	double t = (row - k[0].row) / ((double)k[1].row - k[0].row);
 	t = t * t * (3 - 2 * t);
-	return k[0].value + (k[1].value - k[0].value) * t;
+	return k[0].value.val + ((double)k[1].value.val - k[0].value.val) * t;
 }
 
 static double key_ramp(const struct track_key k[2], double row)
 {
-	double t = (row - k[0].row) / (k[1].row - k[0].row);
+	double t = (row - k[0].row) / ((double)k[1].row - k[0].row);
 	t = pow(t, 2.0);
-	return k[0].value + (k[1].value - k[0].value) * t;
+	return k[0].value.val + ((double)k[1].value.val - k[0].value.val) * t;
 }
 
-double sync_get_val(const struct sync_track *t, double row)
+static int get_key_idx(const struct sync_track* t, double row)
 {
-	int idx, irow;
+	return key_idx_floor(t, (int)floor(row));
+}
 
-	/* If we have no keys at all, return a constant 0 */
+key_value sync_get_key_value(const struct sync_track* t, double row)
+{
+	int idx;
+	static key_value default_value;
+	default_value.val = 0.0f;
+
 	if (!t->num_keys)
-		return 0.0f;
+		return default_value;
 
-	irow = (int)floor(row);
-	idx = key_idx_floor(t, irow);
+	idx = get_key_idx(t, row);
 
-	/* at the edges, return the first/last value */
+	/* at the edges, return the first/last value.val */
 	if (idx < 0)
 		return t->keys[0].value;
 	if (idx > (int)t->num_keys - 2)
 		return t->keys[t->num_keys - 1].value;
 
+	return t->keys[idx].value;
+}
+
+double sync_get_val(const struct sync_track *t, double row)
+{
+	int idx;
+
+	assert(t->type == TRACK_FLOAT);
+
+	/* If we have no keys at all, return a constant 0 */
+	if (!t->num_keys)
+		return 0.0f;
+
+	idx = get_key_idx(t, row);
+
+	/* at the edges, return the first/last value.val */
+	if (idx < 0)
+		return t->keys[0].value.val;
+	if (idx > (int)t->num_keys - 2)
+		return t->keys[t->num_keys - 1].value.val;
+
 	/* interpolate according to key-type */
 	switch (t->keys[idx].type) {
 	case KEY_STEP:
-		return t->keys[idx].value;
+		return t->keys[idx].value.val;
 	case KEY_LINEAR:
 		return key_linear(t->keys + idx, row);
 	case KEY_SMOOTH:
@@ -56,6 +82,82 @@ double sync_get_val(const struct sync_track *t, double row)
 	default:
 		assert(0);
 		return 0.0f;
+	}
+}
+
+unsigned char sync_get_event(const struct sync_track* t, double row)
+{
+	int irow = (int)floor(row);
+
+	/* Must be this exact row! */
+	if (row != irow)
+		return 0;
+
+	assert(t->type == TRACK_EVENT);
+
+	/* If we have no keys at all, return a constant 0 */
+	if (!t->num_keys)
+		return 0;
+
+	/* Only return an event if the row is an exact hit. */
+	for (int idx = 0; idx < t->num_keys; idx++) {
+		if (t->keys[idx].row == irow) {
+			return t->keys[idx].value.event;
+		}
+	}
+	
+	return 0;
+}
+
+static unsigned short colour_linear(const struct track_key k[2], double row)
+{
+	double t = (row - k[0].row) / ((double)k[1].row - k[0].row);
+	unsigned short i = k[0].value.colour >> 12;
+
+	int r0 = (k[0].value.colour >> 8) & 0xf;
+	int g0 = (k[0].value.colour >> 4) & 0xf;
+	int b0 = (k[0].value.colour >> 0) & 0xf;
+	int r1 = (k[1].value.colour >> 8) & 0xf;
+	int g1 = (k[1].value.colour >> 4) & 0xf;
+	int b1 = (k[1].value.colour >> 0) & 0xf;
+
+	// TODO: Make this interpolation accurate to precision of target platform.
+	unsigned short new_r = (unsigned short)(r0 + ((double)r1 - r0) * t);
+	unsigned short new_g = (unsigned short)(g0 + ((double)g1 - g0) * t);
+	unsigned short new_b = (unsigned short)(b0 + ((double)b1 - b0) * t);
+
+	return (i << 12) | (new_r << 8) | (new_g << 4) | new_b;
+}
+
+unsigned short sync_get_colour(const struct sync_track* t, double row)
+{
+	int idx;
+
+	assert(t->type == TRACK_COLOUR);
+
+	/* If we have no keys at all, return a constant 0 */
+	if (!t->num_keys)
+		return 0x0000;
+
+	idx = get_key_idx(t, row);
+
+	/* at the edges, return the first/last value.val */
+	if (idx < 0)
+		return t->keys[0].value.colour;
+	if (idx > (int)t->num_keys - 2)
+		return t->keys[t->num_keys - 1].value.colour;
+
+	/* interpolate according to key-type */
+	switch (t->keys[idx].type) {
+	case KEY_STEP:
+		return t->keys[idx].value.colour;
+	case KEY_LINEAR:
+	case KEY_SMOOTH:
+	case KEY_RAMP:
+		return colour_linear(t->keys + idx, row);
+	default:
+		assert(0);
+		return 0x0000;
 	}
 }
 

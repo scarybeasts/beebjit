@@ -13,16 +13,30 @@ enum key_type {
 	KEY_TYPE_COUNT
 };
 
+typedef union {
+	float val;
+	unsigned char event;
+	unsigned short colour;
+} key_value;
+
 struct track_key {
 	int row;
-	float value;
+	key_value value;
 	enum key_type type;
+};
+
+enum track_type {
+	TRACK_FLOAT,		/* standard Rocket track interoplating float values */
+	TRACK_EVENT,		/* no interpolation supported, unsigned char value */
+	TRACK_COLOUR,	/* represents a 12-bit colour value and palette index */
+	TRACK_TYPE_COUNT
 };
 
 struct sync_track {
 	char *name;
 	struct track_key *keys;
 	int num_keys;
+	enum track_type type;
 };
 
 int sync_find_key(const struct sync_track *, int);
@@ -42,6 +56,7 @@ static inline int is_key_frame(const struct sync_track *t, int row)
 	return sync_find_key(t, row) >= 0;
 }
 
+key_value sync_get_key_value(const struct sync_track* t, double row);
 #endif /* !defined(SYNC_PLAYER) */
 
 #endif /* SYNC_TRACK_H */

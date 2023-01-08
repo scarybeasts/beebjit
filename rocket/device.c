@@ -6,16 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <sys/stat.h>
-
-#ifdef WIN32
- #include <direct.h>
- // #define S_ISDIR(m) (((m)& S_IFMT) == S_IFDIR)
- #define mkdir(pathname, mode) _mkdir(pathname)
-#elif defined(GEKKO)
- #include <network.h>
-#endif
-
 static int find_track(struct sync_device *d, const char *name)
 {
 	int i;
@@ -25,27 +15,15 @@ static int find_track(struct sync_device *d, const char *name)
 	return -1; /* not found */
 }
 
-static int valid_path_char(char ch)
-{
-	switch (ch) {
-	case '.':
-	case '_':
-	case '/':
-		return 1;
-
-	default:
-		return isalnum(ch);
-	}
-}
-
 static const char *path_encode(const char *path)
 {
 	static char temp[FILENAME_MAX];
-	unsigned int i, pos = 0;
-	unsigned int path_len = strlen(path);
+	int i;
+	unsigned int pos = 0;
+	int path_len = (int)strlen(path);
 	for (i = 0; i < path_len; ++i) {
 		int ch = path[i];
-		if (valid_path_char(ch)) {
+		if (isalnum(ch) || ch == '.' || ch == '_') {
 			if (pos >= sizeof(temp) - 1)
 				break;
 
@@ -91,15 +69,6 @@ enum {
 
 static inline int socket_poll(SOCKET socket)
 {
-#ifdef GEKKO
-	// libogc doesn't impmelent select()...
-	struct pollsd sds[1];
-	sds[0].socket  = socket;
-	sds[0].events  = POLLIN;
-	sds[0].revents = 0;
-	if (net_poll(sds, 1, 0) < 0) return 0;
-	return (sds[0].revents & POLLIN) && !(sds[0].revents & (POLLERR|POLLHUP|POLLNVAL));
-#else
 	struct timeval to = { 0, 0 };
 	fd_set fds;
 
@@ -115,7 +84,6 @@ static inline int socket_poll(SOCKET socket)
 #endif
 
 	return select((int)socket + 1, &fds, NULL, NULL, &to) > 0;
-#endif
 }
 
 static inline int xsend(SOCKET s, const void *buf, size_t len, int flags)
@@ -256,9 +224,6 @@ struct sync_device *sync_create_device(const char *base)
 	if (!d)
 		return NULL;
 
-	if (!base || base[0] == '/')
-		return NULL;
-
 	d->base = strdup(path_encode(base));
 	if (!d->base) {
 		free(d);
@@ -306,7 +271,7 @@ void sync_destroy_device(struct sync_device *d)
 #endif
 }
 
-static int read_track_data(struct sync_device *d, struct sync_track *t, struct sync_cb *cb, void *cb_param)
+static int read_track_data(struct sync_device *d, struct sync_track *t, struct sync_cb* cb, void* cb_param)
 {
 	int i;
 	void *fp = d->io_cb.open(sync_track_path(d->base, t->name), "rb");
@@ -314,6 +279,7 @@ static int read_track_data(struct sync_device *d, struct sync_track *t, struct s
 		return -1;
 
 	d->io_cb.read(&t->num_keys, sizeof(int), 1, fp);
+	d->io_cb.read(&t->type, sizeof(enum track_type), 1, fp);
 	t->keys = malloc(sizeof(struct track_key) * t->num_keys);
 	if (!t->keys)
 		return -1;
@@ -323,66 +289,34 @@ static int read_track_data(struct sync_device *d, struct sync_track *t, struct s
 		char type;
 		if (cb && cb->read_key) {
 			cb->read_key(cb_param, fp, &type, &key->row, &key->value);
-		} else {
+		}
+		else {
 			d->io_cb.read(&key->row, sizeof(int), 1, fp);
 			d->io_cb.read(&key->value, sizeof(float), 1, fp);
 			d->io_cb.read(&type, sizeof(char), 1, fp);
 		}
 		key->type = (enum key_type)type;
 	}
+
 	d->io_cb.close(fp);
 	return 0;
 }
 
-static int create_leading_dirs(const char *path)
-{
-	char *pos, buf[FILENAME_MAX];
-
-	strncpy(buf, path, sizeof(buf));
-	buf[sizeof(buf) - 1] = '\0';
-	pos = buf;
-
-	while (1) {
-		struct stat st;
-
-		pos = strchr(pos, '/');
-		if (!pos)
-			break;
-		*pos = '\0';
-
-		/* does path exist, but isn't a dir? */
-		if (!stat(buf, &st)) {
-			if (!S_ISDIR(st.st_mode))
-				return -1;
-		} else {
-			if (mkdir(buf, 0777))
-				return -1;
-		}
-
-		*pos++ = '/';
-	}
-
-	return 0;
-}
-
-static int save_track(const struct sync_track *t, const char *path, struct sync_cb *cb, void *cb_param)
+static int save_track(const struct sync_track *t, const char *path, struct sync_cb* cb, void* cb_param)
 {
 	int i;
-	FILE *fp;
-
-	if (create_leading_dirs(path))
-		return -1;
-
-	fp = fopen(path, "wb");
+	FILE *fp = fopen(path, "wb");
 	if (!fp)
 		return -1;
 
 	fwrite(&t->num_keys, sizeof(int), 1, fp);
+	fwrite(&t->type, sizeof(enum track_type), 1, fp);
 	for (i = 0; i < (int)t->num_keys; ++i) {
+		char type = (char)t->keys[i].type;
 		if (cb && cb->write_key) {
 			cb->write_key(cb_param, fp, t->keys[i].type, t->keys[i].row, t->keys[i].value);
-		} else {
-			char type = (char)t->keys[i].type;
+		}
+		else {
 			fwrite(&t->keys[i].row, sizeof(int), 1, fp);
 			fwrite(&t->keys[i].value, sizeof(float), 1, fp);
 			fwrite(&type, sizeof(char), 1, fp);
@@ -393,15 +327,13 @@ static int save_track(const struct sync_track *t, const char *path, struct sync_
 	return 0;
 }
 
-int sync_save_tracks(const struct sync_device *d, struct sync_cb *cb, void *cb_param)
+void sync_save_tracks(const struct sync_device *d, struct sync_cb* cb, void* cb_param)
 {
 	int i;
 	for (i = 0; i < (int)d->num_tracks; ++i) {
 		const struct sync_track *t = d->tracks[i];
-		if (save_track(t, sync_track_path(d->base, t->name), cb, cb_param))
-			return -1;
+		save_track(t, sync_track_path(d->base, t->name), cb, cb_param);
 	}
-	return 0;
 }
 
 #ifndef SYNC_PLAYER
@@ -410,14 +342,17 @@ static int fetch_track_data(struct sync_device *d, struct sync_track *t)
 {
 	unsigned char cmd = GET_TRACK;
 	uint32_t name_len;
+	uint32_t type;
 
 	assert(strlen(t->name) <= UINT32_MAX);
 	name_len = htonl((uint32_t)strlen(t->name));
+	type = htonl((uint32_t)t->type);
 
 	/* send request data */
 	if (xsend(d->sock, (char *)&cmd, 1, 0) ||
 	    xsend(d->sock, (char *)&name_len, sizeof(name_len), 0) ||
-	    xsend(d->sock, t->name, (int)strlen(t->name), 0))
+	    xsend(d->sock, t->name, (int)strlen(t->name), 0) ||
+		xsend(d->sock, (char*)&type, sizeof(type), 0))
 	{
 		closesocket(d->sock);
 		d->sock = INVALID_SOCKET;
@@ -432,6 +367,8 @@ static int handle_set_key_cmd(SOCKET sock, struct sync_device *data)
 	uint32_t track, row;
 	union {
 		float f;
+		unsigned char e;
+		unsigned short c;
 		uint32_t i;
 	} v;
 	struct track_key key;
@@ -447,11 +384,24 @@ static int handle_set_key_cmd(SOCKET sock, struct sync_device *data)
 	v.i = ntohl(v.i);
 
 	key.row = ntohl(row);
-	key.value = v.f;
+	switch (data->tracks[track]->type)
+	{
+	case TRACK_FLOAT:
+	default:
+		key.value.val = v.f;
+		break;
 
-	if (type >= KEY_TYPE_COUNT || track >= data->num_tracks)
-		return -1;
+	case TRACK_EVENT:
+		key.value.event = v.e;
+		break;
 
+	case TRACK_COLOUR:
+		key.value.colour = v.c;
+		break;
+	}
+
+	assert(type < KEY_TYPE_COUNT);
+	assert(track < data->num_tracks);
 	key.type = (enum key_type)type;
 	return sync_set_key(data->tracks[track], &key);
 }
@@ -467,9 +417,7 @@ static int handle_del_key_cmd(SOCKET sock, struct sync_device *data)
 	track = ntohl(track);
 	row = ntohl(row);
 
-	if (track >= data->num_tracks)
-		return -1;
-
+	assert(track < data->num_tracks);
 	return sync_del_key(data->tracks[track], row);
 }
 
@@ -567,44 +515,33 @@ sockerr:
 
 #endif /* !defined(SYNC_PLAYER) */
 
-static int create_track(struct sync_device *d, const char *name)
+static int create_track(struct sync_device *d, const char *name, enum track_type type)
 {
-	void *tmp;
 	struct sync_track *t;
 	assert(find_track(d, name) < 0);
 
 	t = malloc(sizeof(*t));
-	if (!t)
-		return -1;
-
 	t->name = strdup(name);
 	t->keys = NULL;
 	t->num_keys = 0;
+	t->type = type;
 
-	tmp = realloc(d->tracks, sizeof(d->tracks[0]) * (d->num_tracks + 1));
-	if (!tmp) {
-		free(t);
-		return -1;
-	}
-
-	d->tracks = tmp;
-	d->tracks[d->num_tracks++] = t;
+	d->num_tracks++;
+	d->tracks = realloc(d->tracks, sizeof(d->tracks[0]) * d->num_tracks);
+	d->tracks[d->num_tracks - 1] = t;
 
 	return (int)d->num_tracks - 1;
 }
 
 const struct sync_track *sync_get_track(struct sync_device *d,
-    const char *name)
+    const char *name, enum track_type type)
 {
 	struct sync_track *t;
 	int idx = find_track(d, name);
 	if (idx >= 0)
 		return d->tracks[idx];
 
-	idx = create_track(d, name);
-	if (idx < 0)
-		return NULL;
-
+	idx = create_track(d, name, type);
 	t = d->tracks[idx];
 
 #ifndef SYNC_PLAYER

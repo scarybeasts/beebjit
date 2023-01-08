@@ -74,7 +74,7 @@ static int rocket_sync_is_playing(void* data)
   return p_rocket->audio_is_playing;
 }
 
-static void rocket_sync_write_key(void *data, FILE *fp, char type, int row, float value)
+static void rocket_sync_write_key(void *data, FILE *fp, char type, int row, key_value value)
 {
   struct rocket_struct* p_rocket = (struct rocket_struct*)data;
   /* Output in full fat format and encode via separate script.
@@ -86,7 +86,7 @@ static void rocket_sync_write_key(void *data, FILE *fp, char type, int row, floa
   */
   uint32_t vsync = row * p_rocket->vpr;
   fwrite(&vsync, sizeof(uint32_t), 1, fp);  /* row */
-  fwrite(&value, sizeof(float), 1, fp);     /* value */
+  fwrite(&value.val, sizeof(float), 1, fp);     /* value */
   fwrite(&type, sizeof(char), 1, fp);       /* type */
 }
 
@@ -157,7 +157,7 @@ rocket_create(struct bbc_struct* p_bbc,
   util_file_seek(p_track_list, 0);
   int i = 0;
   while(fscanf((FILE*)p_track_list, "%s", track_name) == 1) {
-    p_rocket->s_tracks[i++] = sync_get_track(p_rocket->device, track_name);
+    p_rocket->s_tracks[i++] = sync_get_track(p_rocket->device, track_name, TRACK_FLOAT);  // TEMP!
   }
   util_file_close(p_track_list);
   assert(i == num_tracks);
