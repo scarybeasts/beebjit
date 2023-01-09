@@ -20,7 +20,7 @@ bbc_test_power_on_reset(struct bbc_struct* p_bbc) {
   test_expect_u32(0, state_6502_has_irq_high(p_state_6502));
   test_expect_u32(0, state_6502_has_nmi_high(p_state_6502));
   /* Enable CA1 in IER. */
-  via_write_raw(p_system_via, 0xE, 0x82);
+  via_write(p_system_via, 0xE, 0x82);
   via_set_CA1(p_system_via, 1);
   test_expect_u32(0, state_6502_has_irq_high(p_state_6502));
   via_set_CA1(p_system_via, 0);

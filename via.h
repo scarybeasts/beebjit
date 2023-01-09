@@ -34,9 +34,6 @@ void via_set_CB2_changed_callback(struct via_struct* p_via,
                                   void (*p_CB2_changed_callback)
                                       (void* p, int level, int output),
                                   void* p_CB2_changed_object);
-void via_set_timing_advancer(struct via_struct* p_via,
-                             void (*p_timing_advancer)(void* p, uint64_t ticks),
-                             void* p_timing_advancer_object);
 
 void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
 
@@ -64,7 +61,6 @@ void via_set_peripheral_b(struct via_struct* p_via, uint8_t val);
  * the read are minimized.
  */
 uint8_t via_read_no_side_effects(struct via_struct* p_via, uint8_t reg);
-void via_write_raw(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
 void via_get_registers(struct via_struct* p_via,
                        uint8_t* p_ORA,

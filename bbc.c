@@ -192,7 +192,6 @@ struct bbc_struct {
   uint64_t last_hw_reg_hits;
   uint64_t last_c1;
   uint64_t last_c2;
-  uint32_t advance_cycles_expected;
 
   uint64_t num_hw_reg_hits;
   int log_speed;
@@ -270,15 +269,12 @@ bbc_is_1MHz_address(struct bbc_struct* p_bbc, uint16_t addr) {
 static void
 bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
                                     uint16_t addr,
+                                    uint64_t cycles,
                                     int do_last_tick_callback) {
   int is_unaligned;
-  int do_ticking;
   uint32_t cycles_left;
-  uint64_t curr_cycles;
 
   int is_1MHz = bbc_is_1MHz_address(p_bbc, addr);
-
-  p_bbc->advance_cycles_expected = 0;
 
   if (!is_1MHz) {
     int is_video_ula = 0;
@@ -310,28 +306,16 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
     return;
   }
 
-  /* It is 1MHz. Last tick will be in 1 or two ticks depending on alignment. */
-  curr_cycles = state_6502_get_cycles(p_bbc->p_state_6502);
-  is_unaligned = (curr_cycles & 1);
-  cycles_left = (is_unaligned + 2);
-
   /* For 1MHz, the specific peripheral callback can opt to take on the timing
    * ticking itself. The VIAs do this.
    */
-  do_ticking = 1;
-  switch (addr & ~0x1F) {
-  case k_addr_sysvia:
-  case k_addr_uservia:
-    do_ticking = 0;
-    break;
-  default:
-    break;
-  }
-
-  if (!do_ticking) {
-    p_bbc->advance_cycles_expected = cycles_left;
+  if ((addr >= k_addr_sysvia) && (addr < k_addr_floppy)) {
     return;
   }
+
+  /* It is 1MHz. Last tick will be in 1 or two ticks depending on alignment. */
+  is_unaligned = (cycles & 1);
+  cycles_left = (is_unaligned + 2);
 
   /* For most peripherals, we tick to the end of the stretched cycle and then do   * the read or write.
    * It's worth noting that this behavior is required for CRTC. If we fail to
@@ -344,21 +328,6 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
     (void) timing_advance_time_delta(p_bbc->p_timing, 1);
   } else {
     (void) timing_advance_time_delta(p_bbc->p_timing, cycles_left);
-  }
-}
-
-static void
-bbc_timing_advancer(void* p, uint64_t cycles) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-
-  assert(cycles <= p_bbc->advance_cycles_expected);
-
-  (void) timing_advance_time_delta(p_bbc->p_timing, cycles);
-  p_bbc->advance_cycles_expected -= cycles;
-
-  if (p_bbc->advance_cycles_expected == 1) {
-    p_bbc->memory_access.memory_client_last_tick_callback(
-        p_bbc->memory_access.p_last_tick_callback_obj);
   }
 }
 
@@ -422,10 +391,14 @@ bbc_read_callback(void* p,
                   uint16_t addr,
                   uint16_t pc,
                   int do_last_tick_callback) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   uint8_t ret;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
 
-  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+  bbc_do_pre_read_write_tick_handling(p_bbc,
+                                      addr,
+                                      cycles,
+                                      do_last_tick_callback);
 
   if (p_bbc->is_master && (addr < k_addr_fred)) {
     return bbc_do_master_ram_read(p_bbc, addr, pc);
@@ -518,7 +491,13 @@ bbc_read_callback(void* p,
   case (k_addr_sysvia + 20):
   case (k_addr_sysvia + 24):
   case (k_addr_sysvia + 28):
+    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    if (do_last_tick_callback) {
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    }
     ret = via_read(p_bbc->p_system_via, (addr & 0xf));
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     break;
   case (k_addr_uservia + 0):
   case (k_addr_uservia + 4):
@@ -528,7 +507,13 @@ bbc_read_callback(void* p,
   case (k_addr_uservia + 20):
   case (k_addr_uservia + 24):
   case (k_addr_uservia + 28):
+    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    if (do_last_tick_callback) {
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    }
     ret = via_read(p_bbc->p_user_via, (addr & 0xf));
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     break;
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
@@ -617,8 +602,6 @@ bbc_read_callback(void* p,
     }
     break;
   }
-
-  assert(p_bbc->advance_cycles_expected == 0);
 
   return ret;
 }
@@ -922,8 +905,12 @@ bbc_write_callback(void* p,
                    int do_last_tick_callback) {
   int ret = 0;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
 
-  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+  bbc_do_pre_read_write_tick_handling(p_bbc,
+                                      addr,
+                                      cycles,
+                                      do_last_tick_callback);
 
   if (p_bbc->is_master && (addr < k_addr_fred)) {
     bbc_do_master_ram_write(p_bbc, addr, val, pc);
@@ -1012,7 +999,13 @@ bbc_write_callback(void* p,
   case (k_addr_sysvia + 20):
   case (k_addr_sysvia + 24):
   case (k_addr_sysvia + 28):
+    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    if (do_last_tick_callback) {
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    }
     via_write(p_bbc->p_system_via, (addr & 0xf), val);
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     break;
   case (k_addr_uservia + 0):
   case (k_addr_uservia + 4):
@@ -1022,7 +1015,13 @@ bbc_write_callback(void* p,
   case (k_addr_uservia + 20):
   case (k_addr_uservia + 24):
   case (k_addr_uservia + 28):
+    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    if (do_last_tick_callback) {
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    }
     via_write(p_bbc->p_user_via, (addr & 0xf), val);
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     break;
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
@@ -1130,7 +1129,6 @@ bbc_write_callback(void* p,
     break;
   }
 
-  assert(p_bbc->advance_cycles_expected == 0);
   return ret;
 }
 
@@ -1599,12 +1597,10 @@ bbc_create(int mode,
                                    externally_clocked_via,
                                    p_timing,
                                    p_bbc);
-  via_set_timing_advancer(p_bbc->p_system_via, bbc_timing_advancer, p_bbc);
   p_bbc->p_user_via = via_create(k_via_user,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
-  via_set_timing_advancer(p_bbc->p_user_via, bbc_timing_advancer, p_bbc);
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,

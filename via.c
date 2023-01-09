@@ -52,8 +52,6 @@ struct via_struct {
   void* p_CA2_changed_object;
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
-  void (*p_timing_advancer)(void* p, uint64_t ticks);
-  void* p_timing_advancer_object;
 
   uint8_t IRA;
   uint8_t IRB;
@@ -396,14 +394,6 @@ via_set_CB2_changed_callback(struct via_struct* p_via,
   p_via->p_CB2_changed_object = p_CB2_changed_object;
 }
 
-void
-via_set_timing_advancer(struct via_struct* p_via,
-                        void (*p_timing_advancer)(void* p, uint64_t ticks),
-                        void* p_timing_advancer_object) {
-  p_via->p_timing_advancer = p_timing_advancer;
-  p_via->p_timing_advancer_object = p_timing_advancer_object;
-}
-
 static void
 via_time_advance(struct via_struct* p_via, uint64_t ticks) {
   int32_t t1c;
@@ -572,11 +562,6 @@ via_update_port_b(struct via_struct* p_via) {
 }
 
 static void
-via_advance_ticks(struct via_struct* p_via, uint64_t ticks) {
-  p_via->p_timing_advancer(p_via->p_timing_advancer_object, ticks);
-}
-
-static void
 via_load_T1(struct via_struct* p_via) {
   int32_t timer_val = p_via->T1L;
   /* Increment the value because it must take effect in 1 tick. */
@@ -606,19 +591,6 @@ via_read_internal(struct via_struct* p_via,
   int32_t t1_val;
   int32_t t2_val;
   uint8_t ret;
-
-  uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-
-  /* Advance to the VIA mid-cycle. May update t1/t2_fired.
-   *
-   * EMU NOTE: do this first before processing the read. Interrupts fire at
-   * the mid-cycle and the read needs any results from that to be correct.
-   * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
-   * reflects the just-hit interrupt on a real BBC.
-   */
-  if (!do_avoid_side_effects) {
-    via_advance_ticks(p_via, (ticks + 1));
-  }
 
   switch (reg) {
   case k_via_ORB:
@@ -735,10 +707,6 @@ via_read_internal(struct via_struct* p_via,
     break;
   }
 
-  if (!do_avoid_side_effects) {
-    via_advance_ticks(p_via, 1);
-  }
-
   return ret;
 }
 
@@ -753,25 +721,10 @@ via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
 }
 
 void
-via_write_internal(struct via_struct* p_via,
-                   uint8_t reg,
-                   uint8_t val,
-                   int is_raw) {
+via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
   int32_t timer_val;
   uint8_t new_IFR;
-
-  uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-  struct timing_struct* p_timing = p_via->p_timing;
-
-  /* TODO: the way things have worked out, it looks like we'll have less
-   * complexity if we apply the write right away and then fix up. There will
-   * likely be less fixing up that way around.
-   */
-  /* Advance to the VIA mid-cycle. May update t1/t2_fired. */
-  if (!is_raw) {
-    via_advance_ticks(p_via, (ticks + 1));
-  }
 
   switch (reg) {
   case k_via_ORB:
@@ -828,7 +781,7 @@ via_write_internal(struct via_struct* p_via,
     }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     via_load_T1(p_via);
-    timing_set_firing(p_timing, p_via->t1_timer_id, 1);
+    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
     /* EMU TODO: does this behave differently if t1_firing as well? */
     p_via->t1_pb7 = 0;
     break;
@@ -868,7 +821,7 @@ via_write_internal(struct via_struct* p_via,
       timer_val++;
     }
     via_set_t2c(p_via, timer_val);
-    timing_set_firing(p_timing, p_via->t2_timer_id, 1);
+    timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
     break;
   case k_via_SR:
     p_via->SR = val;
@@ -889,26 +842,26 @@ via_write_internal(struct via_struct* p_via,
      * See: tests.ssd:VIA.AC2
      */
     if (via_t1_just_fired(p_via) && (!(val & 0x40))) {
-      timing_set_firing(p_timing, p_via->t1_timer_id, 0);
+      timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
     }
 
     if (!p_via->externally_clocked) {
       t2_timer_id = p_via->t2_timer_id;
       if (val & 0x20) {
         /* Stop T2 if that bit is set. */
-        if (timing_timer_is_running(p_timing, t2_timer_id)) {
+        if (timing_timer_is_running(p_via->p_timing, t2_timer_id)) {
           int32_t t2_val = via_get_t2c(p_via);
           /* The value freezes after ticking one more time. */
           via_set_t2c(p_via, (t2_val - 1));
-          (void) timing_stop_timer(p_timing, t2_timer_id);
+          (void) timing_stop_timer(p_via->p_timing, t2_timer_id);
         }
       } else {
         /* Otherwise start it. */
-        if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
+        if (!(timing_timer_is_running(p_via->p_timing, t2_timer_id))) {
           int32_t t2_val = via_get_t2c(p_via);
           /* The value starts ticking next cycle. */
           via_set_t2c(p_via, (t2_val + 1));
-          (void) timing_start_timer(p_timing, t2_timer_id);
+          (void) timing_start_timer(p_via->p_timing, t2_timer_id);
         }
       }
     }
@@ -953,20 +906,6 @@ via_write_internal(struct via_struct* p_via,
     assert(0);
     break;
   }
-
-  if (!is_raw) {
-    via_advance_ticks(p_via, 1);
-  }
-}
-
-void
-via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
-  return via_write_internal(p_via, reg, val, 0);
-}
-
-void
-via_write_raw(struct via_struct* p_via, uint8_t reg, uint8_t val) {
-  return via_write_internal(p_via, reg, val, 1);
 }
 
 void

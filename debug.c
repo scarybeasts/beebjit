@@ -1458,7 +1458,7 @@ static void
 debug_write_variable_sysvia_r(void* p, uint32_t index, int64_t value) {
   if (index < k_via_num_mapped_registers) {
     struct debug_struct* p_debug = (struct debug_struct*) p;
-    via_write_raw(p_debug->p_system_via, index, (uint8_t) value);
+    via_write(p_debug->p_system_via, index, (uint8_t) value);
   }
 }
 
@@ -1466,7 +1466,7 @@ static void
 debug_write_variable_uservia_r(void* p, uint32_t index, int64_t value) {
   if (index < k_via_num_mapped_registers) {
     struct debug_struct* p_debug = (struct debug_struct*) p;
-    via_write_raw(p_debug->p_user_via, index, (uint8_t) value);
+    via_write(p_debug->p_user_via, index, (uint8_t) value);
   }
 }
 
