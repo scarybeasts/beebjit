@@ -271,13 +271,11 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
                                     uint16_t addr,
                                     uint64_t cycles,
                                     int do_last_tick_callback) {
-  int is_unaligned;
-  uint32_t cycles_left;
+  uint64_t alignment;
 
   int is_1MHz = bbc_is_1MHz_address(p_bbc, addr);
 
   if (!is_1MHz) {
-    int is_video_ula = 0;
     if (do_last_tick_callback) {
       /* If it's not 1MHz, this is the last tick. */
       p_bbc->memory_access.memory_client_last_tick_callback(
@@ -286,27 +284,17 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
     /* Currently, all 2MHz peripherals are handled as tick then access, except
      * the video ULA.
      */
-    switch (addr & ~0x03) {
-    case k_addr_video_ula:
-      is_video_ula = 1;
-      break;
-    case (k_addr_video_ula + 4):
-    case (k_addr_video_ula + 8):
-    case (k_addr_video_ula + 12):
-      if (!p_bbc->is_master) {
-        is_video_ula = 1;
+    if ((addr & ~0x000F) == k_addr_video_ula) {
+      if (!p_bbc->is_master || (addr < (k_addr_video_ula + 4))) {
+        /* Access then tick. */
+        return;
       }
-      break;
-    default:
-      break;
     }
-    if (!is_video_ula) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     return;
   }
 
-  /* For 1MHz, the specific peripheral callback can opt to take on the timing
+  /* For 1MHz, the specific peripheral handling can opt to take on the timing
    * ticking itself. The VIAs do this.
    */
   if ((addr >= k_addr_sysvia) && (addr < k_addr_floppy)) {
@@ -314,20 +302,19 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
   }
 
   /* It is 1MHz. Last tick will be in 1 or two ticks depending on alignment. */
-  is_unaligned = (cycles & 1);
-  cycles_left = (is_unaligned + 2);
+  alignment = (cycles & 1);
 
   /* For most peripherals, we tick to the end of the stretched cycle and then do   * the read or write.
    * It's worth noting that this behavior is required for CRTC. If we fail to
    * tick to the end of the stretched cycle, the writes take effect too soon.
    */
   if (do_last_tick_callback) {
-    (void) timing_advance_time_delta(p_bbc->p_timing, (cycles_left - 1));
+    (void) timing_advance_time_delta(p_bbc->p_timing, (alignment + 1));
     p_bbc->memory_access.memory_client_last_tick_callback(
         p_bbc->memory_access.p_last_tick_callback_obj);
     (void) timing_advance_time_delta(p_bbc->p_timing, 1);
   } else {
-    (void) timing_advance_time_delta(p_bbc->p_timing, cycles_left);
+    (void) timing_advance_time_delta(p_bbc->p_timing, (alignment + 2));
   }
 }
 
