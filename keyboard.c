@@ -6,6 +6,7 @@
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
+#include "version.h"
 #include "via.h"
 
 #include <assert.h>
@@ -26,6 +27,7 @@ enum {
 
 enum {
   k_capture_header_size = 32,
+  k_capture_version_offset = 16,
 };
 
 struct keyboard_state {
@@ -770,6 +772,9 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
 
   (void) memset(buf, '\0', sizeof(buf));
   (void) memcpy(buf, k_capture_header, strlen(k_capture_header));
+  (void) memcpy((buf + k_capture_version_offset),
+                BEEBJIT_VERSION,
+                strlen(BEEBJIT_VERSION));
   util_file_write(p_keyboard->p_capture_file, buf, sizeof(buf));
 }
 
