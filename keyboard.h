@@ -60,6 +60,7 @@ void keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                     const char* p_name);
 void keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                                    const char* p_name);
+const char* keyboard_get_replay_version(struct keyboard_struct* p_keyboard);
 void keyboard_set_links(struct keyboard_struct* p_keyboard, uint8_t bits);
 
 int keyboard_is_capturing(struct keyboard_struct* p_keyboard);

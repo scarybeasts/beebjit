@@ -618,7 +618,14 @@ beebjit_main(void) {
     keyboard_set_capture_file_name(p_keyboard, capture_name);
   }
   if (replay_name) {
+    const char* p_version;
     keyboard_set_replay_file_name(p_keyboard, replay_name);
+    p_version = keyboard_get_replay_version(p_keyboard);
+    if (p_version[0] == '\0') {
+      /* Pre-0.9.9; activate compatibility quirks. */
+      log_do_log(k_log_misc, k_log_info, "replay: compatability for pre-0.9.9");
+      bbc_set_compat_old_1MHz_cycles(p_bbc);
+    }
   }
   if (keyboard_links != -1) {
     keyboard_set_links(p_keyboard, keyboard_links);

@@ -28,6 +28,7 @@ enum {
 enum {
   k_capture_header_size = 32,
   k_capture_version_offset = 16,
+  k_capture_version_len = 8,
 };
 
 struct keyboard_state {
@@ -63,6 +64,7 @@ struct keyboard_struct {
   uint8_t replay_next_num_keys;
   uint8_t replay_next_keys[k_keyboard_queue_size];
   uint8_t replay_next_isdown[k_keyboard_queue_size];
+  char replay_version[k_capture_version_len];
 
   struct keyboard_state* p_virtual_keyboard;
   struct keyboard_state* p_physical_keyboard;
@@ -795,11 +797,20 @@ keyboard_start_file_replay(struct keyboard_struct* p_keyboard,
   if (memcmp(buf, k_capture_header, strlen(k_capture_header))) {
     util_bail("capture file has bad header");
   }
+  (void) memcpy(&p_keyboard->replay_version[0],
+                &buf[k_capture_version_offset],
+                k_capture_version_len);
+  p_keyboard->replay_version[k_capture_version_len - 1] = '\0';
 
   (void) timing_start_timer_with_value(p_keyboard->p_timing,
                                        p_keyboard->replay_timer_id,
                                        0);
   keyboard_read_replay_frame(p_keyboard);
+}
+
+const char*
+keyboard_get_replay_version(struct keyboard_struct* p_keyboard) {
+  return &p_keyboard->replay_version[0];
 }
 
 void

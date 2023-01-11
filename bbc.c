@@ -127,6 +127,7 @@ struct bbc_struct {
   int autoboot_flag;
   int do_video_memory_sync;
   struct bbc_options options;
+  int is_compat_old_1MHz_cycles;
 
   /* Machine state. */
   struct state_6502* p_state_6502;
@@ -192,6 +193,7 @@ struct bbc_struct {
   uint64_t last_hw_reg_hits;
   uint64_t last_c1;
   uint64_t last_c2;
+  uint64_t cycle_count_baseline;
 
   uint64_t num_hw_reg_hits;
   int log_speed;
@@ -379,8 +381,15 @@ bbc_read_callback(void* p,
                   uint16_t pc,
                   int do_last_tick_callback) {
   uint8_t ret;
+  uint64_t cycles;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  struct timing_struct* p_timing = p_bbc->p_timing;
+
+  if (p_bbc->is_compat_old_1MHz_cycles) {
+    cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  } else {
+    cycles = timing_get_total_timer_ticks(p_timing);
+  }
 
   bbc_do_pre_read_write_tick_handling(p_bbc,
                                       addr,
@@ -436,7 +445,7 @@ bbc_read_callback(void* p,
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
      * Break out to default 0xFE return.
      */
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    (void) timing_advance_time_delta(p_timing, 1);
     break;
   case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
   case (k_addr_master_floppy + 4):
@@ -448,12 +457,12 @@ bbc_read_callback(void* p,
       }
       ret = wd_fdc_read(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7));
     } else {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+      (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_video_ula + 12):
     if (!p_bbc->is_master) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+      (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_rom_select + 0):
@@ -478,13 +487,13 @@ bbc_read_callback(void* p,
   case (k_addr_sysvia + 20):
   case (k_addr_sysvia + 24):
   case (k_addr_sysvia + 28):
-    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    (void) timing_advance_time_delta(p_timing, ((cycles & 1) + 1));
     if (do_last_tick_callback) {
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     }
     ret = via_read(p_bbc->p_system_via, (addr & 0xf));
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    (void) timing_advance_time_delta(p_timing, 1);
     break;
   case (k_addr_uservia + 0):
   case (k_addr_uservia + 4):
@@ -494,13 +503,13 @@ bbc_read_callback(void* p,
   case (k_addr_uservia + 20):
   case (k_addr_uservia + 24):
   case (k_addr_uservia + 28):
-    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    (void) timing_advance_time_delta(p_timing, ((cycles & 1) + 1));
     if (do_last_tick_callback) {
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     }
     ret = via_read(p_bbc->p_user_via, (addr & 0xf));
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    (void) timing_advance_time_delta(p_timing, 1);
     break;
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
@@ -556,7 +565,8 @@ bbc_read_callback(void* p,
       switch (addr) {
       case (k_addr_tube + 1):
         /* &FEE1: read low byte of cycles count. */
-        ret = (state_6502_get_cycles(p_bbc->p_state_6502) & 0xFF);
+        ret = (timing_get_total_timer_ticks(p_timing) -
+               p_bbc->cycle_count_baseline);
       default:
         break;
       }
@@ -890,9 +900,16 @@ bbc_write_callback(void* p,
                    uint8_t val,
                    uint16_t pc,
                    int do_last_tick_callback) {
+  uint64_t cycles;
   int ret = 0;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  struct timing_struct* p_timing = p_bbc->p_timing;
+
+  if (p_bbc->is_compat_old_1MHz_cycles) {
+    cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  } else {
+    cycles = timing_get_total_timer_ticks(p_timing);
+  }
 
   bbc_do_pre_read_write_tick_handling(p_bbc,
                                       addr,
@@ -942,7 +959,7 @@ bbc_write_callback(void* p,
     {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+      (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
@@ -952,14 +969,14 @@ bbc_write_callback(void* p,
     } else {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+      (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_video_ula + 12):
     if (!p_bbc->is_master) {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+      (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_rom_select + 0):
@@ -986,13 +1003,13 @@ bbc_write_callback(void* p,
   case (k_addr_sysvia + 20):
   case (k_addr_sysvia + 24):
   case (k_addr_sysvia + 28):
-    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    (void) timing_advance_time_delta(p_timing, ((cycles & 1) + 1));
     if (do_last_tick_callback) {
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     }
     via_write(p_bbc->p_system_via, (addr & 0xf), val);
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    (void) timing_advance_time_delta(p_timing, 1);
     break;
   case (k_addr_uservia + 0):
   case (k_addr_uservia + 4):
@@ -1002,13 +1019,13 @@ bbc_write_callback(void* p,
   case (k_addr_uservia + 20):
   case (k_addr_uservia + 24):
   case (k_addr_uservia + 28):
-    (void) timing_advance_time_delta(p_bbc->p_timing, ((cycles & 1) + 1));
+    (void) timing_advance_time_delta(p_timing, ((cycles & 1) + 1));
     if (do_last_tick_callback) {
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     }
     via_write(p_bbc->p_user_via, (addr & 0xf), val);
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    (void) timing_advance_time_delta(p_timing, 1);
     break;
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
@@ -1072,7 +1089,7 @@ bbc_write_callback(void* p,
         break;
       case (k_addr_tube + 1):
         /* &FEE1: reset cycles count. */
-        state_6502_set_cycles(p_bbc->p_state_6502, 0);
+        p_bbc->cycle_count_baseline = timing_get_total_timer_ticks(p_timing);
         break;
       case (k_addr_tube + 2):
         /* &FEE2: exit. */
@@ -1264,6 +1281,11 @@ bbc_get_fast_flag(struct bbc_struct* p_bbc) {
 void
 bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast) {
   bbc_set_fast_mode_callback((void*) p_bbc, is_fast);
+}
+
+void
+bbc_set_compat_old_1MHz_cycles(struct bbc_struct* p_bbc) {
+  p_bbc->is_compat_old_1MHz_cycles = 1;
 }
 
 static void

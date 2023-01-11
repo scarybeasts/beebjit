@@ -114,14 +114,16 @@ main(int argc, const char* argv[]) {
   emit_BEQ(p_buf, 0);             /* Branch, taken, 3 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 11);
-  emit_JMP(p_buf, k_abs, 0xC140);
+  emit_JMP(p_buf, k_abs, 0xC130);
 
   /* Check simple instruction timings that hit 1Mhz peripherals. */
-  set_new_index(p_buf, 0x0140);
+  set_new_index(p_buf, 0x0130);
+  emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 14);
+  emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
   emit_CYCLES_RESET(p_buf);       /* Cycles == 0 after this. */
   emit_LDA(p_buf, k_zpg, 0x00);   /* Cycles == 3 after this opcode. */
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
@@ -131,6 +133,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE20); /* Read Video ULA, 4 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 12);
+  emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE00); /* Read CRTC, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);

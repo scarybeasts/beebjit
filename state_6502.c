@@ -55,6 +55,10 @@ state_6502_reset(struct state_6502* p_state_6502) {
   /* A 6502 takes 8 cycles to reset. First instruction, the opcode at the
    * reset vector, commences thereafter.
    */
+  /* NOTE: this isn't strictly correct to jump straight to 8 cycles, as it
+   * does not advance time. There should probably be an actual RESET opcode
+   * in the interpreter that ticks out these 8 cycles correctly.
+   */
   state_6502_set_cycles(p_state_6502, 8);
 
   init_pc = (p_mem_read[k_6502_vector_reset] |

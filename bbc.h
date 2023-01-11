@@ -131,6 +131,8 @@ int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_fast_flag(struct bbc_struct* p_bbc);
 void bbc_set_fast_flag(struct bbc_struct* p_bbc, int is_fast);
 
+void bbc_set_compat_old_1MHz_cycles(struct bbc_struct* p_bbc);
+
 void bbc_set_channel_handles(struct bbc_struct* p_bbc,
                              intptr_t handle_channel_read_bbc,
                              intptr_t handle_channel_write_bbc,
