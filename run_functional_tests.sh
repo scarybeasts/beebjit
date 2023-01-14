@@ -59,4 +59,11 @@ echo 'Checking RVI rendering.'
     -opt video:always-render \
     -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x7c91a13d)||bail';q"
 
+# This checks a replay of a 100% Nightworld run.
+# It breaks at the time the game is writing the "G" of "GAME END".
+./beebjit -0 test/games/Disc012-Nightworld.ssd \
+    -replay test/caps/nw16.cap \
+    -fast -accurate -mode jit \
+    -commands "breakat 2110319378;c;eval '(pc==0xCFB7)||bail';eval '(a==0xE8)||bail';q"
+
 echo 'Functional tests OK.'

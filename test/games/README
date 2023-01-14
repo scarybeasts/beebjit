@@ -1,4 +1,9 @@
 These discs are interesting in some way for emulator behavior testing.
+Copyrights remain with their respective authors.
+
+
+- Disc012-Nightworld.ssd
+Not a difficult emulation case, but used to test replays.
 
 - Disc103-OddJobD.ssd
 Seems to require DFS-1.2 to correctly load.
