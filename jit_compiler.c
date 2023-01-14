@@ -910,6 +910,9 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
 
   switch (opmode) {
   case k_imm:
+    if (optype == k_brk) {
+      return;
+    }
     /* Examples: Thrust, Stryker's Run. */
     p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_value_set);
     assert(p_uop != NULL);

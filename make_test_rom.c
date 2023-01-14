@@ -2525,8 +2525,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE440);
 
-  /* End of test. */
+  /* Check a dynamic opcode for BRK. */
   set_new_index(p_buf, 0x2440);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x0100);
+  emit_STA(p_buf, k_abs, 0x0101);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x0102);
+  emit_LDX(p_buf, k_imm, 0x10);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x0100);
+  emit_JSR(p_buf, 0x0100);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -11);
+  emit_JMP(p_buf, k_abs, 0xE480);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2480);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
