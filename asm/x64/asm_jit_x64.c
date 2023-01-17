@@ -1726,6 +1726,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_y);
     ASM(check_page_crossing_adjust);
     break;
+  case k_opcode_collapse_loop: ASM_U32(load_PC); ASM(collapse_loop); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_dest_buf); break;

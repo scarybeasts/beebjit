@@ -1000,10 +1000,31 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE4D);
   /* That's too late for the VIA to have returned it. */
   emit_REQUIRE_EQ(p_buf, 0x00);
+  /* R7 to never firing. */
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_STA(p_buf, k_abs, 0xFE00);
+  emit_LDA(p_buf, k_imm, 0x3F);
+  emit_STA(p_buf, k_abs, 0xFE01);
   emit_JMP(p_buf, k_abs, 0xCDC0);
 
-  /* Exit sequence. */
+  /* Check the timing of a collapsed loop. */
   set_new_index(p_buf, 0x0DC0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);
+  emit_LDA(p_buf, k_imm, 0x50);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_CMP(p_buf, k_imm, 0x01);
+  emit_BNE(p_buf, -6);
+  emit_SEI(p_buf);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xDE);
+  emit_JMP(p_buf, k_abs, 0xCE00);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0E00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

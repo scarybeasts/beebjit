@@ -2540,8 +2540,23 @@ main(int argc, const char* argv[]) {
   emit_BNE(p_buf, -11);
   emit_JMP(p_buf, k_abs, 0xE480);
 
-  /* End of test. */
+  /* Check a loop collapse where the loop exits on the first iteration. */
   set_new_index(p_buf, 0x2480);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xE48A);
+  emit_LDA(p_buf, k_abs, 0x0200);
+  emit_CMP(p_buf, k_imm, 0x0F);
+  emit_BCC(p_buf, -7);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x10);
+  emit_JMP(p_buf, k_abs, 0xE4C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x24C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

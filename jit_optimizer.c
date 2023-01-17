@@ -1,6 +1,7 @@
 #include "jit_optimizer.h"
 
 #include "defs_6502.h"
+#include "jit_metadata.h"
 #include "jit_opcode.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_opcodes.h"
@@ -400,6 +401,151 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       asm_make_uop0(p_uop, load_uopcode_new);
     }
   }
+}
+
+static void
+jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
+                             struct jit_metadata* p_metadata) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_uop;
+  int32_t index;
+  uint32_t branch_fixup_cycles;
+  int32_t find_uop;
+  int32_t replace_uop;
+  uint16_t start_addr = p_opcodes->addr_6502;
+  int is_collapsible = 1;
+  int hit_branch = 0;
+  int32_t branch_optype = -1;
+  uint32_t loop_cycles = 0;
+  uint16_t addr_next = 0;
+
+  /* Until we add the opcode to ARM64. */
+  if (!asm_jit_supports_uopcode(k_opcode_collapse_loop)) {
+    return;
+  }
+
+  /* Example loops we collapse:
+   * 1) Citadel (also Exile @$1F60 / $1F93 depending on version)
+   * 4110: LDA $0120
+   * 4113: CMP #$04
+   * 4115: BCC $4110
+   * 2) Meteors (similar, but BEQ not BCC)
+   * 0E15: LDA $2F3C
+   * 0E18: CMP $2F3B
+   * 0E1B: BEQ $0E15
+   * 3) Thrust (also Frak @$0D03)
+   * 39E1: CMP $1A
+   * 39E3: BEQ $39E1
+   * 4) Camelot (like Thrust but with BNE)
+   * 32F4: LDA $6C
+   * 32F6: BNE $32F4
+   * 5) Palace of Magic (also Qwak, Castle Quest, same MOS routine)
+   * E9B9: CLI
+   * E9BA: SEI
+   * E9BB: CMP $0240
+   * E9BE: BEQ $E9B9
+   */
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint16_t target_addr;
+    uint8_t opmode;
+    uint8_t optype = p_opcode->optype_6502;
+    switch (optype) {
+    case k_lda:
+    case k_cmp:
+      opmode = p_opcode->opmode_6502;
+      if ((opmode != k_imm) && (opmode != k_zpg) && (opmode != k_abs)) {
+        is_collapsible = 0;
+      }
+      /* Register hits might change state, so don't collapse them. */
+      if (p_opcode->ends_block) {
+        is_collapsible = 0;
+      }
+      break;
+    case k_bcc:
+    case k_beq:
+    case k_bne:
+      addr_next = (p_opcode->addr_6502 + 2);
+      target_addr = (addr_next + (int8_t) p_opcode->operand_6502);
+      if (target_addr != start_addr) {
+        is_collapsible = 0;
+      }
+      branch_optype = optype;
+      hit_branch = 1;
+      break;
+    case k_cli:
+    case k_sei:
+      /* CLI is collapsible for a subtle reason. If IRQ is asserted and I flag
+       * is set, the CLI will notice and bounce out to the interpreteter when
+       * we run around the loop once. Subsequent iterations of the loop can
+       * ignore this possibility (and thus collapse) because IRQ won't be
+       * asserted unless some external event / timer fires.
+       */
+      break;
+    default:
+      is_collapsible = 0;
+      break;
+    }
+    loop_cycles += p_opcode->max_cycles;
+
+    if (!is_collapsible || hit_branch) {
+      break;
+    }
+  }
+
+  if (!is_collapsible || !hit_branch) {
+    return;
+  }
+
+  /* We've got a loop where state doesn't change after the first loop iteration.
+   * The loop will only exit with an external event, so we can collapse the
+   * loop.
+   */
+  branch_fixup_cycles = 0;
+  p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_add_cycles);
+  if (p_uop != NULL) {
+    branch_fixup_cycles = p_uop->value1;
+    jit_opcode_erase_uop(p_opcode, k_opcode_add_cycles);
+  }
+  find_uop = -1;
+  replace_uop = -1;
+  switch (branch_optype) {
+  case k_bcc:
+    find_uop = k_opcode_BCC;
+    replace_uop = k_opcode_BCS;
+    break;
+  case k_beq:
+    find_uop = k_opcode_BEQ;
+    replace_uop = k_opcode_BNE;
+    break;
+  case k_bne:
+    find_uop = k_opcode_BNE;
+    replace_uop = k_opcode_BEQ;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+  p_uop = jit_opcode_find_uop(p_opcode, &index, find_uop);
+  assert(p_uop != NULL);
+  p_uop->uopcode = replace_uop;
+  p_uop->value1 =
+      (intptr_t) jit_metadata_get_host_block_address(p_metadata, addr_next);
+  p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
+  asm_make_uop1(p_uop, k_opcode_collapse_loop, loop_cycles);
+  p_uop = jit_opcode_insert_uop(p_opcode, (index + 2));
+  asm_make_uop1(p_uop, k_opcode_interp, start_addr);
+  if (branch_fixup_cycles > 0) {
+    p_uop = jit_opcode_insert_uop(p_opcode, index);
+    asm_make_uop1(p_uop, k_opcode_add_cycles, branch_fixup_cycles);
+    p_uop = jit_opcode_insert_uop(p_opcode, (index + 2));
+    asm_make_uop1(p_uop, k_opcode_add_cycles, -branch_fixup_cycles);
+  }
+
+  p_opcode->ends_block = 1;
+  p_opcode += p_opcode->num_bytes_6502;
+  p_opcode->addr_6502 = -1;
 }
 
 static void
@@ -1019,7 +1165,8 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
 }
 
 void
-jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
+jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
+                                   struct jit_metadata* p_metadata) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
   jit_optimizer_merge_opcodes(p_opcodes);
 
@@ -1037,6 +1184,11 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
    * unrolled loops.
    */
   jit_optimizer_replace_uops(p_opcodes);
+
+  /* Pass 4: loop collapsing. Some simple delay loops can be collapsed into
+   * a constant sequence.
+   */
+  jit_optimizer_collapse_loops(p_opcodes, p_metadata);
 }
 
 void

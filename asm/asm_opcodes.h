@@ -33,6 +33,7 @@ enum {
   k_opcode_save_carry,
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
+  k_opcode_collapse_loop,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_begin = 0x200,

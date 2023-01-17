@@ -154,6 +154,9 @@ asm_jit_supports_uopcode(int32_t uopcode) {
      */
     return 0;
   }
+  if (uopcode == k_opcode_collapse_loop) {
+    return 0;
+  }
   return 1;
 }
 

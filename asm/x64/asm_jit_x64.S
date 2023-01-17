@@ -420,6 +420,23 @@ ASM_SYM(asm_jit_CHECK_PENDING_IRQ_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_collapse_loop)
+.globl ASM_SYM(asm_jit_collapse_loop_END)
+ASM_SYM(asm_jit_collapse_loop):
+  lahf
+  mov REG_SCRATCH2_32, REG_6502_A_32
+  xor REG_SCRATCH1_32, REG_SCRATCH1_32
+  mov REG_6502_A_64, REG_COUNTDOWN
+  div REG_6502_PC
+  mov REG_COUNTDOWN, REG_SCRATCH1
+  mov REG_6502_A_32, REG_SCRATCH2_32
+  sahf
+  movzx REG_6502_A_32, REG_6502_A
+
+ASM_SYM(asm_jit_collapse_loop_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_flags_nz_mem_ABS)
 .globl ASM_SYM(asm_jit_flags_nz_mem_ABS_END)
 ASM_SYM(asm_jit_flags_nz_mem_ABS):
@@ -502,6 +519,15 @@ ASM_SYM(asm_jit_load_overflow):
   bt REG_6502_OF_64, 0
 
 ASM_SYM(asm_jit_load_overflow_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_load_PC)
+.globl ASM_SYM(asm_jit_load_PC_END)
+ASM_SYM(asm_jit_load_PC):
+  mov REG_6502_PC_32, 0x7fffffff
+
+ASM_SYM(asm_jit_load_PC_END):
   ret
 
 
