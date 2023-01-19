@@ -1023,8 +1023,50 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xDE);
   emit_JMP(p_buf, k_abs, 0xCE00);
 
-  /* Exit sequence. */
+  /* Test timing of a self-modification at a post-branch countdown. */
   set_new_index(p_buf, 0x0E00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  /* INX; BEQ -3; LDX #$50; LDX #$60; RTS */
+  emit_LDA(p_buf, k_imm, 0xE8);
+  emit_STA(p_buf, k_abs, 0x2E00);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_STA(p_buf, k_abs, 0x2E01);
+  emit_LDA(p_buf, k_imm, 0xFD);
+  emit_STA(p_buf, k_abs, 0x2E02);
+  emit_LDA(p_buf, k_imm, 0xA2);
+  emit_STA(p_buf, k_abs, 0x2E03);
+  emit_LDA(p_buf, k_imm, 0x50);
+  emit_STA(p_buf, k_abs, 0x2E04);
+  emit_LDA(p_buf, k_imm, 0xA2);
+  emit_STA(p_buf, k_abs, 0x2E05);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x2E06);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x2E07);
+  /* Call in. */
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x2E00);
+  /* Modify and call in again. */
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x2E03);
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x2E00);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x61);
+  /* Also do the same timing test at the very block start. */
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x2E00);
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x2E00);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x14);
+  emit_JMP(p_buf, k_abs, 0xCE80);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0E80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

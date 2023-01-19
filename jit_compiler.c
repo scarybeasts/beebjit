@@ -75,6 +75,7 @@ struct jit_compiler {
   uint8_t addr_is_block_continuation[k_6502_addr_space_size];
 
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
+  uint8_t addr_has_countdown[k_6502_addr_space_size];
   int32_t addr_nz_fixup[k_6502_addr_space_size];
   int32_t addr_v_fixup[k_6502_addr_space_size];
   int32_t addr_c_fixup[k_6502_addr_space_size];
@@ -226,11 +227,7 @@ jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
   if ((p_target_details != NULL) &&
       (p_target_details->addr_6502 != -1) &&
       p_target_details->is_branch_landing_addr) {
-    if (p_target_details->p_host_address_prefix_end != NULL) {
-      p_ret = p_target_details->p_host_address_prefix_end;
-    } else {
-      p_compiler->has_unresolved_jumps = 1;
-    }
+    p_compiler->has_unresolved_jumps = 1;
   } else {
     p_ret = jit_metadata_get_host_block_address(p_compiler->p_jit_metadata,
                                                 addr_6502);
@@ -294,8 +291,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->num_bytes_6502 = (k_6502_addr_space_size - addr_6502);
   }
 
-  p_details->p_host_address_prefix_end = NULL;
-  p_details->p_host_address_start = NULL;
+  p_details->p_host_prefix_start = NULL;
+  p_details->p_host_opcode_start = NULL;
   p_details->cycles_run_start = -1;
 
   p_details->is_eliminated = 0;
@@ -1429,27 +1426,23 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       block_epilog_len += epilog_len;
 
       /* Keep a note of the host address of where the JIT code prefixes start,
-       * actual code starts, and all code ends.
-       * The actual code start will be set in the jit_ptrs array later,
-       * and is where any self-modification invalidation will write to. It is
-       * after any countdown opcodes.
-       * The prefix code start will be used as a branch target for branches
-       * within a block.
+       * and actual code starts.
+       * These will be used to set entries the jit_ptrs array later, and is
+       * where any self-modification invalidation will write to.
        */
       is_prefix_uop = ((i_uops == 0) && p_details->has_prefix_uop);
       is_postfix_uop = ((i_uops == (num_uops - 1)) &&
                         p_details->has_postfix_uop);
-      if (!is_prefix_uop && !is_postfix_uop) {
-        if (p_details->p_host_address_start == NULL) {
-          p_details->p_host_address_start = p_host_address;
-        }
+      if (is_prefix_uop && (p_details->p_host_prefix_start == NULL)) {
+        p_details->p_host_prefix_start = p_host_address;
+      }
+      if (!is_prefix_uop &&
+          !is_postfix_uop &&
+          (p_details->p_host_opcode_start == NULL)) {
+        p_details->p_host_opcode_start = p_host_address;
       }
 
       util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
-      if (is_prefix_uop) {
-        p_details->p_host_address_prefix_end =
-            (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
-      }
 
       opcode_len_asm += util_buffer_get_pos(p_single_uopcode_buf);
 
@@ -1480,13 +1473,14 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
   int32_t start_addr_6502 = p_compiler->start_addr_6502;
   uint32_t cycles = 0;
   uint32_t jit_ptr = 0;
+  int do_merge_next = 0;
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
        p_details += p_details->num_bytes_6502) {
     uint8_t i;
-    void* p_host_address_prefix_end = p_details->p_host_address_prefix_end;
-    void* p_host_address_start = p_details->p_host_address_start;
+    void* p_host_prefix_start = p_details->p_host_prefix_start;
+    void* p_host_opcode_start = p_details->p_host_opcode_start;
     uint32_t num_bytes_6502 = p_details->num_bytes_6502;
     int needs_bail_metadata = 0;
 
@@ -1496,15 +1490,18 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       cycles = p_details->cycles_run_start;
     }
 
-    /* Advance current jit pointer to the greater of end of any block prefix,
-     * or start of block body.
-     */
-    if (p_host_address_prefix_end != NULL) {
-      jit_ptr = (uint32_t) (uintptr_t) p_host_address_prefix_end;
+    if (p_host_prefix_start != NULL) {
+      jit_ptr = (uint32_t) (uintptr_t) p_host_prefix_start;
       needs_bail_metadata = 1;
-    }
-    if (p_host_address_start != NULL) {
-      jit_ptr = (uint32_t) (uintptr_t) p_host_address_start;
+      if (p_host_opcode_start == NULL) {
+        do_merge_next = 1;
+      }
+    } else if (p_host_opcode_start != NULL) {
+      if (do_merge_next) {
+        do_merge_next = 0;
+      } else {
+        jit_ptr = (uint32_t) (uintptr_t) p_host_opcode_start;
+      }
       needs_bail_metadata = 1;
     }
 
@@ -1526,6 +1523,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       p_compiler->addr_x_fixup[addr_6502] = -1;
       p_compiler->addr_y_fixup[addr_6502] = -1;
       p_compiler->addr_cycles_fixup[addr_6502] = -1;
+      p_compiler->addr_has_countdown[addr_6502] = 0;
 
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
@@ -1544,6 +1542,8 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
                                  ticks);
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
+        p_compiler->addr_has_countdown[addr_6502] =
+            (p_details->cycles_run_start != -1);
         p_compiler->addr_a_fixup[addr_6502] = p_details->reg_a;
         p_compiler->addr_x_fixup[addr_6502] = p_details->reg_x;
         p_compiler->addr_y_fixup[addr_6502] = p_details->reg_y;
@@ -1682,7 +1682,8 @@ int64_t
 jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          struct state_6502* p_state_6502,
                          int64_t countdown,
-                         uint64_t host_flags) {
+                         uint64_t host_flags,
+                         int is_invalidation) {
   uint16_t pc_6502 = p_state_6502->abi_state.reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   int32_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
@@ -1696,6 +1697,14 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
    * interpreter -- an invalid opcode, for example.
    */
   assert(cycles_fixup >= 0);
+
+  if (is_invalidation && p_compiler->addr_has_countdown[pc_6502]) {
+    /* We've invalidated a countdown. The countdown has not executed, so there
+     * is nothing to fix up.
+     */
+    return countdown;
+  }
+
   countdown += cycles_fixup;
 
   if (a_fixup != -1) {
@@ -1798,6 +1807,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     p_compiler->addr_is_block_continuation[i] = 0;
 
     p_compiler->addr_cycles_fixup[i] = -1;
+    p_compiler->addr_has_countdown[i] = 0;
     p_compiler->addr_nz_fixup[i] = -1;
     p_compiler->addr_v_fixup[i] = 0;
     p_compiler->addr_c_fixup[i] = 0;

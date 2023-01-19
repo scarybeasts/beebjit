@@ -33,8 +33,8 @@ struct jit_opcode_details {
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int ends_block;
-  void* p_host_address_prefix_end;
-  void* p_host_address_start;
+  void* p_host_prefix_start;
+  void* p_host_opcode_start;
   int32_t cycles_run_start;
   int32_t reg_a;
   int32_t reg_x;

@@ -34,6 +34,20 @@ jit_test_expect_code_invalidated(int expect, uint16_t code_addr) {
   test_expect_u32(expect, asm_jit_is_invalidated_code_at(p_host_address));
 }
 
+static uint8_t*
+jit_test_get_binary(struct jit_metadata* p_metadata, uint16_t addr_6502) {
+  uint8_t* p_binary = jit_metadata_get_host_jit_ptr(p_metadata, addr_6502);
+#if defined(__x86_64__)
+  /* Skip sub and jb. */
+  p_binary += 6;
+#elif defined(__aarch64__)
+  /* Skip sub and tbnz. */
+  p_binary += 8;
+#endif
+
+  return p_binary;
+}
+
 static void
 jit_test_init(struct bbc_struct* p_bbc) {
   struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
@@ -92,6 +106,8 @@ jit_test_simple_jit_metadata(void) {
   interp_testing_unexit(s_p_interp);
 
   p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA00);
+  /* The invalidation scope now includes the block countdown prefix. */
+  test_expect_eq((intptr_t) p_A00_host_block, (intptr_t) p_jit_ptr);
   test_expect_eq(0xA00,
                  jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
                                                        p_jit_ptr));
@@ -340,7 +356,11 @@ jit_test_dynamic_operand(void) {
   /* After the first run through, the LDA $0E01,X will have been self-modified
    * to LDA $0E02,X and currently status will be awaiting compilation.
    */
-  jit_test_expect_block_invalidated(0, 0xE00);
+  /* Block appears invalidated but that's the self-modification, so we check
+   * the address is still the start of a known block.
+   */
+  jit_test_expect_block_invalidated(1, 0xE00);
+  test_expect_u32(0xE00, jit_metadata_get_code_block(s_p_metadata, 0xE00));
   jit_test_expect_code_invalidated(1, 0xE00);
   jit_test_expect_code_invalidated(0, 0xE03);
   jit_test_expect_block_invalidated(1, 0xE01);
@@ -980,7 +1000,7 @@ jit_test_compile_binary(void) {
    * tests, an optimization could fail without us ever noticing.
    */
   struct util_buffer* p_buf;
-  void* p_binary;
+  uint8_t* p_binary;
   void* p_expect = NULL;
   size_t expect_len = 0;
 
@@ -995,7 +1015,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3000);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3000);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3f]
    * or     al,  0x07
@@ -1024,11 +1044,14 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3100);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3100);
 #if defined(__x86_64__)
   /* btr    r13d, 0x3
    * add    al,  0x1
    */
+  /* Uses the longer-form countdown check, so fix up p_binary. */
+  p_binary -= 6;
+  p_binary += 11;
   p_expect = "\x41\x0f\xba\xf5\x03" "\x04\x01";
   expect_len = 2;
 #elif defined(__aarch64__)
@@ -1051,7 +1074,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3200);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3200);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * shr    r14b, 1
@@ -1100,7 +1123,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3300);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3300);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x10]
    * mov    dh, BYTE PTR [rbp-0x0f]
@@ -1155,7 +1178,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3400);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3400);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x35]
    * mov    dh, BYTE PTR [rbp-0x34]
@@ -1213,7 +1236,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3500);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3500);
 #if defined(__x86_64__)
   /* movzx  edx,BYTE PTR [rbp+0x3481]
    * mov    dh,BYTE PTR [rbp+0x3482]
@@ -1254,7 +1277,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3600);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3600);
 #if defined(__x86_64__)
   /* shr    r14b, 1
    * rcl    BYTE PTR [rbp-0x4e], 1
@@ -1307,7 +1330,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3700);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3700);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * sub    al, BYTE PTR [rbp-0x40]
@@ -1315,6 +1338,9 @@ jit_test_compile_binary(void) {
    * cmc
    * adc    al,BYTE PTR [rbp-0x3e]
    */
+  /* Uses the longer-form countdown check, so fix up p_binary. */
+  p_binary -= 6;
+  p_binary += 11;
   p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x12"
              "\x2a\x45\xc0"
              "\x1a\x45\xc1"
@@ -1348,7 +1374,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3800);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3800);
 #if defined(__x86_64__)
   /* xor    eax, eax */
   p_expect = "\x31\xc0";
@@ -1372,7 +1398,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3900);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3900);
 #if defined(__x86_64__)
   /* mov    BYTE PTR [rbp+0x60], 0x0 */
   p_expect = "\xc6\x45\x60\x00";
@@ -1396,11 +1422,14 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3A00);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3A00);
 #if defined(__x86_64__)
   /* je     0x61d0180
    * lea    r15, [r15 - 2]
    */
+  /* Uses the longer-form countdown check, so fix up p_binary. */
+  p_binary -= 6;
+  p_binary += 11;
   p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x4d\x8d\x7f\xfe";
   expect_len = 10;
 #elif defined(__aarch64__)
@@ -1428,7 +1457,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3B00);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3B00);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3b]
    * cmp    al, 0x96
@@ -1436,7 +1465,7 @@ jit_test_compile_binary(void) {
    * jb     0x61d8380
    */
   p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
-             "\x0f\x82\x65\x03\x00\x00";
+             "\x0f\x82\x6a\x03\x00\x00";
   expect_len = 16;
 #elif defined(__aarch64__)
   /* ldrb  w0, [x27, #69]
@@ -1462,7 +1491,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_metadata_get_host_jit_ptr(s_p_metadata, 0x3C00);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3C00);
 #if defined(__x86_64__)
   /* add    bl, 2
    * inc    cl

@@ -182,7 +182,8 @@ jit_enter_interp(struct jit_struct* p_jit,
   countdown = jit_compiler_fixup_state(p_compiler,
                                        p_state_6502,
                                        countdown,
-                                       host_flags);
+                                       host_flags,
+                                       0);
 
   p_jit->counter_stay_in_interp = 0;
 
@@ -516,9 +517,14 @@ jit_compile(struct jit_struct* p_jit,
 
   addr_6502 = jit_metadata_get_6502_pc_from_host_pc(p_metadata, p_host_pc);
   code_block_6502 = jit_metadata_get_code_block(p_metadata, addr_6502);
-  if ((((uintptr_t) p_host_pc & (K_JIT_BYTES_PER_BYTE - 1)) != 0) &&
-      asm_jit_is_invalidated_code_at(p_host_pc)) {
-    is_invalidation = 1;
+  if (asm_jit_is_invalidated_code_at(p_host_pc)) {
+    if (((uintptr_t) p_host_pc & (K_JIT_BYTES_PER_BYTE - 1)) != 0) {
+      /* Middle of a code block. Must be an invalidation. */
+      is_invalidation = 1;
+    } else if (addr_6502 == code_block_6502) {
+      /* Very beginning of code block. Must be an invalidation. */
+      is_invalidation = 1;
+    }
   }
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
@@ -529,7 +535,8 @@ jit_compile(struct jit_struct* p_jit,
     countdown = jit_compiler_fixup_state(p_compiler,
                                          p_state_6502,
                                          countdown,
-                                         host_flags);
+                                         host_flags,
+                                         1);
   }
 
   if (p_jit->log_compile) {

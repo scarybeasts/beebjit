@@ -91,15 +91,15 @@ jit_metadata_is_jit_ptr_dynamic(struct jit_metadata* p_metadata,
 int
 jit_metadata_has_invalidated_code(struct jit_metadata* p_metadata,
                                   uint16_t addr_6502) {
-  void* p_host_ptr = jit_metadata_get_host_block_address(p_metadata, addr_6502);
   void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, addr_6502);
 
-  (void) p_host_ptr;
-  assert(p_jit_ptr != p_host_ptr);
-
   if (p_jit_ptr == p_metadata->p_jit_ptr_no_code) {
+    assert(p_metadata->code_blocks[addr_6502] == -1);
     return 0;
   }
+
+  assert(p_metadata->code_blocks[addr_6502] != -1);
+
   /* Need to explicitly handle dynamic opcodes. The expectation is that they
    * always show as self-modified. We can't rely on the JIT code bytes in memory
    * on ARM64, because of the way the invalidation write works.
@@ -107,8 +107,6 @@ jit_metadata_has_invalidated_code(struct jit_metadata* p_metadata,
   if (p_jit_ptr == p_metadata->p_jit_ptr_dynamic) {
     return 1;
   }
-
-  assert(p_metadata->code_blocks[addr_6502] != -1);
 
   return asm_jit_is_invalidated_code_at(p_jit_ptr);
 }

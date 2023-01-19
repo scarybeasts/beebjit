@@ -928,6 +928,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     int32_t imm_value = -1;
     struct asm_uop* p_load_uop = NULL;
     struct asm_uop* p_load_flags_uop = NULL;
+    struct asm_uop* p_countdown_uop = NULL;
     int is_self_modify_invalidated = p_opcode->self_modify_invalidated;
 
     if (p_opcode->ends_block) {
@@ -1045,6 +1046,10 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       case k_opcode_flags_nz_mem:
         p_load_flags_uop = p_uop;
         break;
+      case k_opcode_countdown:
+        assert(p_countdown_uop == NULL);
+        p_countdown_uop = p_uop;
+        break;
       default:
         if (p_uop->uopcode == k_opcode_SAX) {
           if (!p_uop->is_eliminated || p_uop->is_merged) {
@@ -1056,7 +1061,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       }
     }
 
-    /*if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {*/
+    if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {
       /* If the opcode immediately following a countdown check sets the NZ
        * flags, then we can safely use a faster countdown check that clobbers
        * the NZ flags.
@@ -1064,12 +1069,8 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
        * trigger until after the opcode immediately following the countdown
        * check.
        */
-      /* Disabled: buggy, hit by Exile.
-       * Optimization is worthwhile, and can likely be re-enabled but this
-       * will require some work.
-       * p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
-       */
-    /*}*/
+      p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
+    }
 
     /* This is subtle, but if we're in the middle of resolving self-modification
      * on a merged (or merged into) opcode, don't eliminate the merged opcode.
