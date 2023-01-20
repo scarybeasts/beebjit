@@ -16,6 +16,15 @@ JIT improvements
 - Re-add mode IDX address optimization (Galaforce?)
 - x64 and ARM64: page crossing check is ripe for optimization (Galaforce sprite
 loop)
+- BCD support in JIT. It gives accurate results but slowly because it uses the
+interpreter. No evidence yet of intense BCD usage in anything that needs to go
+fast.
+- JIT block timing code improvements. Currently, there's a non-trivial
+instruction sequence after every conditional branch in a JIT block. This
+sequence can be improved a lot. For example, there only needs to be a branch
+at the start of the block. Also, the timing subtractions do not need to be
+dependent on one another.
+- Replace div with mul?
 
 
 Fix later
@@ -24,20 +33,8 @@ Bugs and issues not serious enough to warrant fixing before the next release.
 
 - Update BCD for 65c12.
 - "back in time" support in the debugger via fast replay.
-- JIT block timing code improvements. Currently, there's a non-trivial
-instruction sequence after every conditional branch in a JIT block. This
-sequence can be improved a lot. For example, there only needs to be a branch
-at the start of the block. Also, the timing subtractions do not need to be
-dependent on one another.
 - Tape loading noises.
 - Disc loading noises.
-- BCD support in JIT. It gives accurate results but slowly because it uses the
-interpreter. No evidence yet of intense BCD usage in anything that needs to go
-fast.
-
-
-FSD investigations
-==================
 
 
 Peformance tuning
@@ -90,15 +87,6 @@ Backburner
 
 Backburner: ideas or bugs that aren't particularly important to fix.
 
-- JIT vectorization optimization. The BBC operates a byte at a time, including
-instances where its updating a multi-byte quantity, i.e. 4-byte numbers in
-BASIC.
-These code patterns are fairly apparent so it would be possible to optimize to
-single 4-byte operations on the host CPU.
-However, initial experimentation didn't reveal any obvious gains worth the
-complexity. The CLOCKSP Trig/Log test does a lot of rotating of 4-byte values
-and the improvement of doing that in one 4-byte operating was surprisingly
-low.
 - Save state / load state.
 - Mouse support.
 - Joystick support.
