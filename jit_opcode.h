@@ -48,7 +48,6 @@ struct jit_opcode_details {
   int is_eliminated;
   int is_dynamic_opcode;
   int is_dynamic_operand;
-  int is_branch_landing_addr;
   int is_post_branch_addr;
 };
 
