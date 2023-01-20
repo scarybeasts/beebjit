@@ -1528,7 +1528,12 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
    */
   jit_compiler_check_dynamics(p_compiler);
 
-  /* If the block didn't end with an explicit jump, put it in. */
+  /* If the block didn't end with an explicit jump, put it in.
+   * Ways this can happen:
+   * - Hit limit of opcodes per compile.
+   * - Compiled up against start of existing block.
+   * - Sub-instruction.
+   */
   jit_compiler_get_end(p_compiler, &p_details, &end_addr_6502);
   if (!p_details->ends_block) {
     struct asm_uop* p_uop;
