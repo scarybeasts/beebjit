@@ -3,6 +3,8 @@
 #include "defs_6502.h"
 #include "jit_metadata.h"
 #include "jit_opcode.h"
+#include "log.h"
+
 #include "asm/asm_jit.h"
 #include "asm/asm_opcodes.h"
 #include "asm/asm_util.h"
@@ -404,20 +406,20 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 }
 
 static void
-jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
-                             struct jit_metadata* p_metadata) {
+jit_optimizer_collapse_indefinite_loops(struct jit_opcode_details* p_opcodes,
+                                        struct jit_metadata* p_metadata) {
   struct jit_opcode_details* p_opcode;
   struct asm_uop* p_uop;
   int32_t index;
   uint32_t branch_fixup_cycles;
   int32_t find_uop;
   int32_t replace_uop;
-  uint16_t start_addr = p_opcodes->addr_6502;
   int is_collapsible = 1;
   int hit_branch = 0;
   int32_t branch_optype = -1;
   uint32_t loop_cycles = 0;
   uint16_t addr_next = 0;
+  uint16_t start_addr_6502 = p_opcodes->addr_6502;
 
   /* Until we add the opcode to ARM64. */
   if (!asm_jit_supports_uopcode(k_opcode_collapse_loop)) {
@@ -468,7 +470,7 @@ jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
     case k_bne:
       addr_next = (p_opcode->addr_6502 + 2);
       target_addr = (addr_next + (int8_t) p_opcode->operand_6502);
-      if (target_addr != start_addr) {
+      if (target_addr != start_addr_6502) {
         is_collapsible = 0;
       }
       branch_optype = optype;
@@ -497,6 +499,11 @@ jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
   if (!is_collapsible || !hit_branch) {
     return;
   }
+
+  log_do_log(k_log_jit,
+             k_log_info,
+             "collapsed indefine loop at $%.4X",
+             p_opcodes->addr_6502);
 
   /* We've got a loop where state doesn't change after the first loop iteration.
    * The loop will only exit with an external event, so we can collapse the
@@ -535,7 +542,7 @@ jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
   p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
   asm_make_uop1(p_uop, k_opcode_collapse_loop, loop_cycles);
   p_uop = jit_opcode_insert_uop(p_opcode, (index + 2));
-  asm_make_uop1(p_uop, k_opcode_interp, start_addr);
+  asm_make_uop1(p_uop, k_opcode_interp, start_addr_6502);
   if (branch_fixup_cycles > 0) {
     p_uop = jit_opcode_insert_uop(p_opcode, index);
     asm_make_uop1(p_uop, k_opcode_add_cycles, branch_fixup_cycles);
@@ -546,6 +553,170 @@ jit_optimizer_collapse_loops(struct jit_opcode_details* p_opcodes,
   p_opcode->ends_block = 1;
   p_opcode += p_opcode->num_bytes_6502;
   p_opcode->addr_6502 = -1;
+}
+
+static void
+jit_optimizer_collapse_delay_loops(struct jit_opcode_details* p_opcodes,
+                                   struct jit_metadata* p_metadata) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_uop;
+  int32_t uopcode;
+  uint16_t addr_next = 0;
+  int is_collapsible = 1;
+  int hit_branch = 0;
+  int hit_dex = 0;
+  int hit_dey = 0;
+  uint32_t loop_cycles = 0;
+  uint32_t branch_fixup_cycles = 0;
+  uint16_t start_addr_6502 = p_opcodes->addr_6502;
+
+  /* Until we add the opcode to ARM64. */
+  if (!asm_jit_supports_uopcode(k_opcode_dex_loop_calc_countdown)) {
+    return;
+  }
+
+  /* Example loops we collapse:
+   * 1) Galaforce
+   * 1207: LDY #$00
+   * 1209: DEY
+   * 120A: BNE $1209
+   * 2) Galaforce 2
+   * 2B17: LDX #$13
+   * 2B19: DEX
+   * 2B1A: BNE $2B19
+   * 3) Arcadians
+   * 507F: LDY #$00
+   * 5081: LDX #$06
+   * 5083: NOP
+   * 5084: DEY
+   * 5085: BNE $5083
+   * 4) Chuckie Egg
+   * 2DB3: LDX #$00
+   * 2DB5: LDY #$00
+   * 2DB7: DEX
+   * 2DB8: BNE $2DB7
+   */
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint16_t target_addr;
+    int32_t index;
+    uint8_t optype = p_opcode->optype_6502;
+    switch (optype) {
+    case k_nop:
+      break;
+    case k_dex:
+      if (hit_dex || hit_dey) {
+        is_collapsible = 0;
+      }
+      hit_dex = 1;
+      break;
+    case k_dey:
+      if (hit_dey || hit_dex) {
+        is_collapsible = 0;
+      }
+      hit_dey = 1;
+      break;
+    case k_bne:
+      addr_next = (p_opcode->addr_6502 + 2);
+      target_addr = (addr_next + (int8_t) p_opcode->operand_6502);
+      if (target_addr != start_addr_6502) {
+        is_collapsible = 0;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_add_cycles);
+      if (p_uop != NULL) {
+        branch_fixup_cycles = p_uop->value1;
+      }
+      hit_branch = 1;
+      break;
+    default:
+      is_collapsible = 0;
+      break;
+    }
+    loop_cycles += p_opcode->max_cycles;
+
+    if (!is_collapsible || hit_branch) {
+      break;
+    }
+  }
+
+  if (!is_collapsible || !hit_branch) {
+    return;
+  }
+  if (!hit_dex && !hit_dey) {
+    return;
+  }
+
+  log_do_log(k_log_jit,
+             k_log_info,
+             "collapsed DEX/DEY loop at $%.4X",
+             start_addr_6502);
+
+  /* Block ends at the branch. */
+  p_opcode->ends_block = 1;
+  p_opcode += p_opcode->num_bytes_6502;
+  p_opcode->addr_6502 = -1;
+
+  /* We rebuild all of the uopcodes at the start of the block, so that
+   * self-modification invalidates the whole thing.
+   */
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    if (p_opcode != p_opcodes) {
+      jit_opcode_eliminate(p_opcode);
+    }
+  }
+
+  p_opcodes->num_uops = 0;
+  p_uop = jit_opcode_insert_uop(p_opcodes, 0);
+  if (hit_dex) {
+    uopcode = k_opcode_dex_loop_calc_countdown;
+  } else {
+    uopcode = k_opcode_dey_loop_calc_countdown;
+  }
+  asm_make_uop2(p_uop, uopcode, loop_cycles, branch_fixup_cycles);
+
+  p_uop = jit_opcode_insert_uop(p_opcodes, 1);
+  if (hit_dex) {
+    uopcode = k_opcode_dex_loop_check_countdown;
+  } else {
+    uopcode = k_opcode_dey_loop_check_countdown;
+  }
+  asm_make_uop0(p_uop, uopcode);
+  p_uop->value1 =
+      (intptr_t) jit_metadata_get_host_block_address(p_metadata, addr_next);
+
+  p_uop = jit_opcode_insert_uop(p_opcodes, 2);
+  asm_make_uop2(p_uop,
+                k_opcode_countdown_no_preserve_nz_flags,
+                start_addr_6502,
+                loop_cycles);
+
+  p_uop = jit_opcode_insert_uop(p_opcodes, 3);
+  if (hit_dex) {
+    uopcode = k_opcode_DEX;
+  } else {
+    uopcode = k_opcode_DEY;
+  }
+  asm_make_uop1(p_uop, uopcode, 1);
+
+  p_uop = jit_opcode_insert_uop(p_opcodes, 4);
+  if (hit_dex) {
+    uopcode = k_opcode_flags_nz_x;
+  } else {
+    uopcode = k_opcode_flags_nz_y;
+  }
+  asm_make_uop0(p_uop, uopcode);
+
+  /* We can unconditionally jump here because we know the countdown check will
+   * eventually fire.
+   */
+  p_uop = jit_opcode_insert_uop(p_opcodes, 5);
+  asm_make_uop1(p_uop, k_opcode_jmp_uop, -3);
+
+  /* Make sure we don't add another countdown upcode. */
+  p_opcodes->has_prefix_uop = 1;
 }
 
 static void
@@ -1189,7 +1360,8 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
   /* Pass 4: loop collapsing. Some simple delay loops can be collapsed into
    * a constant sequence.
    */
-  jit_optimizer_collapse_loops(p_opcodes, p_metadata);
+  jit_optimizer_collapse_indefinite_loops(p_opcodes, p_metadata);
+  jit_optimizer_collapse_delay_loops(p_opcodes, p_metadata);
 }
 
 void

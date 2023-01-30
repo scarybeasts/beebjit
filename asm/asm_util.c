@@ -14,6 +14,7 @@ asm_make_uop0(struct asm_uop* p_uop, int32_t uopcode) {
   p_uop->is_eliminated = 0;
   p_uop->is_merged = 0;
   p_uop->backend_tag = 0;
+  p_uop->p_host_address = NULL;
 }
 
 void
@@ -24,6 +25,21 @@ asm_make_uop1(struct asm_uop* p_uop, int32_t uopcode, intptr_t value1) {
   p_uop->is_eliminated = 0;
   p_uop->is_merged = 0;
   p_uop->backend_tag = 0;
+  p_uop->p_host_address = NULL;
+}
+
+void
+asm_make_uop2(struct asm_uop* p_uop,
+              int32_t uopcode,
+              intptr_t value1,
+              intptr_t value2) {
+  p_uop->uopcode = uopcode;
+  p_uop->value1 = value1;
+  p_uop->value2 = value2;
+  p_uop->is_eliminated = 0;
+  p_uop->is_merged = 0;
+  p_uop->backend_tag = 0;
+  p_uop->p_host_address = NULL;
 }
 
 struct asm_uop*

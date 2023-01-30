@@ -2555,8 +2555,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x10);
   emit_JMP(p_buf, k_abs, 0xE4C0);
 
-  /* End of test. */
+  /* Check a DEX loop collapse. */
   set_new_index(p_buf, 0x24C0);
+  emit_LDA(p_buf, k_imm, 0xCA);
+  emit_STA(p_buf, k_abs, 0x64C0);
+  emit_LDA(p_buf, k_imm, 0xD0);
+  emit_STA(p_buf, k_abs, 0x64C1);
+  emit_LDA(p_buf, k_imm, 0xFD);
+  emit_STA(p_buf, k_abs, 0x64C2);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x64C3);
+  emit_LDX(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0x64C0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  /* Modify the BNE to check it invalidates the whole construct. */
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x64C1);
+  emit_JSR(p_buf, 0x64C0);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xE500);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2500);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

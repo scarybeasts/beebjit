@@ -7,6 +7,10 @@ struct asm_uop;
 
 void asm_make_uop0(struct asm_uop* p_uop, int32_t uopcode);
 void asm_make_uop1(struct asm_uop* p_uop, int32_t uopcode, intptr_t val1);
+void asm_make_uop2(struct asm_uop* p_uop,
+                   int32_t uopcode,
+                   intptr_t val1,
+                   intptr_t val2);
 struct asm_uop* asm_find_uop(int32_t* p_out_index,
                              struct asm_uop* p_uops,
                              uint32_t num_uops,

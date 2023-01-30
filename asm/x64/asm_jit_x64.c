@@ -808,6 +808,17 @@ asm_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
 }
 
 static void
+asm_emit_jit_scratch_MUL(struct util_buffer* p_dest_buf, int32_t value1) {
+  if (value1 == 5) {
+    ASM(scratch_mul_5);
+  } else {
+    assert(value1 >= 0);
+    assert(value1 <= 0x7f);
+    ASM_U8(scratch_mul);
+  }
+}
+
+static void
 asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
   void asm_jit_PUSH_16(void);
   void asm_jit_PUSH_16_word_patch(void);
@@ -1727,12 +1738,47 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_adjust);
     break;
   case k_opcode_collapse_loop: ASM_U32(load_PC); ASM(collapse_loop); break;
+  case k_opcode_dex_loop_calc_countdown:
+    ASM(dex_loop_calc_iters);
+    asm_emit_jit_scratch_MUL(p_dest_buf, value1);
+    value1 = value2;
+    ASM_U8(scratch_sub);
+    break;
+  case k_opcode_dex_loop_check_countdown:
+    ASM(countdown_sub_scratch);
+    ASM(copy_x_scratch2);
+    ASM(LDX_zero);
+    ASM(check_countdown_bt);
+    ASM_Bxx(BCC);
+    ASM(countdown_add_scratch);
+    ASM(copy_scratch2_x);
+    break;
+  case k_opcode_dey_loop_calc_countdown:
+    ASM(dey_loop_calc_iters);
+    asm_emit_jit_scratch_MUL(p_dest_buf, value1);
+    value1 = value2;
+    ASM_U8(scratch_sub);
+    break;
+  case k_opcode_dey_loop_check_countdown:
+    ASM(countdown_sub_scratch);
+    ASM(copy_y_scratch2);
+    ASM(LDY_zero);
+    ASM(check_countdown_bt);
+    ASM_Bxx(BCC);
+    ASM(countdown_add_scratch);
+    ASM(copy_scratch2_y);
+    break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_value: ASM(flags_nz_value); break;
   case k_opcode_JMP_SCRATCH_n:
     asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_jmp_uop:
+    p_uop += (int32_t) value1;
+    value1 = (uint32_t) (intptr_t) p_uop->p_host_address;
+    ASM_Bxx(JMP);
     break;
   case k_opcode_load_carry:
     if (p_uop->backend_tag == 1) {

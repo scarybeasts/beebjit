@@ -1065,8 +1065,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x14);
   emit_JMP(p_buf, k_abs, 0xCE80);
 
-  /* Exit sequence. */
+  /* Check the timing of a collapsed DEY loop. */
   set_new_index(p_buf, 0x0E80);
+  emit_LDY(p_buf, k_imm, 0x02);
+  emit_CYCLES_RESET(p_buf);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -3);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x11);
+  /* Loop that can't fit into countdown. */
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_CYCLES_RESET(p_buf);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -3);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x57);
+  emit_JMP(p_buf, k_abs, 0xCEC0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0EC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

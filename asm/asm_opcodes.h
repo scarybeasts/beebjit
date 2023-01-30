@@ -10,6 +10,7 @@ struct asm_uop {
   int is_eliminated;
   int is_merged;
   int32_t backend_tag;
+  void* p_host_address;
 };
 
 enum {
@@ -24,7 +25,12 @@ enum {
   k_opcode_check_pending_irq,
   k_opcode_countdown,
   k_opcode_countdown_no_preserve_nz_flags,
+  k_opcode_collapse_loop,
   k_opcode_debug,
+  k_opcode_dex_loop_calc_countdown,
+  k_opcode_dex_loop_check_countdown,
+  k_opcode_dey_loop_calc_countdown,
+  k_opcode_dey_loop_check_countdown,
   k_opcode_interp,
   k_opcode_inturbo,
   k_opcode_load_carry,
@@ -33,7 +39,7 @@ enum {
   k_opcode_save_carry,
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
-  k_opcode_collapse_loop,
+  k_opcode_jmp_uop,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_begin = 0x200,

@@ -143,6 +143,42 @@ ASM_SYM(asm_jit_jump_interp_trampoline_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_copy_scratch2_x)
+.globl ASM_SYM(asm_jit_copy_scratch2_x_END)
+ASM_SYM(asm_jit_copy_scratch2_x):
+  mov REG_6502_X_32, REG_SCRATCH2_32
+
+ASM_SYM(asm_jit_copy_scratch2_x_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_copy_scratch2_y)
+.globl ASM_SYM(asm_jit_copy_scratch2_y_END)
+ASM_SYM(asm_jit_copy_scratch2_y):
+  mov REG_6502_Y_32, REG_SCRATCH2_32
+
+ASM_SYM(asm_jit_copy_scratch2_y_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_copy_x_scratch2)
+.globl ASM_SYM(asm_jit_copy_x_scratch2_END)
+ASM_SYM(asm_jit_copy_x_scratch2):
+  mov REG_SCRATCH2_32, REG_6502_X_32
+
+ASM_SYM(asm_jit_copy_x_scratch2_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_copy_y_scratch2)
+.globl ASM_SYM(asm_jit_copy_y_scratch2_END)
+ASM_SYM(asm_jit_copy_y_scratch2):
+  mov REG_SCRATCH2_32, REG_6502_Y_32
+
+ASM_SYM(asm_jit_copy_y_scratch2_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_check_countdown_lea_8bit)
 .globl ASM_SYM(asm_jit_check_countdown_lea_8bit_END)
 ASM_SYM(asm_jit_check_countdown_lea_8bit):
@@ -205,6 +241,24 @@ ASM_SYM(asm_jit_countdown_add):
   lea REG_COUNTDOWN, [REG_COUNTDOWN + 0x7f]
 
 ASM_SYM(asm_jit_countdown_add_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_countdown_add_scratch)
+.globl ASM_SYM(asm_jit_countdown_add_scratch_END)
+ASM_SYM(asm_jit_countdown_add_scratch):
+  add REG_COUNTDOWN, REG_SCRATCH1
+
+ASM_SYM(asm_jit_countdown_add_scratch_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_countdown_sub_scratch)
+.globl ASM_SYM(asm_jit_countdown_sub_scratch_END)
+ASM_SYM(asm_jit_countdown_sub_scratch):
+  sub REG_COUNTDOWN, REG_SCRATCH1
+
+ASM_SYM(asm_jit_countdown_sub_scratch_END):
   ret
 
 
@@ -434,6 +488,28 @@ ASM_SYM(asm_jit_collapse_loop):
   movzx REG_6502_A_32, REG_6502_A
 
 ASM_SYM(asm_jit_collapse_loop_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_dex_loop_calc_iters)
+.globl ASM_SYM(asm_jit_dex_loop_calc_iters_END)
+ASM_SYM(asm_jit_dex_loop_calc_iters):
+  lea REG_SCRATCH1_32, [REG_6502_X_64 - 1]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+  add REG_SCRATCH1_32, 1
+
+ASM_SYM(asm_jit_dex_loop_calc_iters_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_dey_loop_calc_iters)
+.globl ASM_SYM(asm_jit_dey_loop_calc_iters_END)
+ASM_SYM(asm_jit_dey_loop_calc_iters):
+  lea REG_SCRATCH1_32, [REG_6502_Y_64 - 1]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+  add REG_SCRATCH1_32, 1
+
+ASM_SYM(asm_jit_dey_loop_calc_iters_END):
   ret
 
 
@@ -744,6 +820,33 @@ ASM_SYM(asm_jit_save_overflow):
   seto REG_6502_OF
 
 ASM_SYM(asm_jit_save_overflow_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_scratch_mul)
+.globl ASM_SYM(asm_jit_scratch_mul_END)
+ASM_SYM(asm_jit_scratch_mul):
+  imul REG_SCRATCH1_32, REG_SCRATCH1_32, 0x7f
+
+ASM_SYM(asm_jit_scratch_mul_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_scratch_mul_5)
+.globl ASM_SYM(asm_jit_scratch_mul_5_END)
+ASM_SYM(asm_jit_scratch_mul_5):
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_SCRATCH1 * 4]
+
+ASM_SYM(asm_jit_scratch_mul_5_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_scratch_sub)
+.globl ASM_SYM(asm_jit_scratch_sub_END)
+ASM_SYM(asm_jit_scratch_sub):
+  sub REG_SCRATCH1_32, 0x7f
+
+ASM_SYM(asm_jit_scratch_sub_END):
   ret
 
 

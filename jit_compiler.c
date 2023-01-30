@@ -1195,16 +1195,19 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
       needs_countdown = 1;
     }
     if (needs_countdown) {
-      p_uop = jit_opcode_insert_uop(p_details, 0);
-      asm_make_uop1(p_uop, k_opcode_countdown, p_details->addr_6502);
-      p_details->cycles_run_start = 0;
-      assert(!p_details->has_prefix_uop);
-      p_details->has_prefix_uop = 1;
       p_details_fixup = p_details;
+      p_details->cycles_run_start = 0;
+      if (!p_details->has_prefix_uop) {
+        p_uop = jit_opcode_insert_uop(p_details, 0);
+        asm_make_uop1(p_uop, k_opcode_countdown, p_details->addr_6502);
+        p_details->has_prefix_uop = 1;
+      }
     }
 
     p_details_fixup->cycles_run_start += p_details->max_cycles;
-    p_uop->value2 = p_details_fixup->cycles_run_start;
+    if (p_uop) {
+      p_uop->value2 = p_details_fixup->cycles_run_start;
+    }
   }
 }
 
@@ -1348,6 +1351,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                      p_uop);
       }
 
+      p_uop->p_host_address = p_host_address;
       block_epilog_len += epilog_len;
 
       /* Keep a note of the host address of where the JIT code prefixes start,
@@ -1573,6 +1577,8 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
     jit_optimizer_optimize_post_rewrite(&p_compiler->opcode_details[0]);
   }
 
+  assert(p_compiler->opcode_details[0].addr_6502 != -1);
+
   jit_compiler_get_end(p_compiler, &p_details, &end_addr_6502);
   return (end_addr_6502 - p_compiler->start_addr_6502);
 }
@@ -1580,6 +1586,8 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
 void
 jit_compiler_execute_compile_block(struct jit_compiler* p_compiler) {
   int32_t sub_instruction_addr_6502 = p_compiler->sub_instruction_addr_6502;
+
+  assert(p_compiler->opcode_details[0].addr_6502 != -1);
 
   /* 7) Emit the uop stream to the output buffer. */
   jit_compiler_emit_uops(p_compiler);
@@ -1623,6 +1631,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     /* We've invalidated a countdown. The countdown has not executed, so there
      * is nothing to fix up.
      */
+    assert(countdown >= 0);
     return countdown;
   }
 
@@ -1701,6 +1710,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->abi_state.reg_flags |= (new_carry << k_flag_carry);
   }
 
+  assert(countdown >= 0);
   return countdown;
 }
 
