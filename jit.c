@@ -341,13 +341,20 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                              (len * K_JIT_BYTES_PER_BYTE));
 
   for (i = addr_6502; i < addr_end_6502; ++i) {
-    void* p_jit_ptr;
-    p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, i);
-    asm_jit_invalidate_code_at(p_jit_ptr);
-    p_jit_ptr = jit_metadata_get_host_block_address(p_metadata, i);
-    asm_jit_invalidate_code_at(p_jit_ptr);
+    int32_t code_block = jit_metadata_get_code_block(p_metadata, i);
+    /* We assume we're not executing in the middle of a JIT block. Therefore,
+     * we can invalidate the entire range simply by making sure the very
+     * start of every code block is invalidated. This is possible now that
+     * the invalidation pointer is inclusive of any block countdown prefix.
+     */
+    if (code_block == (int32_t) i) {
+      void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, i);
+      asm_jit_invalidate_code_at(p_jit_ptr);
+    }
+    if (code_block != -1) {
+      jit_metadata_set_code_block(p_metadata, i, -1);
+    }
     jit_metadata_make_jit_ptr_no_code(p_metadata, i);
-    jit_metadata_set_code_block(p_metadata, i, -1);
   }
 
   asm_jit_finish_code_updates(p_jit->p_asm);
@@ -810,6 +817,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_jit_base;
   struct util_buffer* p_temp_buf;
   void* p_no_code_mapping_addr;
+  struct jit_metadata* p_metadata;
+  uint32_t i;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
@@ -914,19 +923,28 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    */
   os_fault_register_handler(jit_handle_fault);
 
+  p_metadata = jit_metadata_create(p_jit_base,
+                                   p_no_code_mapping_addr,
+                                   (p_no_code_mapping_addr + 4),
+                                   &p_jit->jit_ptrs[0]);
+  p_jit->p_metadata = p_metadata;
+  /* Set up the invalidation markers. jit_memory_range_invalidate() only
+   * invalidates existing blocks, and here we're starting from a clean slate.
+   */
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    void* p_jit_ptr = jit_metadata_get_host_block_address(p_metadata, i);
+    asm_jit_invalidate_code_at(p_jit_ptr);
+  }
+
   /* Anything the specific asm driver (x64 or ARM64) needs to get its job
    * done. This includes setting up initial mapping permissions on the JIT
-   * mapping.
+   * mapping. Any setup requiring writing to the code area must occur above
+   * this call.
    */
   p_jit->p_asm = asm_jit_create(p_jit_base,
                                 p_memory_access->memory_is_always_ram,
                                 p_memory_access->p_callback_obj);
   p_cpu_driver->abi.p_util_private = asm_jit_get_private(p_jit->p_asm);
-
-  p_jit->p_metadata = jit_metadata_create(p_jit_base,
-                                          p_no_code_mapping_addr,
-                                          (p_no_code_mapping_addr + 4),
-                                          &p_jit->jit_ptrs[0]);
 
   p_jit->p_compiler = jit_compiler_create(
       p_jit->p_asm,

@@ -1726,14 +1726,9 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
   assert(addr_end <= k_6502_addr_space_size);
 
   for (i = addr; i < addr_end; ++i) {
-    uint32_t j;
-    for (j = 0; j < k_opcode_history_length; ++j) {
-      p_compiler->history[i].times[j] = 0;
-      p_compiler->history[i].opcodes[j] = -1;
-      p_compiler->history[i].was_self_modified[j] = 0;
-    }
     p_compiler->history[i].ring_buffer_index = 0;
     p_compiler->history[i].opcode = -1;
+    p_compiler->history[i].opcodes[0] = -1;
     p_compiler->addr_is_block_start[i] = 0;
     p_compiler->addr_is_block_continuation[i] = 0;
 
