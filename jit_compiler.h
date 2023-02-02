@@ -73,5 +73,7 @@ int32_t jit_compiler_testing_get_a_fixup(struct jit_compiler* p_compiler,
                                          uint16_t addr);
 int32_t jit_compiler_testing_get_x_fixup(struct jit_compiler* p_compiler,
                                          uint16_t addr);
+int32_t jit_compiler_testing_has_fixups(struct jit_compiler* p_compiler,
+                                        uint16_t addr);
 
 #endif /* BEEJIT_JIT_COMPILER_H */

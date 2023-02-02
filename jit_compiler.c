@@ -39,6 +39,14 @@ enum {
   k_max_addr_space_per_compile = 256,
 };
 
+enum {
+  k_addr_flag_block_start = 1,
+  k_addr_flag_block_continuation = 2,
+  k_addr_flag_has_countdown = 4,
+  k_addr_flag_has_fixups = 8,
+  k_addr_flag_has_history = 16,
+};
+
 struct jit_compiler {
   struct asm_jit_struct* p_asm;
   struct timing_struct* p_timing;
@@ -70,12 +78,10 @@ struct jit_compiler {
 
   int compile_for_code_in_zero_page;
 
-  struct jit_compile_history history[k_6502_addr_space_size];
-  uint8_t addr_is_block_start[k_6502_addr_space_size];
-  uint8_t addr_is_block_continuation[k_6502_addr_space_size];
+  uint8_t addr_flags[k_6502_addr_space_size];
 
+  struct jit_compile_history history[k_6502_addr_space_size];
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
-  uint8_t addr_has_countdown[k_6502_addr_space_size];
   int32_t addr_nz_fixup[k_6502_addr_space_size];
   int32_t addr_v_fixup[k_6502_addr_space_size];
   int32_t addr_c_fixup[k_6502_addr_space_size];
@@ -769,6 +775,11 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
 
   p_history->opcode = opcode_6502;
 
+  if (!(p_compiler->addr_flags[addr_6502] & k_addr_flag_has_history)) {
+    p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_history;
+    p_history->ring_buffer_index = 0;
+  }
+
   ring_buffer_index = p_history->ring_buffer_index;
 
   ring_buffer_index++;
@@ -802,7 +813,11 @@ jit_compiler_get_dynamic_history(struct jit_compiler* p_compiler,
   uint32_t any_opcode_count = 0;
   uint32_t any_opcode_invalidate_count = 0;
 
-  for (i = 0; i < k_opcode_history_length; ++i) {
+  i = 0;
+  if (!(p_compiler->addr_flags[addr_6502] & k_addr_flag_has_history)) {
+    i = k_opcode_history_length;
+  }
+  for (; i < k_opcode_history_length; ++i) {
     int was_self_modified;
     int32_t old_opcode = p_history->opcodes[index];
     /* Stop counting if we run out of opcodes. */
@@ -999,7 +1014,7 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
     }
 
     /* Exit loop condition: next opcode is the start of a block boundary. */
-    if (p_compiler->addr_is_block_start[addr_6502]) {
+    if (p_compiler->addr_flags[addr_6502] & k_addr_flag_block_start) {
       break;
     }
 
@@ -1018,8 +1033,11 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
          k_max_addr_space_per_compile);
   p_details->addr_6502 = -1;
 
-  p_compiler->addr_is_block_continuation[addr_6502] =
-      is_next_block_continuation;
+  if (is_next_block_continuation) {
+    p_compiler->addr_flags[addr_6502] |= k_addr_flag_block_continuation;
+  } else {
+    p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_block_continuation;
+  }
 }
 
 static void
@@ -1441,18 +1459,12 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
       if (addr_6502 != p_compiler->start_addr_6502) {
         jit_metadata_invalidate_jump_target(p_metadata, addr_6502);
-        p_compiler->addr_is_block_start[addr_6502] = 0;
-        p_compiler->addr_is_block_continuation[addr_6502] = 0;
+        p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_block_start;
+        p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_block_continuation;
       }
 
-      p_compiler->addr_nz_fixup[addr_6502] = -1;
-      p_compiler->addr_v_fixup[addr_6502] = 0;
-      p_compiler->addr_c_fixup[addr_6502] = 0;
-      p_compiler->addr_a_fixup[addr_6502] = -1;
-      p_compiler->addr_x_fixup[addr_6502] = -1;
-      p_compiler->addr_y_fixup[addr_6502] = -1;
-      p_compiler->addr_cycles_fixup[addr_6502] = -1;
-      p_compiler->addr_has_countdown[addr_6502] = 0;
+      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_fixups;
+      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;;
 
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
@@ -1470,9 +1482,13 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
                                  p_details->self_modify_invalidated,
                                  ticks);
 
+        p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_fixups;
+        if (p_details->cycles_run_start != -1) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_countdown;
+        } else {
+          p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;
+        }
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
-        p_compiler->addr_has_countdown[addr_6502] =
-            (p_details->cycles_run_start != -1);
         p_compiler->addr_a_fixup[addr_6502] = p_details->reg_a;
         p_compiler->addr_x_fixup[addr_6502] = p_details->reg_x;
         p_compiler->addr_y_fixup[addr_6502] = p_details->reg_y;
@@ -1503,10 +1519,11 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
   p_compiler->start_addr_6502 = start_addr_6502;
   p_compiler->sub_instruction_addr_6502 = -1;
 
-  if (p_compiler->addr_is_block_start[start_addr_6502]) {
+  if (p_compiler->addr_flags[start_addr_6502] & k_addr_flag_block_start) {
     /* Retain any existing block start determination. */
     is_block_start = 1;
-  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
+  } else if (!(p_compiler->addr_flags[start_addr_6502] &
+                   k_addr_flag_block_continuation) &&
              !is_invalidation) {
     /* New block starts are only created if this isn't a compilation
      * continuation, and this isn't an invalidation of existing code.
@@ -1514,7 +1531,11 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
     is_block_start = 1;
   }
 
-  p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
+  if (is_block_start) {
+    p_compiler->addr_flags[start_addr_6502] |= k_addr_flag_block_start;
+  } else {
+    p_compiler->addr_flags[start_addr_6502] &= ~k_addr_flag_block_start;
+  }
   /* NOTE: p_compiler->addr_is_block_continuation[start_addr_6502] is left as
    * it currently is.
    * The only way to clear it is compile across the continuation boundary.
@@ -1622,12 +1643,14 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
 
+  assert(p_compiler->addr_flags[pc_6502] & k_addr_flag_has_fixups);
   /* cycles_fixup can be 0 in the case the opcode is bouncing to the
    * interpreter -- an invalid opcode, for example.
    */
   assert(cycles_fixup >= 0);
 
-  if (is_invalidation && p_compiler->addr_has_countdown[pc_6502]) {
+  if (is_invalidation &&
+      (p_compiler->addr_flags[pc_6502] & k_addr_flag_has_countdown)) {
     /* We've invalidated a countdown. The countdown has not executed, so there
      * is nothing to fix up.
      */
@@ -1718,35 +1741,19 @@ void
 jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                      uint16_t addr,
                                      uint32_t len) {
-  uint32_t i;
-
   uint32_t addr_end = (addr + len);
+  (void) addr_end;
 
   assert(len <= k_6502_addr_space_size);
   assert(addr_end <= k_6502_addr_space_size);
 
-  for (i = addr; i < addr_end; ++i) {
-    p_compiler->history[i].ring_buffer_index = 0;
-    p_compiler->history[i].opcode = -1;
-    p_compiler->history[i].opcodes[0] = -1;
-    p_compiler->addr_is_block_start[i] = 0;
-    p_compiler->addr_is_block_continuation[i] = 0;
-
-    p_compiler->addr_cycles_fixup[i] = -1;
-    p_compiler->addr_has_countdown[i] = 0;
-    p_compiler->addr_nz_fixup[i] = -1;
-    p_compiler->addr_v_fixup[i] = 0;
-    p_compiler->addr_c_fixup[i] = 0;
-    p_compiler->addr_a_fixup[i] = -1;
-    p_compiler->addr_x_fixup[i] = -1;
-    p_compiler->addr_y_fixup[i] = -1;
-  }
+  (void) memset(&p_compiler->addr_flags[addr], '\0', len);
 }
 
 int
 jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
                                    uint16_t addr_6502) {
-  return p_compiler->addr_is_block_continuation[addr_6502];
+  return (p_compiler->addr_flags[addr_6502] & k_addr_flag_block_continuation);
 }
 
 int
@@ -1768,6 +1775,7 @@ jit_compiler_tag_address_as_dynamic(struct jit_compiler* p_compiler,
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
 
+  p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_history;
   p_history->ring_buffer_index = 0;
 
   for (i = 0; i < k_opcode_history_length; ++i) {
@@ -1835,4 +1843,10 @@ int32_t
 jit_compiler_testing_get_x_fixup(struct jit_compiler* p_compiler,
                                  uint16_t addr) {
   return p_compiler->addr_x_fixup[addr];
+}
+
+int32_t
+jit_compiler_testing_has_fixups(struct jit_compiler* p_compiler,
+                                uint16_t addr) {
+  return !!(p_compiler->addr_flags[addr] & k_addr_flag_has_fixups);
 }

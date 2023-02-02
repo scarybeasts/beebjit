@@ -909,10 +909,12 @@ jit_test_compile_metadata(void) {
   state_6502_set_pc(s_p_state_6502, 0x1E00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(1, jit_compiler_testing_has_fixups(s_p_compiler, 0x1E00));
+  test_expect_u32(0, jit_compiler_testing_has_fixups(s_p_compiler, 0x1E01));
+
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E00);
   test_expect_u32(6, cycles);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E01);
-  test_expect_u32(-1, cycles);
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E02);
   test_expect_u32(4, cycles);
   a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x1E00);
@@ -929,12 +931,14 @@ jit_test_compile_metadata(void) {
   state_6502_set_pc(s_p_state_6502, 0x1F00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+
   test_expect_eq(s_p_jit->jit_ptrs[0x1F00], s_p_jit->jit_ptrs[0x1F01]);
   test_expect_neq(s_p_jit->jit_ptrs[0x1F00], s_p_jit->jit_ptrs[0x1F02]);
+  test_expect_u32(1, jit_compiler_testing_has_fixups(s_p_compiler, 0x1F00));
+  test_expect_u32(0, jit_compiler_testing_has_fixups(s_p_compiler, 0x1F01));
+
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F00);
   test_expect_u32(12, cycles);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F01);
-  test_expect_u32(-1, cycles);
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F02);
   test_expect_u32(8, cycles);
   a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x1F00);
@@ -971,24 +975,22 @@ jit_test_compile_metadata(void) {
   state_6502_set_pc(s_p_state_6502, 0x2100);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+
   test_expect_eq(s_p_jit->jit_ptrs[0x2105], s_p_jit->jit_ptrs[0x2106]);
   test_expect_eq(s_p_jit->jit_ptrs[0x2105], s_p_jit->jit_ptrs[0x2107]);
+  test_expect_u32(1, jit_compiler_testing_has_fixups(s_p_compiler, 0x2105));
+  test_expect_u32(0, jit_compiler_testing_has_fixups(s_p_compiler, 0x2106));
+  test_expect_u32(1, jit_compiler_testing_has_fixups(s_p_compiler, 0x2107));
+  test_expect_u32(0, jit_compiler_testing_has_fixups(s_p_compiler, 0x2108));
+
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2105);
   test_expect_u32(12, cycles);
   x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2105);
-  test_expect_u32(-1, x);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2106);
-  test_expect_u32(-1, cycles);
-  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2106);
   test_expect_u32(-1, x);
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2107);
   test_expect_u32(10, cycles);
   x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2107);
   test_expect_u32(0x42, x);
-  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2108);
-  test_expect_u32(-1, cycles);
-  x = jit_compiler_testing_get_x_fixup(s_p_compiler, 0x2108);
-  test_expect_u32(-1, x);
   util_buffer_destroy(p_buf);
 }
 
