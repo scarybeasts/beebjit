@@ -1232,15 +1232,18 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       }
     }
 
-    if ((p_countdown_uop != NULL) && (p_load_flags_uop != NULL)) {
-      /* If the opcode immediately following a countdown check sets the NZ
-       * flags, then we can safely use a faster countdown check that clobbers
-       * the NZ flags.
-       * Even if the countdown check fires, and an IRQ is raised, the IRQ won't
-       * trigger until after the opcode immediately following the countdown
-       * check.
-       */
-      p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
+    if (p_countdown_uop != NULL) {
+      uint8_t optype = p_opcode->optype_6502;
+      if (g_optype_changes_nz_flags[optype]) {
+        /* If the opcode immediately following a countdown check sets the NZ
+         * flags, then we can safely use a faster countdown check that clobbers
+         * the NZ flags.
+         * Even if the countdown check fires, and an IRQ is raised, the IRQ
+         * won't trigger until after the opcode immediately following the
+         * countdown check.
+         */
+        p_countdown_uop->uopcode = k_opcode_countdown_no_preserve_nz_flags;
+      }
     }
 
     /* This is subtle, but if we're in the middle of resolving self-modification
