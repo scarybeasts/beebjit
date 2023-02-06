@@ -36,6 +36,7 @@ struct jit_opcode_details {
   void* p_host_prefix_start;
   void* p_host_opcode_start;
   int32_t cycles_run_start;
+  int32_t countdown_adjustment;
   int32_t reg_a;
   int32_t reg_x;
   int32_t reg_y;

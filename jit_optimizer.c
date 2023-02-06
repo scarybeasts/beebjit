@@ -1297,7 +1297,6 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
        p_opcode += p_opcode->num_bytes_6502) {
     uint32_t i_uops;
     uint32_t num_uops = p_opcode->num_uops;
-    struct asm_uop* p_countdown_uop = NULL;
 
     if (p_opcode->is_eliminated) {
       continue;
@@ -1305,12 +1304,14 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
 
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       uint32_t cycles;
+      struct asm_uop* p_countdown_uop;
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_add_cycles:
         p_add_cycles_uop = p_uop;
         break;
       case k_opcode_countdown:
+      case k_opcode_countdown_no_preserve_nz_flags:
         /* Merge any branch-not-taken countdown fixup into the countdown check
          * subtraction itself.
          */
@@ -1323,6 +1324,7 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
             p_countdown_uop->value2 = cycles;
             p_add_cycles_uop->is_eliminated = 1;
             p_add_cycles_uop->is_merged = 1;
+            p_opcode->countdown_adjustment = p_add_cycles_uop->value1;
           }
         }
         /* Eliminate countdown checks for 0 cycles. These happen at the start

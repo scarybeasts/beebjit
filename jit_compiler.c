@@ -82,6 +82,7 @@ struct jit_compiler {
 
   struct jit_compile_history history[k_6502_addr_space_size];
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
+  int32_t addr_countdown_adjustment_fixup[k_6502_addr_space_size];
   int32_t addr_nz_fixup[k_6502_addr_space_size];
   int32_t addr_v_fixup[k_6502_addr_space_size];
   int32_t addr_c_fixup[k_6502_addr_space_size];
@@ -262,6 +263,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->p_host_prefix_start = NULL;
   p_details->p_host_opcode_start = NULL;
   p_details->cycles_run_start = -1;
+  p_details->countdown_adjustment = -1;
 
   p_details->is_eliminated = 0;
   p_details->reg_a = -1;
@@ -1464,7 +1466,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       }
 
       p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_fixups;
-      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;;
+      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;
 
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
@@ -1489,6 +1491,8 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
           p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;
         }
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
+        p_compiler->addr_countdown_adjustment_fixup[addr_6502] =
+            p_details->countdown_adjustment;
         p_compiler->addr_a_fixup[addr_6502] = p_details->reg_a;
         p_compiler->addr_x_fixup[addr_6502] = p_details->reg_x;
         p_compiler->addr_y_fixup[addr_6502] = p_details->reg_y;
@@ -1652,9 +1656,16 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   if (is_invalidation &&
       (p_compiler->addr_flags[pc_6502] & k_addr_flag_has_countdown)) {
     /* We've invalidated a countdown. The countdown has not executed, so there
-     * is nothing to fix up.
+     * is nothing to fix up unless the countdown itself contained a post-branch
+     * adjustment.
      */
+    int32_t countdown_adjustment =
+        p_compiler->addr_countdown_adjustment_fixup[pc_6502];
     assert(countdown >= 0);
+    if (countdown_adjustment != -1) {
+      assert(countdown_adjustment > 0);
+      countdown += countdown_adjustment;
+    }
     return countdown;
   }
 
