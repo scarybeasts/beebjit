@@ -246,6 +246,8 @@ struct intel_fdc_struct {
 
   uint8_t regs[k_intel_num_registers];
   int is_result_ready;
+  /* Derived from one of the regs plus is_result_ready. */
+  uint8_t status;
   uint8_t mmio_data;
   uint8_t mmio_clocks;
   uint8_t drive_out;
@@ -261,12 +263,12 @@ struct intel_fdc_struct {
 };
 
 static inline uint8_t
-intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
+intel_fdc_get_internal_status(struct intel_fdc_struct* p_fdc) {
   return p_fdc->regs[k_intel_fdc_register_internal_status];
 }
 
-static inline uint8_t
-intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
+static void
+intel_fdc_update_external_status(struct intel_fdc_struct* p_fdc) {
   /* EMU NOTE: currently, the emulation responds instantly to getting commands
    * started, accepting parameters, transitioning between states, etc.
    * This is inaccurate.
@@ -280,7 +282,7 @@ intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
    * write $35 to parameter register:           31us
    * write 3rd SPECIFY parameter:               27us
    */
-  uint8_t status = intel_fdc_get_status(p_fdc);
+  uint8_t status = intel_fdc_get_internal_status(p_fdc);
   /* The internal status register appears to be shared with some mode bits that
    * must be masked out.
    */
@@ -304,13 +306,13 @@ intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
   /* Also avoid "parameter register full". */
   status &= ~0x60;
 
-  return status;
+  p_fdc->status = status;
 }
 
 static void
 intel_fdc_update_nmi(struct intel_fdc_struct* p_fdc) {
   struct state_6502* p_state_6502 = p_fdc->p_state_6502;
-  uint8_t status = intel_fdc_get_status(p_fdc);
+  uint8_t status = intel_fdc_get_internal_status(p_fdc);
   int level = !!(status & k_intel_fdc_status_flag_nmi);
   int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
 
@@ -327,6 +329,7 @@ intel_fdc_status_raise(struct intel_fdc_struct* p_fdc, uint8_t bits) {
   if (bits & k_intel_fdc_status_flag_nmi) {
     intel_fdc_update_nmi(p_fdc);
   }
+  intel_fdc_update_external_status(p_fdc);
 }
 
 static inline void
@@ -335,6 +338,7 @@ intel_fdc_status_lower(struct intel_fdc_struct* p_fdc, uint8_t bits) {
   if (bits & k_intel_fdc_status_flag_nmi) {
     intel_fdc_update_nmi(p_fdc);
   }
+  intel_fdc_update_external_status(p_fdc);
 }
 
 static inline uint8_t
@@ -346,6 +350,13 @@ static void
 intel_fdc_set_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
   p_fdc->regs[k_intel_fdc_register_internal_result] = result;
   p_fdc->is_result_ready = 1;
+  intel_fdc_update_external_status(p_fdc);
+}
+
+static void
+intel_fdc_result_consumed(struct intel_fdc_struct* p_fdc) {
+  p_fdc->is_result_ready = 0;
+  intel_fdc_update_external_status(p_fdc);
 }
 
 static inline uint8_t
@@ -374,11 +385,13 @@ intel_fdc_setup_sector_size(struct intel_fdc_struct* p_fdc) {
 
 static void
 intel_fdc_start_irq_callbacks(struct intel_fdc_struct* p_fdc) {
+  /* This bits don't affect the external status, so no need to re-calculate. */
   p_fdc->regs[k_intel_fdc_register_internal_status] |= 0x30;
 }
 
 static void
 intel_fdc_stop_irq_callbacks(struct intel_fdc_struct* p_fdc) {
+  /* This bits don't affect the external status, so no need to re-calculate. */
   p_fdc->regs[k_intel_fdc_register_internal_status] &= ~0x30;
 }
 
@@ -491,7 +504,7 @@ intel_fdc_lower_busy_and_log(struct intel_fdc_struct* p_fdc) {
     log_do_log(k_log_disc,
                k_log_info,
                "8271: status $%x result $%x",
-               intel_fdc_get_external_status(p_fdc),
+               p_fdc->status,
                intel_fdc_get_result(p_fdc));
   }
 }
@@ -580,6 +593,8 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
   p_fdc->mmio_clocks = 0;
   p_fdc->state_count = 0;
   p_fdc->state_is_index_pulse = 0;
+
+  intel_fdc_update_external_status(p_fdc);
 }
 
 void
@@ -593,7 +608,7 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
 
   /* EMU: on a real machine, status appears to be cleared but result and data
    * register not. */
-  intel_fdc_status_lower(p_fdc, intel_fdc_get_status(p_fdc));
+  intel_fdc_status_lower(p_fdc, intel_fdc_get_internal_status(p_fdc));
 }
 
 static void
@@ -895,10 +910,10 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
 
   switch (addr & 0x07) {
   case k_intel_fdc_status:
-    return intel_fdc_get_external_status(p_fdc);
+    return p_fdc->status;
   case k_intel_fdc_result:
     result = intel_fdc_get_result(p_fdc);
-    p_fdc->is_result_ready = 0;
+    intel_fdc_result_consumed(p_fdc);
     intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_nmi);
     return result;
   /* EMU: on a real model B, the i8271 has the data register mapped for all of
@@ -908,7 +923,6 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   case (k_intel_fdc_data + 1):
   case (k_intel_fdc_data + 2):
   case (k_intel_fdc_data + 3):
-    result = intel_fdc_get_result(p_fdc);
     intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_need_data |
                                        k_intel_fdc_status_flag_nmi));
     return p_fdc->regs[k_intel_fdc_register_internal_data];
@@ -1233,7 +1247,7 @@ static void
 intel_fdc_command_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
   uint8_t num_params;
 
-  uint8_t status = intel_fdc_get_status(p_fdc);
+  uint8_t status = intel_fdc_get_internal_status(p_fdc);
 
   if (status & k_intel_fdc_status_flag_busy) {
     log_do_log(k_log_disc,
@@ -1278,7 +1292,7 @@ static void
 intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->regs[k_intel_fdc_register_internal_parameter] = val;
   /* From testing, writing parameter appears to clear "result ready". */
-  p_fdc->is_result_ready = 0;
+  intel_fdc_result_consumed(p_fdc);
 
   switch (p_fdc->parameter_callback) {
   case k_intel_fdc_parameter_accept_none:
@@ -1381,7 +1395,8 @@ intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   }
 
   /* Abort command if previous data byte wasn't picked up. */
-  if (intel_fdc_get_status(p_fdc) & k_intel_fdc_status_flag_need_data) {
+  if (intel_fdc_get_internal_status(p_fdc) &
+      k_intel_fdc_status_flag_need_data) {
     ok = 0;
   }
 
