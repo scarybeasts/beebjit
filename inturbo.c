@@ -33,6 +33,7 @@ struct inturbo_struct {
   int debug_subsystem_active;
   struct os_alloc_mapping* p_mapping_base;
   uint8_t* p_inturbo_base;
+  uint8_t use_interp_for_opcode[256];
 };
 
 static void
@@ -589,17 +590,21 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     util_buffer_setup(p_buf, &buf[0], 256);
     util_buffer_set_base_address(p_buf, p_inturbo_opcodes_ptr);
 
-    inturbo_generate_opcode(p_inturbo,
-                            &use_interp,
-                            p_buf,
-                            is_debug,
-                            is_accurate,
-                            p_opcode_types[i],
-                            p_opcode_modes[i],
-                            p_opcode_mem[i],
-                            p_opcode_cycles[i],
-                            read_callback_from,
-                            write_callback_from);
+    if (p_inturbo->use_interp_for_opcode[i]) {
+      use_interp = 1;
+    } else {
+      inturbo_generate_opcode(p_inturbo,
+                              &use_interp,
+                              p_buf,
+                              is_debug,
+                              is_accurate,
+                              p_opcode_types[i],
+                              p_opcode_modes[i],
+                              p_opcode_mem[i],
+                              p_opcode_cycles[i],
+                              read_callback_from,
+                              write_callback_from);
+    }
 
     opcode_len = (util_buffer_get_pos(p_buf) + epilog_len);
     if (opcode_len > K_INTURBO_OPCODE_SIZE) {
@@ -617,7 +622,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       if (is_debug) {
         asm_emit_inturbo_enter_debug(p_buf);
       }
-      asm_emit_inturbo_call_interp(p_buf);
+      if (!p_inturbo->is_ret_mode) {
+        asm_emit_inturbo_call_interp(p_buf);
+      } else {
+        asm_emit_inturbo_call_interp_and_ret(p_buf);
+      }
     } else {
       /* Re-write the opcode because writing to a potentially smaller buffer
        * might change some offsets.
@@ -922,4 +931,10 @@ inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo,
                                   uint32_t* p_code_ptrs) {
   p_inturbo->do_write_invalidations = 1;
   p_inturbo->driver.abi.p_util_private = p_code_ptrs;
+}
+
+void
+inturbo_set_use_interp_for_opcode(struct inturbo_struct* p_inturbo,
+                                  uint8_t opcode) {
+  p_inturbo->use_interp_for_opcode[opcode] = 1;
 }

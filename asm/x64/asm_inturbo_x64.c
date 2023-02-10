@@ -214,6 +214,20 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_call_interp_and_ret(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_copy(p_buf,
+           asm_inturbo_jump_call_interp,
+           asm_inturbo_jump_call_interp_END);
+  asm_patch_jump(p_buf,
+                 offset,
+                 asm_inturbo_jump_call_interp,
+                 asm_inturbo_jump_call_interp_jmp_patch,
+                 asm_inturbo_call_interp_and_ret);
+}
+
+void
 asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
   void asm_inturbo_do_write_invalidation(void);
   void asm_inturbo_do_write_invalidation_END(void);

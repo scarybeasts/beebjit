@@ -21,5 +21,8 @@ void inturbo_set_ret_mode(struct inturbo_struct* p_inturbo);
  */
 void inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo,
                                        uint32_t* p_code_ptrs);
+/* Used to force a certain opcode to use the interpretet. */
+void inturbo_set_use_interp_for_opcode(struct inturbo_struct* p_inturbo,
+                                       uint8_t opcode);
 
 #endif /* BEEBJIT_INTURBO_H */

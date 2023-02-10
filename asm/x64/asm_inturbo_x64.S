@@ -231,6 +231,26 @@ ASM_SYM(asm_inturbo_interrupt_vector_END):
 .globl ASM_SYM(asm_inturbo_call_interp)
 ASM_SYM(asm_inturbo_call_interp):
 
+  call ASM_SYM(asm_inturbo_do_call_interp)
+
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODE_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_ADDR]
+  jmp REG_SCRATCH3
+
+
+.globl ASM_SYM(asm_inturbo_call_interp_and_ret)
+ASM_SYM(asm_inturbo_call_interp_and_ret):
+
+  call ASM_SYM(asm_inturbo_do_call_interp)
+
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_do_call_interp)
+ASM_SYM(asm_inturbo_do_call_interp):
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   lea REG_6502_PC, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   call ASM_SYM(asm_save_AXYS_PC_flags)
@@ -239,8 +259,7 @@ ASM_SYM(asm_inturbo_call_interp):
   # AMD64 calling convention, which is overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
 
-  # Double push, including a dummy push, to keep stack correctly aligned.
-  push REG_CONTEXT
+  # We call'ed here, so one more push keeps the stack correctly aligned.
   push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
@@ -256,7 +275,6 @@ ASM_SYM(asm_inturbo_call_interp):
   mov REG_COUNTDOWN, [rsp - 16]
   mov REG_RETURN, [rsp - 8]
   pop REG_CONTEXT
-  pop REG_CONTEXT
 
   test REG_RETURN, REG_RETURN
   jne exiting
@@ -265,18 +283,14 @@ ASM_SYM(asm_inturbo_call_interp):
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   lea REG_6502_PC, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
-  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
-  lahf
-  shl REG_SCRATCH3_32, K_INTURBO_OPCODE_SHIFT
-  sahf
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_ADDR]
-  jmp REG_SCRATCH3
+  ret
 
 exiting:
   # We might be exiting inturbo mode, or exiting JIT mode within a call to
   # inturbo.
   # It's a layering violation, but for now handle those two cases here by
   # walking up the stack one more call if we're in JIT mode.
+  add rsp, 8
   mov REG_SCRATCH1, [REG_CONTEXT]
   test REG_SCRATCH1, REG_SCRATCH1
   je exiting_inturbo

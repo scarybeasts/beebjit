@@ -26,6 +26,7 @@ void asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
                                          uint8_t advance);
 void asm_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_emit_inturbo_call_interp(struct util_buffer* p_buf);
+void asm_emit_inturbo_call_interp_and_ret(struct util_buffer* p_buf);
 void asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf);
 
 void asm_emit_inturbo_mode_rel(struct util_buffer* p_buf);
@@ -135,6 +136,7 @@ void asm_inturbo_JMP_scratch_plus_1_interp_END();
 void asm_inturbo_load_pc_from_pc();
 void asm_inturbo_load_pc_from_pc_END();
 void asm_inturbo_call_interp();
+void asm_inturbo_call_interp_and_ret();
 void asm_inturbo_call_interp_countdown();
 void asm_inturbo_check_interrupt();
 void asm_inturbo_check_interrupt_END();

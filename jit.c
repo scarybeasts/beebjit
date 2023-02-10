@@ -888,6 +888,10 @@ jit_init(struct cpu_driver* p_cpu_driver) {
      */
     inturbo_set_ret_mode(p_inturbo);
     inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
+    /* RTI has to go through interp so as not to break apart code blocks
+     * arbitrarily.
+     */
+    inturbo_set_use_interp_for_opcode(p_inturbo, 0x40);
     cpu_driver_init(p_inturbo_driver);
   }
   p_jit->p_inturbo = p_inturbo;
