@@ -187,10 +187,7 @@ jit_enter_interp(struct jit_struct* p_jit,
 
   p_jit->counter_stay_in_interp = 0;
 
-  countdown = interp_enter_with_details(p_interp,
-                                        countdown,
-                                        jit_interp_instruction_callback,
-                                        p_jit);
+  countdown = interp_enter_with_countdown(p_interp, countdown);
 
   cpu_driver_flags = p_jit_cpu_driver->p_funcs->get_flags(p_jit_cpu_driver);
   p_ret->countdown = countdown;
@@ -868,6 +865,10 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   assert(((struct cpu_driver*) p_interp)->p_extra->type == k_cpu_mode_interp);
   cpu_driver_init((struct cpu_driver*) p_interp);
   p_jit->p_interp = p_interp;
+
+  interp_set_instruction_callback(p_interp,
+                                  jit_interp_instruction_callback,
+                                  p_jit);
 
   /* The JIT mode uses an inturbo to handle opcodes that are self-modified
    * continually.

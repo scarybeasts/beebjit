@@ -708,10 +708,7 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo,
   struct cpu_driver* p_inturbo_cpu_driver = &p_inturbo->driver;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-  countdown = interp_enter_with_details(p_interp,
-                                        countdown,
-                                        inturbo_interp_instruction_callback,
-                                        p_inturbo);
+  countdown = interp_enter_with_countdown(p_interp, countdown);
 
   cpu_driver_flags =
       p_inturbo_cpu_driver->p_funcs->get_flags(p_inturbo_cpu_driver);
@@ -880,6 +877,10 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
     }
     p_inturbo->p_interp = p_interp;
     p_inturbo->is_interp_owned = 1;
+
+    interp_set_instruction_callback(p_interp,
+                                    inturbo_interp_instruction_callback,
+                                    p_inturbo);
   }
   cpu_driver_init((struct cpu_driver*) p_inturbo->p_interp);
 

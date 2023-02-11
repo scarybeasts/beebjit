@@ -29,6 +29,14 @@ struct interp_struct {
 
   void (*p_memory_written_callback)(void* p);
   void* p_memory_written_callback_object;
+  int (*p_instruction_callback)(void* p,
+                                uint16_t next_pc,
+                                uint8_t done_opcode,
+                                uint16_t done_addr,
+                                int next_is_irq,
+                                int irq_pending,
+                                int hit_special);
+  void* p_callback_context;
 
   uint8_t* p_opcode_mem;
   uint8_t* p_mem_read;
@@ -54,8 +62,7 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   int64_t countdown = timing_get_countdown(p_interp->driver.p_extra->p_timing);
 
-  countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
-  (void) countdown;
+  (void) interp_enter_with_countdown(p_interp, countdown);
 
   return !!(p_cpu_driver->flags & k_cpu_flag_exited);
 }
@@ -1126,16 +1133,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v |= a;
 
 int64_t
-interp_enter_with_details(struct interp_struct* p_interp,
-                          int64_t countdown,
-                          int (*instruction_callback)(void* p,
-                                                      uint16_t next_pc,
-                                                      uint8_t done_opcode,
-                                                      uint16_t done_addr,
-                                                      int next_is_irq,
-                                                      int irq_pending,
-                                                      int hit_special),
-                          void* p_callback_context) {
+interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t pc;
   uint8_t a;
   uint8_t x;
@@ -1203,7 +1201,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   if (p_interp->debug_subsystem_active) {
     special_checks |= k_interp_special_debug;
   }
-  if (instruction_callback) {
+  if (p_interp->p_instruction_callback) {
     special_checks |= k_interp_special_callback;
   }
   if (p_interp->p_memory_written_callback) {
@@ -3027,16 +3025,17 @@ check_irq:
     }
 
     /* The instruction callback fires after an instruction executes. */
-    if (instruction_callback && (!(special_checks & k_interp_special_entry))) {
+    if ((special_checks & k_interp_special_callback) &&
+        !(special_checks & k_interp_special_entry)) {
       int irq_pending = !!(special_checks & k_interp_special_poll_irq);
       /* This passes the just executed opcode and addr, but the next pc. */
-      if (instruction_callback(p_callback_context,
-                               pc,
-                               opcode,
-                               addr,
-                               do_irq,
-                               irq_pending,
-                               hit_special)) {
+      if (p_interp->p_instruction_callback(p_interp->p_callback_context,
+                                           pc,
+                                           opcode,
+                                           addr,
+                                           do_irq,
+                                           irq_pending,
+                                           hit_special)) {
         /* The instruction callback can elect to exit the interpreter. */
         if (!*p_debug_interrupt) {
           break;
@@ -3086,6 +3085,20 @@ check_irq:
 int
 interp_has_memory_written_callback(struct interp_struct* p_interp) {
   return (p_interp->p_memory_written_callback != NULL);
+}
+
+void
+interp_set_instruction_callback(struct interp_struct* p_interp,
+                                int (*instruction_callback)(void* p,
+                                                            uint16_t next_pc,
+                                                            uint8_t done_opcode,
+                                                            uint16_t done_addr,
+                                                            int next_is_irq,
+                                                            int irq_pending,
+                                                            int hit_special),
+                                void* p_callback_context) {
+  p_interp->p_instruction_callback = instruction_callback;
+  p_interp->p_callback_context = p_callback_context;
 }
 
 void

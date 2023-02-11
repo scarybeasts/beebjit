@@ -2579,8 +2579,50 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xE500);
 
-  /* End of test. */
   set_new_index(p_buf, 0x2500);
+  emit_LDA(p_buf, k_imm, 0xAD);   /* LDA $0000 */
+  emit_STA(p_buf, k_abs, 0x6500);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x6501);
+  emit_STA(p_buf, k_abs, 0x6502);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x6503);
+  emit_LDX(p_buf, k_imm, 16);
+  /* Flip between LDA / LDX abs. */
+  emit_LDA(p_buf, k_abs, 0x6500);
+  emit_EOR(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0x6500);
+  emit_JSR(p_buf, 0x6500);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -14);
+  /* Set up a simple self-modify. */
+  emit_LDA(p_buf, k_imm, 0xC6);   /* DEC $70 */
+  emit_STA(p_buf, k_abs, 0x6504);
+  emit_LDA(p_buf, k_imm, 0x70);
+  emit_STA(p_buf, k_abs, 0x6505);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x6506);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x70);
+  emit_JSR(p_buf, 0x6504);
+  /* Self-modify via inturbo -> interp.
+   * Use an undocumented opcode that writes, to do this.
+   */
+  emit_LDA(p_buf, k_imm, 0xCF);   /* DCP $6504 */
+  emit_STA(p_buf, k_abs, 0x6500);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0x6501);
+  emit_LDA(p_buf, k_imm, 0x65);
+  emit_STA(p_buf, k_abs, 0x6502);
+  emit_JSR(p_buf, 0x6500);
+  emit_JSR(p_buf, 0x6504);
+  /* The DEC $70 should have become a CMP $70, so only one DEC. */
+  emit_LDA(p_buf, k_zpg, 0x70);
+  emit_REQUIRE_EQ(p_buf, 0x0F);
+  emit_JMP(p_buf, k_abs, 0xE580);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2580);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
