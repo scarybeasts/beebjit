@@ -40,6 +40,9 @@ enum {
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
   k_opcode_jmp_uop,
+  k_opcode_deref_context,
+  k_opcode_deref_scratch,
+  k_opcode_load_deref_scratch,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_begin = 0x200,

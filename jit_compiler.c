@@ -214,6 +214,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opmode;
   uint8_t opmem;
   uint8_t opreg;
+  int is_read;
+  int is_write;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -223,6 +225,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct asm_uop* p_uop = &p_details->uops[0];
   struct asm_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
+  int uses_callback = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
   uintptr_t jit_addr = 0;
@@ -241,6 +244,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (opmode == k_acc) {
     opreg = k_a;
   }
+  is_read = !!(opmem & k_opmem_read_flag);
+  is_write = !!(opmem & k_opmem_write_flag);
 
   p_details->opcode_6502 = opcode_6502;
   p_details->optype_6502 = optype;
@@ -377,24 +382,24 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       }
     }
 
-    if (opmem & k_opmem_read_flag) {
+    if (is_read) {
       if (p_memory_access->memory_read_needs_callback(
               p_memory_callback, p_details->min_6502_addr)) {
-        use_interp = 1;
+        uses_callback = 1;
       }
       if (p_memory_access->memory_read_needs_callback(
               p_memory_callback, p_details->max_6502_addr)) {
-        use_interp = 1;
+        uses_callback = 1;
       }
     }
-    if (opmem & k_opmem_write_flag) {
+    if (is_write) {
       if (p_memory_access->memory_write_needs_callback(
               p_memory_callback, p_details->min_6502_addr)) {
-        use_interp = 1;
+        uses_callback = 1;
       }
       if (p_memory_access->memory_write_needs_callback(
               p_memory_callback, p_details->max_6502_addr)) {
-        use_interp = 1;
+        uses_callback = 1;
       }
     }
     break;
@@ -438,14 +443,50 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
 
-  if (opmem & k_opmem_read_flag) {
+  if (is_read) {
     asm_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
   }
 
+  p_details->max_cycles = p_compiler->p_opcode_cycles[opcode_6502];
+
+  if (uses_callback) {
+    uint32_t num_callback_uops = 0;
+    uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
+    use_interp = 1;
+    if ((p_details->min_6502_addr == p_details->max_6502_addr) &&
+        ((optype == k_lda) ||
+             (optype == k_ldx) ||
+             (optype == k_ldy) ||
+             (optype == k_bit))) {
+      num_callback_uops =
+          p_memory_access->memory_get_read_jit_encoding(
+              p_memory_callback,
+              (p_uop - 2),
+              (uops_left + 2),
+              p_details->min_6502_addr);
+    }
+    if (num_callback_uops > 0) {
+      use_interp = 0;
+      p_uop -= 2;
+      p_uop += num_callback_uops;
+      /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
+       * For tick-then-read or tick-then-write hardware register access, an
+       * event that might affect a result might go missing if it occurs at the
+       * countdown==0 boundary.
+       * To compensate, claim the instruction takes a cycle longer but then
+       * fix up.
+       */
+      if (p_compiler->option_accurate_timings) {
+        p_details->max_cycles++;
+        asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
+        p_uop++;
+      }
+    }
+  }
+
   p_details->operand_6502 = operand_6502;
 
-  p_details->max_cycles = p_compiler->p_opcode_cycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
     if ((opmem == k_opmem_read_flag) &&
         (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
@@ -703,7 +744,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Post-main per-mode uops. */
   /* Opcodes that write, including uopcodes for handling self-modifying code. */
   /* TODO: stack page invalidations. */
-  if (opmem & k_opmem_write_flag) {
+  if (is_write) {
     asm_make_uop0(p_uop, k_opcode_value_store);
     p_uop++;
 
@@ -909,11 +950,16 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
       /* x64 backend currently has trouble with BIT_addr. */
       return;
     }
+    p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
+    if (p_uop == NULL) {
+      /* It's a JIT encoded callback. */
+      assert(jit_opcode_find_uop(p_opcode, &index, k_opcode_deref_context) !=
+             NULL);
+      return;
+    }
     /* Examples (ABS): Stryker's Run. */
     /* Examples (ABX): Galaforce, Pipeline, Meteors. */
     /* Examples (ABY): Rocket Raid, Galaforce. */
-    p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
-    assert(p_uop != NULL);
     p_uop->value1 = next_addr;
     if (opmode == k_abx) {
       p_uop++;

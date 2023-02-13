@@ -33,6 +33,9 @@ main(int argc, const char* argv[]) {
   (void) memset(p_mem, '\xf2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
+  /* NMI vector. */
+  p_mem[0x3FFA] = 0x00;
+  p_mem[0x3FFB] = 0x0D;
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
@@ -1084,8 +1087,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x57);
   emit_JMP(p_buf, k_abs, 0xCEC0);
 
-  /* Exit sequence. */
+  /* Test that hardware I/O is tick-then-access for a read where a relevant
+   * event falls right at the post-instruction boundary at the end of a
+   * block.
+   */
   set_new_index(p_buf, 0x0EC0);
+  emit_JMP(p_buf, k_abs, 0xCEC7);
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_RTS(p_buf);
+  /* Create block with just RTS. */
+  emit_JSR(p_buf, 0xCEC6);
+  /* Create block with just LDA $FE80. */
+  emit_JSR(p_buf, 0xCEC3);
+  /* NMI routine is just RTI. */
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_abs, 0x0D00);
+  /* Set NMI timer. */
+  emit_LDA(p_buf, k_imm, 14);
+  emit_STA(p_buf, k_abs, 0xFEE4);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_JSR(p_buf, 0xCEC3);
+  emit_REQUIRE_EQ(p_buf, 0x0C);   /* 8271 NMI and need data. */
+  emit_JMP(p_buf, k_abs, 0xCF00);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0F00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
@@ -1152,7 +1179,6 @@ main(int argc, const char* argv[]) {
   if (close(fd) != 0) {
     errx(1, "can't close output file descriptor for rom");
   }
-
 
   util_buffer_destroy(p_buf);
   free(p_mem);

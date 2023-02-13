@@ -1738,6 +1738,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_adjust);
     break;
   case k_opcode_collapse_loop: ASM_U32(load_PC); ASM(collapse_loop); break;
+  case k_opcode_deref_context: ASM_U32(deref_context); break;
+  case k_opcode_deref_scratch: ASM_U32(deref_scratch); break;
+  case k_opcode_load_deref_scratch: ASM_U32(load_deref_scratch); break;
   case k_opcode_dex_loop_calc_countdown:
     ASM(dex_loop_calc_iters);
     asm_emit_jit_scratch_MUL(p_dest_buf, value1);
@@ -1821,6 +1824,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_INX: asm_emit_instruction_INX(p_dest_buf); break;
   case k_opcode_INY: asm_emit_instruction_INY(p_dest_buf); break;
   case k_opcode_JMP: ASM_Bxx(JMP); break;
+  case k_opcode_LDA: ASM(LDA_value); break;
+  case k_opcode_LDX: ASM(LDX_value); break;
+  case k_opcode_LDY: ASM(LDY_value); break;
   case k_opcode_LDA_zero_and_flags: ASM(LDA_zero); break;
   case k_opcode_LDX_zero_and_flags: ASM(LDX_zero); break;
   case k_opcode_LDY_zero_and_flags: ASM(LDY_zero); break;

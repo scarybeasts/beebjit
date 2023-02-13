@@ -1376,6 +1376,13 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
   }
 }
 
+void
+intel_fdc_testing_fire_nmi(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_data] = 0x42;
+  intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
+                                     k_intel_fdc_status_flag_need_data));
+}
+
 static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   int ok = 1;

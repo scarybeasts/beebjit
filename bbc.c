@@ -33,6 +33,8 @@
 #include "asm/asm_defs_host.h"
 /* For asm_jit_uses_indirect_mappings(). */
 #include "asm/asm_jit.h"
+#include "asm/asm_opcodes.h"
+#include "asm/asm_util.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -182,6 +184,7 @@ struct bbc_struct {
   uint32_t timer_id_cycles;
   uint32_t timer_id_stop_cycles;
   int32_t timer_id_autoboot;
+  int32_t timer_id_test_nmi;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
@@ -894,6 +897,17 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   return 1;
 }
 
+static void
+bbc_test_nmi_timer_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_test_nmi);
+
+  if (p_bbc->p_intel_fdc != NULL) {
+    intel_fdc_testing_fire_nmi(p_bbc->p_intel_fdc);
+  }
+}
+
 int
 bbc_write_callback(void* p,
                    uint16_t addr,
@@ -1107,6 +1121,20 @@ bbc_write_callback(void* p,
         state_6502_set_irq_level(p_bbc->p_state_6502, k_state_6502_irq_nmi, 0);
         state_6502_set_irq_level(p_bbc->p_state_6502, k_state_6502_irq_nmi, 1);
         break;
+      case (k_addr_tube + 4):
+        /* &FEE4: raise 8271 NMI after a certain cycle count. */
+        if (p_bbc->timer_id_test_nmi == -1) {
+          p_bbc->timer_id_test_nmi =
+              timing_register_timer(p_bbc->p_timing,
+                                    bbc_test_nmi_timer_callback,
+                                    p_bbc);
+        }
+        if (!timing_timer_is_running(p_timing, p_bbc->timer_id_test_nmi)) {
+          (void) timing_start_timer_with_value(p_timing,
+                                               p_bbc->timer_id_test_nmi,
+                                               val);
+        }
+        break;
       default:
         break;
       }
@@ -1134,6 +1162,49 @@ bbc_write_callback(void* p,
   }
 
   return ret;
+}
+
+uint32_t
+bbc_get_read_jit_encoding(void* p,
+                          struct asm_uop* p_uops,
+                          uint32_t num_uops,
+                          uint16_t addr_6502) {
+  struct bbc_struct* p_bbc;
+
+  (void) num_uops;
+
+  if (!asm_jit_supports_uopcode(k_opcode_deref_context)) {
+    return 0;
+  }
+
+  p_bbc = (struct bbc_struct*) p;
+
+  /* TODO: fetch these unseemly constants in a more graceful manner! */
+  switch (addr_6502) {
+  case 0xFE80:
+    if (p_bbc->is_wd_fdc) {
+      return 0;
+    }
+    asm_make_uop1(&p_uops[0], k_opcode_deref_context, 0x40078);
+    asm_make_uop1(&p_uops[1], k_opcode_deref_scratch, 0x280);
+    asm_make_uop1(&p_uops[2], k_opcode_load_deref_scratch, 0x68);
+    return 3;
+  }
+
+  return 0;
+}
+
+uint32_t
+bbc_get_write_jit_encoding(void* p,
+                           struct asm_uop* p_uops,
+                           uint32_t num_uops,
+                           uint16_t addr_6502) {
+  (void) p;
+  (void) p_uops;
+  (void) num_uops;
+  (void) addr_6502;
+
+  return 0;
 }
 
 void
@@ -1451,6 +1522,7 @@ bbc_create(int mode,
   p_bbc->handle_channel_read_client = -1;
   p_bbc->handle_channel_write_client = -1;
   p_bbc->timer_id_autoboot = -1;
+  p_bbc->timer_id_test_nmi = -1;
 
   p_bbc->do_video_memory_sync = 1;
   if (util_has_option(p_opt_flags, "video:no-memory-sync")) {
@@ -1574,6 +1646,9 @@ bbc_create(int mode,
   p_bbc->memory_access.memory_write_needs_callback = bbc_write_needs_callback;
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
+  p_bbc->memory_access.memory_get_read_jit_encoding = bbc_get_read_jit_encoding;
+  p_bbc->memory_access.memory_get_write_jit_encoding =
+      bbc_get_write_jit_encoding;
 
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;

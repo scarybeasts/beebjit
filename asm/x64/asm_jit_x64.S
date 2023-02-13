@@ -491,6 +491,33 @@ ASM_SYM(asm_jit_collapse_loop_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_deref_context)
+.globl ASM_SYM(asm_jit_deref_context_END)
+ASM_SYM(asm_jit_deref_context):
+  mov REG_6502_PC, [REG_CONTEXT + 0x7fffffff]
+
+ASM_SYM(asm_jit_deref_context_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_deref_scratch)
+.globl ASM_SYM(asm_jit_deref_scratch_END)
+ASM_SYM(asm_jit_deref_scratch):
+  mov REG_SCRATCH2, [REG_6502_PC + 0x7fffffff]
+
+ASM_SYM(asm_jit_deref_scratch_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_load_deref_scratch)
+.globl ASM_SYM(asm_jit_load_deref_scratch_END)
+ASM_SYM(asm_jit_load_deref_scratch):
+  movzx REG_SCRATCH2, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+
+ASM_SYM(asm_jit_load_deref_scratch_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_dex_loop_calc_iters)
 .globl ASM_SYM(asm_jit_dex_loop_calc_iters_END)
 ASM_SYM(asm_jit_dex_loop_calc_iters):
@@ -1842,6 +1869,15 @@ ASM_SYM(asm_jit_LDA_ABY_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_LDA_value)
+.globl ASM_SYM(asm_jit_LDA_value_END)
+ASM_SYM(asm_jit_LDA_value):
+  mov REG_6502_A_32, REG_SCRATCH2_32
+
+ASM_SYM(asm_jit_LDA_value_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_LDA_zero)
 .globl ASM_SYM(asm_jit_LDA_zero_END)
 ASM_SYM(asm_jit_LDA_zero):
@@ -1905,6 +1941,15 @@ ASM_SYM(asm_jit_LDX_IMM_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_LDX_value)
+.globl ASM_SYM(asm_jit_LDX_value_END)
+ASM_SYM(asm_jit_LDX_value):
+  mov REG_6502_X_32, REG_SCRATCH2_32
+
+ASM_SYM(asm_jit_LDX_value_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_LDX_zero)
 .globl ASM_SYM(asm_jit_LDX_zero_END)
 ASM_SYM(asm_jit_LDX_zero):
@@ -1965,6 +2010,15 @@ ASM_SYM(asm_jit_LDY_IMM):
   mov REG_6502_Y, 0
 
 ASM_SYM(asm_jit_LDY_IMM_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_LDY_value)
+.globl ASM_SYM(asm_jit_LDY_value_END)
+ASM_SYM(asm_jit_LDY_value):
+  mov REG_6502_Y_32, REG_SCRATCH2_32
+
+ASM_SYM(asm_jit_LDY_value_END):
   ret
 
 

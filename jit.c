@@ -49,6 +49,9 @@ struct jit_struct {
    */
   uint32_t jit_ptrs[k_6502_addr_space_size];
 
+  /* Context pointer for JIT-defined custom callbacks. */
+  void* p_jit_callback_context;
+
   /* Fields not referenced by JIT code. */
   struct asm_jit_struct* p_asm;
   struct jit_metadata* p_metadata;
@@ -90,8 +93,12 @@ jit_interp_instruction_callback(void* p,
   struct jit_struct* p_jit = (struct jit_struct*) p;
 
   if (hit_special) {
-    p_jit->counter_stay_in_interp = 2;
-    return 0;
+    if (done_addr == 0xFE80) {
+      /* Temporary hack to make our nascent JIT encoded callback used. */
+    } else {
+      p_jit->counter_stay_in_interp = 2;
+      return 0;
+    }
   }
 
   p_metadata = p_jit->p_metadata;
@@ -850,6 +857,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->housekeeping_tick = jit_housekeeping_tick;
 
   p_jit->p_compile_callback = jit_compile;
+  p_jit->p_jit_callback_context = p_memory_access->p_callback_obj;
   p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
   p_cpu_driver->abi.p_interp_asm = asm_jit_interp_trampoline;
 

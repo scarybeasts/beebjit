@@ -29,4 +29,6 @@ void intel_fdc_write(struct intel_fdc_struct* p_fdc,
                      uint16_t addr,
                      uint8_t val);
 
+void intel_fdc_testing_fire_nmi(struct intel_fdc_struct* p_fdc);
+
 #endif /* BEEBJIT_INTEL_FDC_H */

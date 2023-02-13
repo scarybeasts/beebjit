@@ -160,6 +160,9 @@ asm_jit_supports_uopcode(int32_t uopcode) {
   if (uopcode == k_opcode_dex_loop_calc_countdown) {
     return 0;
   }
+  if (uopcode == k_opcode_deref_context) {
+    return 0;
+  }
   return 1;
 }
 
