@@ -45,6 +45,7 @@ tape_uef_load(struct tape_struct* p_tape,
   uint8_t* p_in_buf;
   uint32_t src_remaining;
   uint32_t baud_scale_for_300;
+  int has_correct_parity = 0;
   uint8_t* p_deflate_buf = NULL;
 
   if (src_len < 2) {
@@ -118,6 +119,15 @@ tape_uef_load(struct tape_struct* p_tape,
       if (log_uef) {
         p_in_buf[chunk_len - 1] = '\0';
         log_do_log(k_log_tape, k_log_info, "comment: %s", p_in_buf);
+      }
+      if ((chunk_len == 14) && !memcmp(p_in_buf, "MakeUEF V", 9)) {
+        /* MakeUEF V2.4 or newer has the odd/even parity mixup fixed. */
+        if (p_in_buf[9] > '2') {
+          has_correct_parity = 1;
+        }
+        if ((p_in_buf[9] == '2') && (p_in_buf[11] >= '4')) {
+          has_correct_parity = 1;
+        }
       }
       break;
     case k_tape_uef_chunk_target_machine:
@@ -206,6 +216,7 @@ tape_uef_load(struct tape_struct* p_tape,
       for (i = 0; i < (chunk_len - 3); ++i) {
         uint32_t i_bits;
         int parity = 0;
+        int emit_parity = 0;
         uint8_t byte = p_in_buf[i + 3];
         /* Start bit. */
         tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
@@ -220,21 +231,24 @@ tape_uef_load(struct tape_struct* p_tape,
           }
         }
         /* Parity bit. */
-        /* NOTE: the UEFs I've tested with appear to have odd / even exactly
+        /* NOTE: MakeUEF prior to V2.4 made UEFs with odd / even exactly
          * the wrong way around. For example, an 8O1 block is read with the
          * 6850 in 8E1 mode on the host. So we invert.
          */
         if (p_in_buf[1] == 'E') {
-          if (!parity) {
-            tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
-          } else {
-            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
-          }
+          emit_parity = 1;
         } else if (p_in_buf[1] == 'O') {
-          if (!parity) {
-            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
-          } else {
+          emit_parity = 1;
+          parity = !parity;
+        }
+        if (!has_correct_parity) {
+          parity = !parity;
+        }
+        if (emit_parity) {
+          if (parity) {
             tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
+          } else {
+            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
           }
         }
         /* Stop bits. */
