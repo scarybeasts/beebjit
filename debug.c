@@ -916,6 +916,7 @@ debug_check_unusual(struct debug_struct* p_debug,
                     int wrapped_8bit,
                     int wrapped_16bit) {
   int warned;
+  int is_undocumented = 0;
   uint8_t warn_count = p_debug->warn_at_addr_count[p_debug->reg_pc];
 
   if (!warn_count) {
@@ -978,6 +979,14 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   if ((optype >= k_first_6502_undocumented) &&
       (optype <= k_last_6502_undocumented)) {
+    is_undocumented = 1;
+  } else if ((optype == k_nop) && (opmode != k_nil)) {
+    /* NOTE: this doesn't catch all undocumented NOPs, but it catches many. It
+     * will miss 1-byte 2-cycle NOPs on 6502 such as $1A.
+     */
+    is_undocumented = 1;
+  }
+  if (is_undocumented) {
     (void) printf("DEBUG: undocumented opcode $%.2X at $%.4"PRIX16"\n",
                   opcode,
                   p_debug->reg_pc);
