@@ -858,7 +858,11 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_address_info = inturbo_get_address_info;
 
   p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
-  p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline;
+  if (p_inturbo->is_ret_mode) {
+    p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline_ret;
+  } else {
+    p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline;
+  }
 
   p_inturbo->debug_subsystem_active = debug_subsystem_active(p_debug);
 
