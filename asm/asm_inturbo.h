@@ -114,6 +114,7 @@ uint32_t asm_inturbo_enter(void* p_context,
                            int64_t countdown,
                            void* p_mem_base);
 void asm_inturbo_interp_trampoline(void);
+void asm_inturbo_interp_trampoline_ret(void);
 
 void asm_inturbo_check_special_address();
 void asm_inturbo_check_special_address_END();

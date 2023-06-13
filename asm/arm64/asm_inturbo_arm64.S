@@ -189,6 +189,29 @@ ASM_SYM(asm_inturbo_jump_interp_END):
 .globl ASM_SYM(asm_inturbo_interp_trampoline)
 .globl ASM_SYM(asm_inturbo_interp_trampoline_END)
 ASM_SYM(asm_inturbo_interp_trampoline):
+  bl ASM_SYM(asm_inturbo_do_interp_trampoline)
+  ldrb REG_SCRATCH1_32, [REG_6502_PC]
+  b ASM_SYM(asm_inturbo_jump_next_opcode)
+
+ASM_SYM(asm_inturbo_interp_trampoline_END):
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_interp_trampoline_ret)
+.globl ASM_SYM(asm_inturbo_interp_trampoline_ret_END)
+ASM_SYM(asm_inturbo_interp_trampoline_ret):
+  stp x29, x30, [sp, #-16]!
+  bl ASM_SYM(asm_inturbo_do_interp_trampoline)
+  ldp x29, x30, [sp], #16
+  ret
+
+ASM_SYM(asm_inturbo_interp_trampoline_ret_END):
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_do_interp_trampoline)
+.globl ASM_SYM(asm_inturbo_do_interp_trampoline_END)
+ASM_SYM(asm_inturbo_do_interp_trampoline):
   stp x29, x30, [sp, #-16]!
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   bl ASM_SYM(asm_save_AXYS_PC_flags)
@@ -205,19 +228,28 @@ ASM_SYM(asm_inturbo_interp_trampoline):
 
   tst REG_SCRATCH1, REG_SCRATCH1
   b.eq not_exiting
+
   mov REG_RETURN, REG_SCRATCH1
   ldp x29, x30, [sp], #16
+  # We might be exiting inturbo mode, or exiting JIT mode within a call to
+  # inturbo.
+  # It's a layering violation, but for now handle those two cases here by
+  # walking up the stack one more call and some data pops if we're in JIT mode.
+  ldr REG_SCRATCH1, [REG_CONTEXT]
+  tst REG_SCRATCH1, REG_SCRATCH1
+  b.eq exiting_inturbo
+  add sp, sp, #48
+exiting_inturbo:
   b ASM_SYM(asm_common_exit)
 
-ASM_SYM(asm_inturbo_interp_trampoline_END):
+ASM_SYM(asm_inturbo_do_interp_trampoline_END):
   ret
 
 not_exiting:
   bl ASM_SYM(asm_restore_AXYS_PC_flags)
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
-  ldrb REG_SCRATCH1_32, [REG_6502_PC]
   ldp x29, x30, [sp], #16
-  b ASM_SYM(asm_inturbo_jump_next_opcode)
+  ret
 
 not_exiting_END:
   ret

@@ -1146,7 +1146,16 @@ ASM_SYM(asm_instruction_STY_scratch_interp_END):
 .globl ASM_SYM(asm_inturbo_interp_trampoline_END)
 ASM_SYM(asm_inturbo_interp_trampoline):
   int 3
-  ret
 
 ASM_SYM(asm_inturbo_interp_trampoline_END):
+  ret
+
+
+# Not called in the x64 model.
+.globl ASM_SYM(asm_inturbo_interp_trampoline_ret)
+.globl ASM_SYM(asm_inturbo_interp_trampoline_ret_END)
+ASM_SYM(asm_inturbo_interp_trampoline_ret):
+  int 3
+
+ASM_SYM(asm_inturbo_interp_trampoline_ret_END):
   ret
