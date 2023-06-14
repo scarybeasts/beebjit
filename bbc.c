@@ -1173,10 +1173,6 @@ bbc_get_read_jit_encoding(void* p,
 
   (void) num_uops;
 
-  if (!asm_jit_supports_uopcode(k_opcode_deref_context)) {
-    return 0;
-  }
-
   p_bbc = (struct bbc_struct*) p;
 
   /* TODO: fetch these unseemly constants in a more graceful manner! */

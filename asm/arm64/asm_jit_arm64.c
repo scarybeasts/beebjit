@@ -33,10 +33,13 @@ enum {
   k_opcode_arm64_CPY_IMM,
   k_opcode_arm64_EOR_IMM,
   k_opcode_arm64_LDA_ABS,
+  k_opcode_arm64_LDA_addr,
   k_opcode_arm64_LDA_IMM,
   k_opcode_arm64_LDX_ABS,
+  k_opcode_arm64_LDX_addr,
   k_opcode_arm64_LDX_IMM,
   k_opcode_arm64_LDY_ABS,
+  k_opcode_arm64_LDY_addr,
   k_opcode_arm64_LDY_IMM,
   k_opcode_arm64_ORA_IMM,
   k_opcode_arm64_SBC_IMM,
@@ -158,9 +161,6 @@ asm_jit_supports_uopcode(int32_t uopcode) {
     return 0;
   }
   if (uopcode == k_opcode_dex_loop_calc_countdown) {
-    return 0;
-  }
-  if (uopcode == k_opcode_deref_context) {
     return 0;
   }
   return 1;
@@ -448,6 +448,23 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       /* Back up for dyanmic operand load. */
       p_mode_uop = p_tmp_uop;
     }
+  }
+
+  /* By default, replace the loads with fetched from an address. It'll be
+   * overriden later for other modes (e.g. mode IMM).
+   */
+  switch (p_main_uop->uopcode) {
+  case k_opcode_LDA:
+    p_main_uop->backend_tag = k_opcode_arm64_LDA_addr;
+    break;
+  case k_opcode_LDX:
+    p_main_uop->backend_tag = k_opcode_arm64_LDX_addr;
+    break;
+  case k_opcode_LDY:
+    p_main_uop->backend_tag = k_opcode_arm64_LDY_addr;
+    break;
+  default:
+    break;
   }
 
   uopcode = p_mode_uop->uopcode;
@@ -827,6 +844,16 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_IMM16(load_PC);
     ASM(call_debug);
     break;
+  case k_opcode_deref_context:
+    value2 = value1;
+    value1 >>= 16;
+    ASM_IMM16(deref_context_movz);
+    value1 = (value2 & 0xFFFF);
+    ASM_IMM16(deref_context_movk);
+    ASM(deref_context_ldr);
+    break;
+  case k_opcode_deref_scratch: value1 /= 8; ASM_IMM12(deref_scratch); break;
+  case k_opcode_load_deref_scratch: ASM_IMM12(load_deref_scratch); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_buf); break;
@@ -904,11 +931,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_INX: ASM_IMM12(INX_n_add); ASM(INX_n_and); break;
   case k_opcode_INY: ASM_IMM12(INY_n_add); ASM(INY_n_and); break;
   case k_opcode_JMP: ASM_IMM26(JMP); break;
-  case k_opcode_LDA: ASM(LDA); break;
+  case k_opcode_LDA: ASM(LDA_value); break;
   case k_opcode_LDA_zero_and_flags: ASM(LDA_zero_and_flags); break;
-  case k_opcode_LDX: ASM(LDX); break;
+  case k_opcode_LDX: ASM(LDX_value); break;
   case k_opcode_LDX_zero_and_flags: ASM(LDX_zero_and_flags); break;
-  case k_opcode_LDY: ASM(LDY); break;
+  case k_opcode_LDY: ASM(LDY_value); break;
   case k_opcode_LDY_zero_and_flags: ASM(LDY_zero_and_flags); break;
   case k_opcode_LSR_acc:
     immr = (value1 - 1);
@@ -1004,11 +1031,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_arm64_EOR_IMM: ASM_IMMR_IMMS(EOR_IMM); break;
   case k_opcode_arm64_LDA_ABS: ASM_IMM12(LDA_ABS); break;
+  case k_opcode_arm64_LDA_addr: ASM(LDA_addr); break;
   case k_opcode_arm64_LDA_IMM: ASM_IMM16(LDA_IMM); break;
   case k_opcode_arm64_LDX_ABS: ASM_IMM12(LDX_ABS); break;
+  case k_opcode_arm64_LDX_addr: ASM(LDX_addr); break;
   case k_opcode_arm64_LDX_IMM: ASM_IMM16(LDX_IMM); break;
   case k_opcode_arm64_LDY_IMM: ASM_IMM16(LDY_IMM); break;
   case k_opcode_arm64_LDY_ABS: ASM_IMM12(LDY_ABS); break;
+  case k_opcode_arm64_LDY_addr: ASM(LDY_addr); break;
   case k_opcode_arm64_ORA_IMM: ASM_IMMR_IMMS(ORA_IMM); break;
   case k_opcode_arm64_SBC_IMM: ASM(SBC_IMM); break;
   case k_opcode_arm64_STA_ABS: ASM_IMM12(STA_ABS); break;
