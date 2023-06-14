@@ -378,7 +378,7 @@ os_sound_write_alsa(struct os_sound_struct* p_driver,
       } else {
         util_bail("snd_pcm_writei failed: %ld", ret);
       }
-    } else if (ret == num_frames) {
+    } else if ((uint32_t) ret == num_frames) {
       break;
     } else {
       num_frames -= ret;

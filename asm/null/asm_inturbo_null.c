@@ -74,6 +74,11 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_call_interp_and_ret(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
   (void) p_buf;
 }
@@ -478,4 +483,8 @@ asm_inturbo_enter(void* p_context,
 
 void
 asm_inturbo_interp_trampoline(void) {
+}
+
+void
+asm_inturbo_interp_trampoline_ret(void) {
 }
