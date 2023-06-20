@@ -854,6 +854,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_deref_scratch: value1 /= 8; ASM_IMM12(deref_scratch); break;
   case k_opcode_load_deref_scratch: ASM_IMM12(load_deref_scratch); break;
+  case k_opcode_load_deref_scratch_quad:
+    value1 /= 8;
+    ASM_IMM12(load_deref_scratch_quad);
+    break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_buf); break;
@@ -880,6 +884,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
+  case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
   case k_opcode_value_store: ASM(value_store_addr); break;

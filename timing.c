@@ -21,17 +21,30 @@ struct timer_struct {
 };
 
 struct timing_struct {
-  uint32_t scale_factor;
-  struct timer_struct timers[k_timing_num_timers];
-
   uint64_t total_timer_ticks;
+  uint64_t countdown;
+  uint64_t odd_even_tracker;
+  uint64_t odd_even_mixin;
   struct timer_struct* p_expiry_head;
   struct timer_struct* p_ticking_head;
-
   uint64_t next_timer_expiry;
-  uint64_t countdown;
+  uint32_t scale_factor;
+
   uint32_t num_timers;
+  struct timer_struct timers[k_timing_num_timers];
 };
+
+static inline void
+timing_set_countdown(struct timing_struct* p_timing, uint64_t countdown) {
+  uint64_t odd_even_tracker = countdown;
+  odd_even_tracker ^= p_timing->total_timer_ticks;
+  odd_even_tracker ^= p_timing->odd_even_mixin;
+  p_timing->countdown = countdown;
+  /* Help keep track of whether we're on an odd or even tick.
+   * This enables a JIT optimization when hitting 1MHz addresses.
+   */
+  p_timing->odd_even_tracker = odd_even_tracker;
+}
 
 struct timing_struct*
 timing_create(uint32_t scale_factor) {
@@ -43,7 +56,7 @@ timing_create(uint32_t scale_factor) {
   p_timing->p_ticking_head = NULL;
 
   p_timing->next_timer_expiry = INT64_MAX;
-  p_timing->countdown = INT64_MAX;
+  timing_set_countdown(p_timing, INT64_MAX);
 
   return p_timing;
 }
@@ -81,7 +94,7 @@ timing_update_counts(struct timing_struct* p_timing) {
   countdown = (next_timer_expiry - adjustment);
 
   p_timing->next_timer_expiry = next_timer_expiry;
-  p_timing->countdown = countdown;
+  timing_set_countdown(p_timing, countdown);
 
   return countdown;
 }
@@ -436,7 +449,7 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
 
   /* Clear the countdown adjustment. */
   p_timing->next_timer_expiry = 0;
-  p_timing->countdown = 0;
+  timing_set_countdown(p_timing, 0);
 
   /* Pass 2: fire any timers. */
   p_timer = p_timing->p_expiry_head;
@@ -477,8 +490,8 @@ timing_advance_time(struct timing_struct* p_timing, int64_t countdown_target) {
      */
     if ((uint64_t) delta < countdown) {
       countdown -= delta;
-      p_timing->countdown = countdown;
       p_timing->total_timer_ticks += delta;
+      timing_set_countdown(p_timing, countdown);
 
       return countdown;
     }
@@ -496,6 +509,11 @@ timing_advance_time_delta(struct timing_struct* p_timing, uint64_t delta) {
   uint64_t countdown = p_timing->countdown;
   countdown -= delta;
   return timing_advance_time(p_timing, countdown);
+}
+
+void
+timing_set_odd_even_mixin(struct timing_struct* p_timing, uint64_t mixin) {
+  p_timing->odd_even_mixin = mixin;
 }
 
 #include "test-timing.c"

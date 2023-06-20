@@ -123,13 +123,13 @@ main(int argc, const char* argv[]) {
   set_new_index(p_buf, 0x0130);
   emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, even cycle start, 6 cycles. */
+  emit_LDA(p_buf, k_abs, 0xFE4A); /* Read SR, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 14);
   emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
   emit_CYCLES_RESET(p_buf);       /* Cycles == 0 after this. */
   emit_LDA(p_buf, k_zpg, 0x00);   /* Cycles == 3 after this opcode. */
-  emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
+  emit_LDA(p_buf, k_abs, 0xFE4A); /* Read SR, odd cycle start, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 16);
   emit_CYCLES_RESET(p_buf);
@@ -1111,8 +1111,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0C);   /* 8271 NMI and need data. */
   emit_JMP(p_buf, k_abs, 0xCF00);
 
-  /* Exit sequence. */
+  /* Test 1Mhz peripheral timing for a JIT encoded callback. */
   set_new_index(p_buf, 0x0F00);
+  emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* Read IFR, even cycle start, 6 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 14);
+  emit_LDA(p_buf, k_abs, 0xFE00); /* 1MHz sync. */
+  emit_CYCLES_RESET(p_buf);       /* Cycles == 0 after this. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Cycles == 3 after this opcode. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* Read IFR, odd cycle start, 5 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 16);
+  emit_JMP(p_buf, k_abs, 0xCF40);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0F40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

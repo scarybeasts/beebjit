@@ -32,12 +32,18 @@ struct memory_access {
   /* JIT integration. */
   uint32_t (*memory_get_read_jit_encoding)(void* p,
                                            struct asm_uop* p_uops,
+                                           int* p_ends_block,
+                                           uint32_t* p_extra_cycles,
                                            uint32_t num_uops,
-                                           uint16_t addr_6502);
+                                           uint16_t addr_6502,
+                                           int do_accurate_timings);
   uint32_t (*memory_get_write_jit_encoding)(void* p,
                                             struct asm_uop* p_uops,
+                                            int* p_ends_block,
+                                            uint32_t* p_extra_cycles,
                                             uint32_t num_uops,
-                                            uint16_t addr_6502);
+                                            uint16_t addr_6502,
+                                            int do_accurate_timings);
 
   void* p_last_tick_callback_obj;
   void (*memory_client_last_tick_callback)(void* p);

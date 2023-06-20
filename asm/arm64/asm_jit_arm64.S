@@ -416,21 +416,19 @@ ASM_SYM(asm_jit_call_debug_END):
 .globl ASM_SYM(asm_jit_deref_context_ldr)
 .globl ASM_SYM(asm_jit_deref_context_ldr_END)
 ASM_SYM(asm_jit_deref_context_movz):
-  # NOTE: using REG_6502_PC for no particular reason other than that's a spare
-  # register that the x64 implementation used.
-  movz REG_6502_PC, #0xFFFF, lsl #16
+  movz REG_JIT_SCRATCH, #0xFFFF, lsl #16
 
 ASM_SYM(asm_jit_deref_context_movz_END):
   ret
 
 ASM_SYM(asm_jit_deref_context_movk):
-  movk REG_6502_PC, #0xFFFF
+  movk REG_JIT_SCRATCH, #0xFFFF
 
 ASM_SYM(asm_jit_deref_context_movk_END):
   ret
 
 ASM_SYM(asm_jit_deref_context_ldr):
-  ldr REG_6502_PC, [REG_CONTEXT, REG_6502_PC]
+  ldr REG_JIT_SCRATCH, [REG_CONTEXT, REG_JIT_SCRATCH]
 
 ASM_SYM(asm_jit_deref_context_ldr_END):
   ret
@@ -439,7 +437,7 @@ ASM_SYM(asm_jit_deref_context_ldr_END):
 .globl ASM_SYM(asm_jit_deref_scratch)
 .globl ASM_SYM(asm_jit_deref_scratch_END)
 ASM_SYM(asm_jit_deref_scratch):
-  ldr REG_VALUE, [REG_6502_PC, 0x7FF8]
+  ldr REG_VALUE, [REG_JIT_SCRATCH, 0x7FF8]
 
 ASM_SYM(asm_jit_deref_scratch_END):
   ret
@@ -451,6 +449,15 @@ ASM_SYM(asm_jit_load_deref_scratch):
   ldrb REG_VALUE_32, [REG_VALUE, 0xFFF]
 
 ASM_SYM(asm_jit_load_deref_scratch_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_load_deref_scratch_quad)
+.globl ASM_SYM(asm_jit_load_deref_scratch_quad_END)
+ASM_SYM(asm_jit_load_deref_scratch_quad):
+  ldr REG_VALUE, [REG_VALUE, 0x7FF8]
+
+ASM_SYM(asm_jit_load_deref_scratch_quad_END):
   ret
 
 
@@ -572,6 +579,17 @@ ASM_SYM(asm_jit_scratch_set):
   movz REG_JIT_SCRATCH, 0xFFFF
 
 ASM_SYM(asm_jit_scratch_set_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_sync_even_cycle)
+.globl ASM_SYM(asm_jit_sync_even_cycle_END)
+ASM_SYM(asm_jit_sync_even_cycle):
+  eon REG_VALUE, REG_COUNTDOWN, REG_VALUE
+  and REG_VALUE, REG_VALUE, #1
+  add REG_COUNTDOWN, REG_COUNTDOWN, REG_VALUE
+
+ASM_SYM(asm_jit_sync_even_cycle_END):
   ret
 
 

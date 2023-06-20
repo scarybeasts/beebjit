@@ -93,7 +93,7 @@ jit_interp_instruction_callback(void* p,
   struct jit_struct* p_jit = (struct jit_struct*) p;
 
   if (hit_special) {
-    if (done_addr == 0xFE80) {
+    if ((done_addr == 0xFE80) || (done_addr == 0xFE4D)) {
       /* Temporary hack to make our nascent JIT encoded callback used. */
     } else {
       p_jit->counter_stay_in_interp = 2;

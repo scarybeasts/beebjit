@@ -1167,38 +1167,94 @@ bbc_write_callback(void* p,
 uint32_t
 bbc_get_read_jit_encoding(void* p,
                           struct asm_uop* p_uops,
+                          int* p_ends_block,
+                          uint32_t* p_extra_cycles,
                           uint32_t num_uops,
-                          uint16_t addr_6502) {
+                          uint16_t addr_6502,
+                          int do_accurate_timings) {
   struct bbc_struct* p_bbc;
+  int is_1MHz;
+  struct asm_uop* p_uop = p_uops;
 
   (void) num_uops;
 
   p_bbc = (struct bbc_struct*) p;
 
-  /* TODO: fetch these unseemly constants in a more graceful manner! */
   switch (addr_6502) {
+  case 0xFE4D:
+    /* Continue. */
+    break;
   case 0xFE80:
     if (p_bbc->is_wd_fdc) {
       return 0;
     }
-    asm_make_uop1(&p_uops[0], k_opcode_deref_context, 0x40078);
-    asm_make_uop1(&p_uops[1], k_opcode_deref_scratch, 0x280);
-    asm_make_uop1(&p_uops[2], k_opcode_load_deref_scratch, 0x68);
-    return 3;
+    /* Continue. */
+    break;
+  default:
+    /* Bail. */
+    return 0;
   }
 
-  return 0;
+  is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
+  if (is_1MHz && !asm_jit_supports_uopcode(k_opcode_sync_even_cycle)) {
+    return 0;
+  }
+
+  /* TODO: fetch these unseemly constants in a more graceful manner! */
+  asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
+  p_uop++;
+
+  *p_ends_block = 0;
+  *p_extra_cycles = 0;
+
+  if (is_1MHz) {
+    if (do_accurate_timings) {
+      *p_ends_block = 1;
+      *p_extra_cycles = 2;
+      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x180);
+      p_uop++;
+      asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
+      p_uop++;
+      asm_make_uop0(p_uop, k_opcode_sync_even_cycle);
+      p_uop++;
+    } else {
+      *p_extra_cycles = 1;
+    }
+  }
+
+  switch (addr_6502) {
+  case 0xFE4D:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x220);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
+    p_uop++;
+    break;
+  case 0xFE80:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x280);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
+    p_uop++;
+    break;
+  }
+
+  return (p_uop - p_uops);
 }
 
 uint32_t
 bbc_get_write_jit_encoding(void* p,
                            struct asm_uop* p_uops,
+                           int* p_ends_block,
+                           uint32_t* p_extra_cycles,
                            uint32_t num_uops,
-                           uint16_t addr_6502) {
+                           uint16_t addr_6502,
+                           int do_accurate_timings) {
   (void) p;
   (void) p_uops;
+  (void) p_ends_block;
+  (void) p_extra_cycles;
   (void) num_uops;
   (void) addr_6502;
+  (void) do_accurate_timings;
 
   return 0;
 }
@@ -1262,6 +1318,9 @@ bbc_framebuffer_ready_callback(void* p,
 
 static void
 bbc_break_reset(struct bbc_struct* p_bbc) {
+  uint64_t ticks = timing_get_total_timer_ticks(p_bbc->p_timing);
+  log_do_log(k_log_misc, k_log_info, "BREAK reset at ticks %"PRIu64, ticks);
+
   /* The BBC break key is attached to the 6502 reset line.
    * Many other peripherals are not connected to any reset on break, but a few
    * are.
@@ -1272,6 +1331,10 @@ bbc_break_reset(struct bbc_struct* p_bbc) {
     intel_fdc_break_reset(p_bbc->p_intel_fdc);
   }
   state_6502_reset(p_bbc->p_state_6502);
+
+  if (p_bbc->is_compat_old_1MHz_cycles) {
+    timing_set_odd_even_mixin(p_bbc->p_timing, (ticks & 1));
+  }
 }
 
 static void

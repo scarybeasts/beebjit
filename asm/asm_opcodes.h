@@ -43,6 +43,8 @@ enum {
   k_opcode_deref_context,
   k_opcode_deref_scratch,
   k_opcode_load_deref_scratch,
+  k_opcode_load_deref_scratch_quad,
+  k_opcode_sync_even_cycle,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_begin = 0x200,
