@@ -518,6 +518,15 @@ ASM_SYM(asm_jit_load_deref_scratch_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_load_deref_scratch_quad)
+.globl ASM_SYM(asm_jit_load_deref_scratch_quad_END)
+ASM_SYM(asm_jit_load_deref_scratch_quad):
+  mov REG_SCRATCH2, [REG_SCRATCH2 + 0x7fffffff]
+
+ASM_SYM(asm_jit_load_deref_scratch_quad_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_dex_loop_calc_iters)
 .globl ASM_SYM(asm_jit_dex_loop_calc_iters_END)
 ASM_SYM(asm_jit_dex_loop_calc_iters):
@@ -892,6 +901,18 @@ ASM_SYM(asm_jit_store_ZPG):
   mov [REG_MEM + 0x7f], REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_store_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_sync_even_cycle)
+.globl ASM_SYM(asm_jit_sync_even_cycle_END)
+ASM_SYM(asm_jit_sync_even_cycle):
+  not REG_SCRATCH2_32
+  xor REG_SCRATCH2, REG_COUNTDOWN
+  and REG_SCRATCH2_32, 1
+  add REG_COUNTDOWN, REG_SCRATCH2
+
+ASM_SYM(asm_jit_sync_even_cycle_END):
   ret
 
 

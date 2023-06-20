@@ -387,9 +387,7 @@ asm_jit_test_preconditions(void) {
 
 int
 asm_jit_supports_uopcode(int32_t uopcode) {
-  if (uopcode == k_opcode_sync_even_cycle) {
-    return 0;
-  }
+  (void) uopcode;
   return 1;
 }
 
@@ -1743,6 +1741,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_deref_context: ASM_U32(deref_context); break;
   case k_opcode_deref_scratch: ASM_U32(deref_scratch); break;
   case k_opcode_load_deref_scratch: ASM_U32(load_deref_scratch); break;
+  case k_opcode_load_deref_scratch_quad:
+    ASM_U32(load_deref_scratch_quad);
+    break;
   case k_opcode_dex_loop_calc_countdown:
     ASM(dex_loop_calc_iters);
     asm_emit_jit_scratch_MUL(p_dest_buf, value1);
@@ -1801,6 +1802,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_carry_inverted: ASM(save_carry_inv); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
+  case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); ASM(write_inv_commit); break;
