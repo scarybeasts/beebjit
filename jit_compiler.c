@@ -461,6 +461,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         ((optype == k_lda) ||
              (optype == k_ldx) ||
              (optype == k_ldy) ||
+             (optype == k_and) ||
              (optype == k_bit))) {
       num_callback_uops =
           p_memory_access->memory_get_read_jit_encoding(

@@ -1169,6 +1169,15 @@ ASM_SYM(asm_jit_ALR_IMM_shr_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_AND)
+.globl ASM_SYM(asm_jit_AND_END)
+ASM_SYM(asm_jit_AND):
+  and REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_AND_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_AND_ABS)
 .globl ASM_SYM(asm_jit_AND_ABS_END)
 ASM_SYM(asm_jit_AND_ABS):

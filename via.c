@@ -81,9 +81,7 @@ via_check_interrupt(struct via_struct* p_via) {
   int interrupt;
   struct state_6502* p_state_6502 = bbc_get_6502(p_via->p_bbc);
 
-  assert(!(p_via->IER & 0x80));
-
-  if (p_via->IER & p_via->IFR) {
+  if ((p_via->IER & 0x7F) & p_via->IFR) {
     p_via->IFR |= 0x80;
     level = 1;
   } else {
@@ -329,7 +327,7 @@ via_power_on_reset(struct via_struct* p_via) {
   p_via->ACR = 0;
   p_via->PCR = 0;
   p_via->IFR = 0;
-  p_via->IER = 0;
+  p_via->IER = 0x80;
   p_via->CA1 = 0;
   p_via->CA2 = 0;
   p_via->CB1 = 0;
@@ -699,7 +697,7 @@ via_read_internal(struct via_struct* p_via,
     ret = p_via->IFR;
     break;
   case k_via_IER:
-    ret = (p_via->IER | 0x80);
+    ret = p_via->IER;
     break;
   default:
     assert(0);
@@ -896,9 +894,9 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_IER:
     if (val & 0x80) {
-      p_via->IER |= (val & 0x7F);
+      p_via->IER |= val;
     } else {
-      p_via->IER &= ~(val & 0x7F);
+      p_via->IER &= ~val;
     }
     via_check_interrupt(p_via);
     break;

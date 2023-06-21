@@ -1806,6 +1806,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); ASM(write_inv_commit); break;
+  case k_opcode_AND: ASM(AND); break;
   case k_opcode_ASL_acc: ASM(ASL_ACC); break;
   case k_opcode_ASL_value: ASM(ASL_value); break;
   case k_opcode_BCC: ASM_Bxx(BCC); break;
