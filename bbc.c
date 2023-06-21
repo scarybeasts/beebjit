@@ -1181,6 +1181,7 @@ bbc_get_read_jit_encoding(void* p,
   p_bbc = (struct bbc_struct*) p;
 
   switch (addr_6502) {
+  case 0xFE08:
   case 0xFE4D:
     /* Continue. */
     break;
@@ -1223,6 +1224,12 @@ bbc_get_read_jit_encoding(void* p,
   }
 
   switch (addr_6502) {
+  case 0xFE08:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x290);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x18);
+    p_uop++;
+    break;
   case 0xFE4D:
     asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x220);
     p_uop++;

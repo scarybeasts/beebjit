@@ -370,3 +370,29 @@ Nothing significant to note beyond other CLOCKSP tests.
 [ITRP] 0049: DEX
 [ITRP] 004A: BNE $0038
 
+- Way of the Exploding Fist
+1) Custom tape loader
+[ITRP] 2F93: LDA $FE08
+[ITRP] 2F96: LSR A
+[ITRP] 2F97: BCC $2F93
+[ITRP] 2F99: LDA $FE09
+[ITRP] 2F9C: RTS
+
+2) Various plotting?
+[ITRP] 25C0: STA $7EC0,Y
+[ITRP] 25C3: STA $7F60,Y
+[ITRP] 25C6: INY
+[ITRP] 25C7: CPY #$A0
+[ITRP] 25C9: BNE $25C0
+...
+[ITRP] 25A6: LDA ($98),Y
+[ITRP] 25A8: STA $7EC0,Y
+[ITRP] 25AB: INY
+[ITRP] 25AC: BNE $25A6
+...
+[ITRP] 266B: LDA ($90),Y
+[ITRP] 266D: STA ($94),Y
+[ITRP] 266F: LDA ($92),Y
+[ITRP] 2671: STA ($96),Y
+[ITRP] 2673: DEY
+[ITRP] 2674: BPL $266B

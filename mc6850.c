@@ -43,8 +43,9 @@ struct mc6850_struct {
   struct state_6502* p_state_6502;
   void (*p_transmit_ready_callback)(void* p);
   void* p_transmit_ready_object;
-  uint8_t acia_control;
+  uint8_t acia_status_for_read;
   uint8_t acia_status;
+  uint8_t acia_control;
   uint8_t acia_receive;
   uint8_t acia_transmit;
   int state;
@@ -62,10 +63,11 @@ struct mc6850_struct {
 };
 
 static void
-mc6850_update_irq(struct mc6850_struct* p_serial) {
+mc6850_update_irq_and_status_read(struct mc6850_struct* p_serial) {
   int do_check_send_int;
   int do_check_receive_int;
   int do_fire_int;
+  uint8_t acia_status_for_read;
 
   int do_fire_send_int = 0;
   int do_fire_receive_int = 0;
@@ -97,6 +99,38 @@ mc6850_update_irq(struct mc6850_struct* p_serial) {
   state_6502_set_irq_level(p_serial->p_state_6502,
                            k_state_6502_irq_serial_acia,
                            do_fire_int);
+
+  /* Update the raw read value for the status register. */
+  acia_status_for_read = p_serial->acia_status;
+
+  /* EMU MC6850: "A low CTS indicates that there is a Clear-to-Send from the
+   * modem. In the high state, the Transmit Data Register Empty bit is
+   * inhibited".
+   */
+  if (p_serial->acia_status & k_serial_acia_status_CTS) {
+    acia_status_for_read &= ~k_serial_acia_status_TDRE;
+  }
+
+  /* If the "DCD went high" bit isn't latched, it follows line level. */
+  /* EMU MC6850, more verbosely: "It remains high after the DCD input is
+   * returned low until cleared by first reading the Status Register and then
+   * Data Register or until a master reset occurs. If the DCD input remains
+   * high after read status read data or master reset has occurred, the
+   * interrupt is cleared, the DCD status bit remains high and will follow
+   * the DCD input."
+   * Note that on real hardware, only a read of data register seems required
+   * to unlatch the DCD high condition.
+   */
+  if (p_serial->is_DCD) {
+    acia_status_for_read |= k_serial_acia_status_DCD;
+  }
+
+  /* EMU TODO: MC6850: "Data Carrier Detect being high also causes RDRF to
+   * indicate empty."
+   * Unclear if that means the line level, latched DCD status, etc.
+   */
+
+  p_serial->acia_status_for_read = acia_status_for_read;
 }
 
 struct mc6850_struct*
@@ -140,7 +174,7 @@ mc6850_set_DCD(struct mc6850_struct* p_serial, int is_DCD) {
   }
   p_serial->is_DCD = is_DCD;
 
-  mc6850_update_irq(p_serial);
+  mc6850_update_irq_and_status_read(p_serial);
 }
 
 void
@@ -150,7 +184,7 @@ mc6850_set_CTS(struct mc6850_struct* p_serial, int is_CTS) {
     p_serial->acia_status |= k_serial_acia_status_CTS;
   }
 
-  mc6850_update_irq(p_serial);
+  mc6850_update_irq_and_status_read(p_serial);
 }
 
 int
@@ -192,7 +226,7 @@ mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
   p_serial->acia_status &= ~k_serial_acia_status_PE;
   p_serial->acia_receive = byte;
 
-  mc6850_update_irq(p_serial);
+  mc6850_update_irq_and_status_read(p_serial);
 
   return 1;
 }
@@ -224,6 +258,8 @@ mc6850_transfer_sr_to_receive(struct mc6850_struct* p_serial) {
     }
   }
   mc6850_clear_receive_state(p_serial);
+
+  mc6850_update_irq_and_status_read(p_serial);
 }
 
 void
@@ -301,7 +337,7 @@ mc6850_transmit(struct mc6850_struct* p_serial) {
   assert(mc6850_is_transmit_ready(p_serial));
 
   p_serial->acia_status |= k_serial_acia_status_TDRE;
-  mc6850_update_irq(p_serial);
+  mc6850_update_irq_and_status_read(p_serial);
 
   return p_serial->acia_transmit;
 }
@@ -325,6 +361,7 @@ mc6850_reset(struct mc6850_struct* p_serial) {
   /* Reset of the ACIA cannot change external line levels. Make sure any status
    * bits they affect are kept.
    */
+  /* These calls call mc6850_update_irq_and_status_read(). */
   mc6850_set_DCD(p_serial, p_serial->is_DCD);
   mc6850_set_CTS(p_serial, is_CTS);
 }
@@ -340,38 +377,7 @@ uint8_t
 mc6850_read(struct mc6850_struct* p_serial, uint8_t reg) {
   if (reg == 0) {
     /* Status register. */
-    uint8_t ret = p_serial->acia_status;
-
-    /* EMU MC6850: "A low CTS indicates that there is a Clear-to-Send from the
-     * modem. In the high state, the Transmit Data Register Empty bit is
-     * inhibited".
-     */
-    if (p_serial->acia_status & k_serial_acia_status_CTS) {
-      ret &= ~k_serial_acia_status_TDRE;
-    }
-
-    /* If the "DCD went high" bit isn't latched, it follows line level. */
-    /* EMU MC6850, more verbosely: "It remains high after the DCD input is
-     * returned low until cleared by first reading the Status Register and then
-     * Data Register or until a master reset occurs. If the DCD input remains
-     * high after read status read data or master reset has occurred, the
-     * interrupt is cleared, the DCD status bit remains high and will follow
-     * the DCD input.
-     * Note that on real hardware, only a read of data register seems required
-     * to unlatch the DCD high condition.
-     */
-    if (!(ret & k_serial_acia_status_DCD)) {
-      if (p_serial->is_DCD) {
-        ret |= k_serial_acia_status_DCD;
-      }
-    }
-
-    /* EMU TODO: MC6850: "Data Carrier Detect being high also causes RDRF to
-     * indicate empty."
-     * Unclear if that means the line level, latched DCD status, etc.
-     */
-
-    return ret;
+    return p_serial->acia_status_for_read;
   } else {
     /* Data register. */
     p_serial->acia_status &= ~k_serial_acia_status_DCD;
@@ -388,7 +394,7 @@ mc6850_read(struct mc6850_struct* p_serial, uint8_t reg) {
       p_serial->acia_status &= ~k_serial_acia_status_RDRF;
     }
 
-    mc6850_update_irq(p_serial);
+    mc6850_update_irq_and_status_read(p_serial);
 
     return p_serial->acia_receive;
   }
@@ -450,5 +456,5 @@ mc6850_write(struct mc6850_struct* p_serial, uint8_t reg, uint8_t val) {
     }
   }
 
-  mc6850_update_irq(p_serial);
+  mc6850_update_irq_and_status_read(p_serial);
 }
