@@ -19,6 +19,9 @@ struct adc_struct {
   uint32_t timer_id;
 
   struct {
+    uint8_t read_status;
+    uint8_t read_hi;
+    uint8_t read_lo;
     uint32_t current_channel;
     uint16_t channel_value[k_adc_num_channels];
     uint64_t wall_time;
@@ -44,6 +47,37 @@ adc_stop_if_busy(struct adc_struct* p_adc) {
 }
 
 static void
+adc_recalculate_read(struct adc_struct* p_adc) {
+  uint8_t channel = p_adc->state.current_channel;
+  uint16_t adc_val = p_adc->state.channel_value[channel];
+  uint8_t status = channel;
+
+  if (p_adc->state.is_input_flag) {
+    status |= 0x04;
+  }
+  if (p_adc->state.is_12bit_mode) {
+    status |= 0x08;
+  }
+  /* AUG states bit 4 is 2nd MSB and bit 5 MSB of conversion. */
+  status |= ((!!(adc_val & 0x8000)) * 0x20);
+  status |= ((!!(adc_val & 0x4000)) * 0x10);
+  if (!p_adc->state.is_busy) {
+    status |= 0x40;
+  }
+  if (!p_adc->state.is_result_ready) {
+    status |= 0x80;
+  }
+
+  p_adc->state.read_status = status;
+  /* TODO: we don't do anything with 8-bit vs. 10-bit conversion requests,
+   * which differ in accuracy / noise.
+   */
+  p_adc->state.read_hi = (adc_val >> 8);
+  /* AUG states bits 3-0 are always set to low. */
+  p_adc->state.read_lo = (adc_val & 0xF0);
+}
+
+static void
 adc_indicate_result_ready(struct adc_struct* p_adc) {
   assert(p_adc->state.is_busy);
   assert(!p_adc->state.is_result_ready);
@@ -52,6 +86,8 @@ adc_indicate_result_ready(struct adc_struct* p_adc) {
 
   p_adc->state.is_result_ready = 1;
   via_set_CB1(p_adc->p_system_via, 0);
+
+  adc_recalculate_read(p_adc);
 }
 
 static void
@@ -92,6 +128,8 @@ adc_power_on_reset(struct adc_struct* p_adc) {
      */
     p_adc->state.channel_value[i] = 0x8000;
   }
+
+  adc_recalculate_read(p_adc);
 }
 
 static void
@@ -137,43 +175,17 @@ adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta) {
 
 uint8_t
 adc_read(struct adc_struct* p_adc, uint8_t addr) {
-  uint8_t ret = 0;
-  uint16_t adc_val = p_adc->state.channel_value[p_adc->state.current_channel];
-
   assert(addr <= 3);
 
   switch (addr) {
-  case 0: /* Status. */
-    ret = p_adc->state.current_channel;
-    if (p_adc->state.is_input_flag) {
-      ret |= 0x04;
-    }
-    if (p_adc->state.is_12bit_mode) {
-      ret |= 0x08;
-    }
-    /* AUG states bit 4 is 2nd MSB and bit 5 MSB of conversion. */
-    ret |= ((!!(adc_val & 0x8000)) * 0x20);
-    ret |= ((!!(adc_val & 0x4000)) * 0x10);
-    if (!p_adc->state.is_busy) {
-      ret |= 0x40;
-    }
-    if (!p_adc->state.is_result_ready) {
-      ret |= 0x80;
-    }
-    break;
-  case 1: /* ADC high. */
-    ret = (adc_val >> 8);
+  case 0:
+    return p_adc->state.read_status;
+  case 1:
+    return p_adc->state.read_hi;
     break;
   case 2: /* ADC low. */
-    ret = (adc_val & 0xFF);
-    /* AUG states bits 3-0 are always set to low. */
-    ret &= 0xF0;
-    /* TODO: we don't do anything with 8-bit vs. 10-bit conversion requests,
-     * which differ in accuracy / noise.
-     */
-    break;
+    return p_adc->state.read_lo;
   case 3:
-    ret = 0;
     {
       static uint32_t s_max_log_count = 4;
       log_do_log_max_count(&s_max_log_count,
@@ -187,7 +199,7 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
     break;
   }
 
-  return ret;
+  return 0;
 }
 
 void
@@ -210,6 +222,8 @@ adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
     }
 
     adc_start(p_adc, ms);
+
+    adc_recalculate_read(p_adc);
     break;
   default:
     break;
@@ -222,4 +236,6 @@ adc_set_channel_value(struct adc_struct* p_adc,
                       uint16_t value) {
   assert(channel < k_adc_num_channels);
   p_adc->state.channel_value[channel] = value;
+
+  adc_recalculate_read(p_adc);
 }

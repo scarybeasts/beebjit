@@ -1184,6 +1184,9 @@ bbc_get_read_jit_encoding(void* p,
   case 0xFE08:
   case 0xFE4D:
   case 0xFE4E:
+  case 0xFEC0:
+  case 0xFEC1:
+  case 0xFEC2:
     /* Continue. */
     break;
   case 0xFE80:
@@ -1247,6 +1250,24 @@ bbc_get_read_jit_encoding(void* p,
     asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x280);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
+    p_uop++;
+    break;
+  case 0xFEC0:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x20);
+    p_uop++;
+    break;
+  case 0xFEC1:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x21);
+    p_uop++;
+    break;
+  case 0xFEC2:
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x22);
     p_uop++;
     break;
   }

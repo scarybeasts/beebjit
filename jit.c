@@ -96,7 +96,11 @@ jit_interp_instruction_callback(void* p,
     if ((done_addr == 0xFE80) ||
         (done_addr == 0xFE4D) ||
         (done_addr == 0xFE08)) {
-      /* Temporary hack to make our nascent JIT encoded callback used. */
+      /* Temporary hack to make our nascent JIT encoded callback used.
+       * This is needed for any hardware register accesses that might be hit
+       * in a tight loop. Otherwise, something could cause a bounce to interp
+       * (typicall a timer expire / IRQ) and then it'd stay in interp.
+       */
     } else {
       p_jit->counter_stay_in_interp = 2;
       return 0;
