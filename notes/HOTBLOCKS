@@ -189,6 +189,28 @@ Notes on hot 6502 instruction sequences for various programs.
 Nothing significant to note beyond other CLOCKSP tests.
 
 
+- Elite
+1) Heavy keyboard polling during attract
+[ITRP] 3C20: LDX #$10
+[ITRP] 3C22: JSR $3C93
+[ITRP] 3C25: BMI $3C2B
+[ITRP] 3C27: INX
+[ITRP] 3C28: BPL $3C22
+...
+[ITRP] 3C93: LDA #$03
+[ITRP] 3C95: SEI
+[ITRP] 3C96: STA $FE40
+[ITRP] 3C99: LDA #$7F
+[ITRP] 3C9B: STA $FE43
+[ITRP] 3C9E: STX $FE4F
+[ITRP] 3CA1: LDX $FE4F
+[ITRP] 3CA4: LDA #$0B
+[ITRP] 3CA6: STA $FE40
+[ITRP] 3CA9: CLI
+[ITRP] 3CAA: TXA
+[ITRP] 3CAB: RTS
+
+
 - Galaforce
 1) Delay loop.
 [ITRP] 1207: LDY #$00
