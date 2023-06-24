@@ -96,6 +96,18 @@ enum {
 };
 
 struct bbc_struct {
+  /* Fields referenced by JIT encoded callbacks. */
+  void* p_save_regs_func;
+  void* p_restore_regs_func;
+  struct timing_struct* p_timing;
+  struct via_struct* p_system_via;
+  struct via_struct* p_user_via;
+  void* p_via_read_func;
+  void* p_via_write_func;
+  struct adc_struct* p_adc;
+  struct mc6850_struct* p_serial;
+  struct intel_fdc_struct* p_intel_fdc;
+
   /* Internal system mechanics. */
   struct os_thread_struct* p_thread_cpu;
   int thread_allocated;
@@ -134,7 +146,6 @@ struct bbc_struct {
   /* Machine state. */
   struct state_6502* p_state_6502;
   struct memory_access memory_access;
-  struct timing_struct* p_timing;
   struct os_alloc_mapping* p_mapping_raw;
   struct os_alloc_mapping* p_mapping_read;
   struct os_alloc_mapping* p_mapping_write;
@@ -158,11 +169,8 @@ struct bbc_struct {
   int is_romsel_invalidated;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
-  struct via_struct* p_system_via;
-  struct via_struct* p_user_via;
   uint32_t IC32;
   struct keyboard_struct* p_keyboard;
-  struct adc_struct* p_adc;
   struct joystick_struct* p_joystick;
   struct sound_struct* p_sound;
   struct render_struct* p_render;
@@ -170,9 +178,7 @@ struct bbc_struct {
   struct video_struct* p_video;
   struct disc_drive_struct* p_drive_0;
   struct disc_drive_struct* p_drive_1;
-  struct intel_fdc_struct* p_intel_fdc;
   struct wd_fdc_struct* p_wd_fdc;
-  struct mc6850_struct* p_serial;
   struct serial_ula_struct* p_serial_ula;
   struct tape_struct* p_tape;
   struct cmos_struct* p_cmos;
@@ -1202,9 +1208,6 @@ bbc_get_read_jit_encoding(void* p,
   }
 
   is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
-  if (is_1MHz && !asm_jit_supports_uopcode(k_opcode_sync_even_cycle)) {
-    return 0;
-  }
 
   /* TODO: fetch these unseemly constants in a more graceful manner! */
   asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
@@ -1217,7 +1220,7 @@ bbc_get_read_jit_encoding(void* p,
     if (do_accurate_timings) {
       *p_ends_block = 1;
       *p_extra_cycles = 2;
-      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x180);
+      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x10);
       p_uop++;
       asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
       p_uop++;
@@ -1230,49 +1233,49 @@ bbc_get_read_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE08:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x290);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x40);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x18);
     p_uop++;
     break;
   case 0xFE4D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x220);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x18);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
     p_uop++;
     break;
   case 0xFE4E:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x220);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x18);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x5A);
     p_uop++;
     break;
   case 0xFE6D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x228);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x20);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
     p_uop++;
     break;
   case 0xFE80:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x280);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x48);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
     p_uop++;
     break;
   case 0xFEC0:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x20);
     p_uop++;
     break;
   case 0xFEC1:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x21);
     p_uop++;
     break;
   case 0xFEC2:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x240);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x22);
     p_uop++;
