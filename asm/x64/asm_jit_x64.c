@@ -1722,6 +1722,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_add_x: ASM(save_addr_low_byte); ASM(addr_add_x); break;
   case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
+  case k_opcode_call_scratch_param:
+    ASM_U8(call_scratch_param_load_param1);
+    value1 = value2;
+    ASM_U8(call_scratch_param_call);
+    break;
   case k_opcode_carry_invert: ASM(carry_invert); break;
   case k_opcode_check_page_crossing_n:
     ASM(save_addr_low_byte);
@@ -1799,9 +1804,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PUSH_16:
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
     break;
+  case k_opcode_restore_regs: ASM(restore_regs); break;
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_carry_inverted: ASM(save_carry_inv); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
+  case k_opcode_save_regs: ASM(save_regs); break;
+  case k_opcode_set_param2: ASM_U32(set_param2); break;
+  case k_opcode_set_param3_from_value: ASM(set_param3_from_value); break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
@@ -1865,6 +1874,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_SEC: asm_emit_instruction_SEC(p_dest_buf); break;
   case k_opcode_SED: asm_emit_instruction_SED(p_dest_buf); break;
   case k_opcode_SEI: asm_emit_instruction_SEI(p_dest_buf); break;
+  case k_opcode_STA: ASM(STA_value); break;
+  case k_opcode_STX: ASM(STX_value); break;
+  case k_opcode_STY: ASM(STY_value); break;
   case k_opcode_TAX: asm_emit_instruction_TAX(p_dest_buf); break;
   case k_opcode_TAY: asm_emit_instruction_TAY(p_dest_buf); break;
   case k_opcode_TSX: asm_emit_instruction_TSX(p_dest_buf); break;

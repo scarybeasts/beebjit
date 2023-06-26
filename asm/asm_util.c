@@ -113,7 +113,9 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
       break;
     case k_opcode_addr_set:
       assert((i + 1) < num_uops);
-      *p_out_mode = p_uop;
+      if (!p_uop->is_eliminated) {
+        *p_out_mode = p_uop;
+      }
       break;
     case k_opcode_value_load_16bit_wrap:
     case k_opcode_addr_load_16bit_wrap:

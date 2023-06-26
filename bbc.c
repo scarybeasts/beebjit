@@ -97,8 +97,6 @@ enum {
 
 struct bbc_struct {
   /* Fields referenced by JIT encoded callbacks. */
-  void* p_save_regs_func;
-  void* p_restore_regs_func;
   struct timing_struct* p_timing;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -107,6 +105,8 @@ struct bbc_struct {
   struct adc_struct* p_adc;
   struct mc6850_struct* p_serial;
   struct intel_fdc_struct* p_intel_fdc;
+  struct video_struct* p_video;
+  void* p_video_write_func;
 
   /* Internal system mechanics. */
   struct os_thread_struct* p_thread_cpu;
@@ -175,7 +175,6 @@ struct bbc_struct {
   struct sound_struct* p_sound;
   struct render_struct* p_render;
   struct teletext_struct* p_teletext;
-  struct video_struct* p_video;
   struct disc_drive_struct* p_drive_0;
   struct disc_drive_struct* p_drive_1;
   struct wd_fdc_struct* p_wd_fdc;
@@ -1220,7 +1219,7 @@ bbc_get_read_jit_encoding(void* p,
     if (do_accurate_timings) {
       *p_ends_block = 1;
       *p_extra_cycles = 2;
-      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x10);
+      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x0);
       p_uop++;
       asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
       p_uop++;
@@ -1233,49 +1232,49 @@ bbc_get_read_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE08:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x40);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x30);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x18);
     p_uop++;
     break;
   case 0xFE4D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x18);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x8);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
     p_uop++;
     break;
   case 0xFE4E:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x18);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x8);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x5A);
     p_uop++;
     break;
   case 0xFE6D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x20);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x10);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
     p_uop++;
     break;
   case 0xFE80:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x48);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
     p_uop++;
     break;
   case 0xFEC0:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x20);
     p_uop++;
     break;
   case 0xFEC1:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x21);
     p_uop++;
     break;
   case 0xFEC2:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x22);
     p_uop++;
@@ -1293,15 +1292,74 @@ bbc_get_write_jit_encoding(void* p,
                            uint32_t num_uops,
                            uint16_t addr_6502,
                            int do_accurate_timings) {
-  (void) p;
-  (void) p_uops;
-  (void) p_ends_block;
-  (void) p_extra_cycles;
-  (void) num_uops;
-  (void) addr_6502;
-  (void) do_accurate_timings;
+  struct bbc_struct* p_bbc;
+  int is_1MHz;
+  struct asm_uop* p_uop = p_uops;
 
-  return 0;
+  (void) num_uops;
+
+  p_bbc = (struct bbc_struct*) p;
+
+  if (!asm_jit_supports_uopcode(k_opcode_save_regs)) {
+    return 0;
+  }
+
+  if (addr_6502 != 0xFE00) {
+    /* Bail. */
+    return 0;
+  }
+
+  is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
+
+  /* TODO: fetch these unseemly constants in a more graceful manner! */
+  asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
+  p_uop++;
+
+  /* Save registers.
+   * Do this before the 1MHz timing adjustment so that the timing adjustment
+   * can trash the NZ flags in the host flags if desired.
+   */
+  asm_make_uop0(p_uop, k_opcode_save_regs);
+  p_uop++;
+
+  *p_ends_block = 0;
+  *p_extra_cycles = 0;
+
+  /* Set up param3.
+   * Do it before the timing fixup because that will trash the value in
+   * the register.
+  */
+  asm_make_uop0(p_uop, k_opcode_set_param3_from_value);
+  p_uop++;
+
+  if (is_1MHz) {
+    if (do_accurate_timings) {
+      *p_ends_block = 1;
+      *p_extra_cycles = 2;
+      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x0);
+      p_uop++;
+      asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
+      p_uop++;
+      asm_make_uop0(p_uop, k_opcode_sync_even_cycle);
+      p_uop++;
+    } else {
+      *p_extra_cycles = 1;
+    }
+  }
+
+  /* Set up param2. */
+  asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
+  p_uop++;
+
+  /* Call C function. */
+  asm_make_uop2(p_uop, k_opcode_call_scratch_param, 0x40, 0x48);
+  p_uop++;
+
+  /* Restore registers. */
+  asm_make_uop0(p_uop, k_opcode_restore_regs);
+  p_uop++;
+
+  return (p_uop - p_uops);
 }
 
 void
@@ -1789,6 +1847,8 @@ bbc_create(int mode,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
+  p_bbc->p_via_read_func = via_read;
+  p_bbc->p_via_write_func = via_write;
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
@@ -1824,6 +1884,7 @@ bbc_create(int mode,
                                 p_bbc,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
+  p_bbc->p_video_write_func = video_crtc_write;
 
   p_bbc->p_drive_0 = disc_drive_create(0, p_timing, &p_bbc->options);
   p_bbc->p_drive_1 = disc_drive_create(1, p_timing, &p_bbc->options);

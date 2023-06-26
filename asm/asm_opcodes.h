@@ -17,6 +17,7 @@ enum {
   /* Misc. management opcodes, 0x100 - 0x1FF. */
   k_opcode_add_cycles = 0x100,
   k_opcode_addr_check,
+  k_opcode_call_scratch_param,
   k_opcode_carry_invert,
   k_opcode_check_bcd,
   k_opcode_check_page_crossing_x,
@@ -39,11 +40,15 @@ enum {
   k_opcode_save_carry,
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
+  k_opcode_set_param2,
+  k_opcode_set_param3_from_value,
   k_opcode_jmp_uop,
   k_opcode_deref_context,
   k_opcode_deref_scratch,
   k_opcode_load_deref_scratch,
   k_opcode_load_deref_scratch_quad,
+  k_opcode_restore_regs,
+  k_opcode_save_regs,
   k_opcode_sync_even_cycle,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */

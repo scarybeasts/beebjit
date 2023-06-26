@@ -216,6 +216,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opreg;
   int is_read;
   int is_write;
+  int is_addr_known;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -229,6 +230,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
   uintptr_t jit_addr = 0;
+  uint32_t num_callback_uops = 0;
+  int jit_encoding_ends_block = 0;
+  uint32_t jit_encoding_extra_cycles = 0;
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
@@ -449,60 +453,35 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   p_details->max_cycles = p_compiler->p_opcode_cycles[opcode_6502];
+  p_details->operand_6502 = operand_6502;
+  is_addr_known = (p_details->min_6502_addr == p_details->max_6502_addr);
 
   if (uses_callback) {
-    int ends_block;
-    uint32_t extra_cycles;
-
-    uint32_t num_callback_uops = 0;
-    uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
     use_interp = 1;
-    if ((p_details->min_6502_addr == p_details->max_6502_addr) &&
-        ((optype == k_lda) ||
-             (optype == k_ldx) ||
-             (optype == k_ldy) ||
-             (optype == k_and) ||
-             (optype == k_bit))) {
-      num_callback_uops =
-          p_memory_access->memory_get_read_jit_encoding(
-              p_memory_callback,
-              (p_uop - 2),
-              &ends_block,
-              &extra_cycles,
-              (uops_left + 2),
-              p_details->min_6502_addr,
-              p_compiler->option_accurate_timings);
-    }
+  }
+  if (uses_callback &&
+      is_addr_known &&
+      ((optype == k_lda) ||
+         (optype == k_ldx) ||
+         (optype == k_ldy) ||
+         (optype == k_and) ||
+         (optype == k_bit))) {
+    uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
+    /* Write the uops on top of the addr_set and value_load. */
+    num_callback_uops =
+        p_memory_access->memory_get_read_jit_encoding(
+            p_memory_callback,
+            (p_uop - 2),
+            &jit_encoding_ends_block,
+            &jit_encoding_extra_cycles,
+            (uops_left + 2),
+            p_details->min_6502_addr,
+            p_compiler->option_accurate_timings);
     if (num_callback_uops > 0) {
-      use_interp = 0;
       p_uop -= 2;
       p_uop += num_callback_uops;
-      p_details->max_cycles += extra_cycles;
-
-      if (p_compiler->option_accurate_timings) {
-        /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
-         * For tick-then-read or tick-then-write hardware register access, an
-         * event that might affect a result might go missing if it occurs at the
-         * countdown==0 boundary.
-         * To compensate, claim the instruction takes a cycle longer but then
-         * fix up.
-         */
-        p_details->max_cycles++;
-        asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
-        p_uop++;
-      }
-
-      if (ends_block) {
-        /* Make sure the compiler ends the block by tagging the next address
-         * as a new block start.
-         */
-        uint16_t next_addr_6502 = (addr_6502 + p_details->num_bytes_6502);
-        p_compiler->addr_flags[next_addr_6502] |= k_addr_flag_block_start;
-      }
     }
   }
-
-  p_details->operand_6502 = operand_6502;
 
   if (p_compiler->option_accurate_timings) {
     if ((opmem == k_opmem_read_flag) &&
@@ -706,6 +685,57 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     /* Various undocumented opcodes. */
     use_interp = 1;
     break;
+  }
+
+  if (uses_callback &&
+      is_addr_known &&
+      ((optype == k_sta) || (optype == k_stx) || (optype == k_sty))) {
+    uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
+    num_callback_uops =
+        p_memory_access->memory_get_write_jit_encoding(
+            p_memory_callback,
+            p_uop,
+            &jit_encoding_ends_block,
+            &jit_encoding_extra_cycles,
+            uops_left,
+            p_details->min_6502_addr,
+            p_compiler->option_accurate_timings);
+    if (num_callback_uops > 0) {
+      /* Eliminate the addr_set. */
+      p_uop -= 2;
+      assert(p_uop->uopcode == k_opcode_addr_set);
+      p_uop->is_eliminated = 1;
+      p_uop += 2;
+      p_uop += num_callback_uops;
+      /* Suppress the generic write opcodes (store, invalidate). */
+      is_write = 0;
+    }
+  }
+
+  if (num_callback_uops > 0) {
+    use_interp = 0;
+    p_details->max_cycles += jit_encoding_extra_cycles;
+
+    if (p_compiler->option_accurate_timings) {
+      /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
+       * For tick-then-read or tick-then-write hardware register access, an
+       * event that might affect a result might go missing if it occurs at the
+       * countdown==0 boundary.
+       * To compensate, claim the instruction takes a cycle longer but then
+       * fix up.
+       */
+      p_details->max_cycles++;
+      asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
+      p_uop++;
+    }
+
+    if (jit_encoding_ends_block) {
+      /* Make sure the compiler ends the block by tagging the next address
+       * as a new block start.
+       */
+      uint16_t next_addr_6502 = (addr_6502 + p_details->num_bytes_6502);
+      p_compiler->addr_flags[next_addr_6502] |= k_addr_flag_block_start;
+    }
   }
 
   if (use_interp) {

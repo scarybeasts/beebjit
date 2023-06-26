@@ -287,6 +287,10 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
         break;
       }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_value_store);
+      if (p_uop == NULL) {
+        break;
+      }
       p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STA);
       assert(p_uop != NULL);
       asm_make_uop0(p_uop, k_opcode_ST_IMM);
@@ -303,6 +307,10 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
         break;
       }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_value_store);
+      if (p_uop == NULL) {
+        break;
+      }
       p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STX);
       assert(p_uop != NULL);
       asm_make_uop0(p_uop, k_opcode_ST_IMM);
@@ -317,6 +325,10 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
         break;
       }
       if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_value_store);
+      if (p_uop == NULL) {
         break;
       }
       p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STY);

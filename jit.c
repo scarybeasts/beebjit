@@ -96,7 +96,8 @@ jit_interp_instruction_callback(void* p,
     if ((done_addr == 0xFE80) ||
         (done_addr == 0xFE4D) ||
         (done_addr == 0xFE6D) ||
-        (done_addr == 0xFE08)) {
+        (done_addr == 0xFE08) ||
+        (done_addr == 0xFE01)) {
       /* Temporary hack to make our nascent JIT encoded callback used.
        * This is needed for any hardware register accesses that might be hit
        * in a tight loop. Otherwise, something could cause a bounce to interp
