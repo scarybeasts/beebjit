@@ -22,6 +22,143 @@ Notes on hot 6502 instruction sequences for various programs.
 [ITRP] 3398: BNE $3382
 
 
+- Barbarian 2
+1) Strange loop -- busy wait delay loop?
+[ITRP] 13BB: JSR $1101
+[ITRP] 13BE: INY
+[ITRP] 13BF: BNE $13BB
+...
+[ITRP] 1101: AND #$F0
+[ITRP] 1103: CLC
+[ITRP] 1104: ROR A
+[ITRP] 1105: ROR A
+[ITRP] 1106: ROR A
+[ITRP] 1107: ROR A
+[ITRP] 1108: CLC
+[ITRP] 1109: RTS
+
+2) ROM select loop.
+(Seems to always select the same ROM slot, so not too heavy except for the
+register hit.)
+[ITRP] F16E: INC $02A1,X
+[ITRP] F171: DEC $02A1,X
+[ITRP] F174: BPL $F183
+[ITRP] F176: STX $F4
+[ITRP] F178: STX $FE30
+[ITRP] F17B: JSR $8003
+[ITRP] F17E: TAX
+[ITRP] F17F: BEQ $F186
+[ITRP] F181: LDX $F4
+[ITRP] F183: DEX
+[ITRP] F184: BPL $F16E
+
+3) Palette rewrite.
+(Looks like at least 3 sections per frame.)
+[ITRP] 13A0: EOR #$07
+[ITRP] 13A2: STA $FE21
+[ITRP] 13A5: CLC
+[ITRP] 13A6: ADC #$10
+[ITRP] 13A8: STA $FE21
+[ITRP] 13AB: CLC
+[ITRP] 13AC: ADC #$30
+[ITRP] 13AE: STA $FE21
+[ITRP] 13B1: CLC
+[ITRP] 13B2: ADC #$10
+[ITRP] 13B4: STA $FE21
+[ITRP] 13B7: RTS
+
+
+- Baron
+1) Busy wait delay loop.
+[ITRP] 5BA8: DEX
+[ITRP] 5BA9: BNE $5BA8
+[ITRP] 5BAB: DEY
+[ITRP] 5BAC: BNE $5BA6
+
+2) Common MOS wait loop.
+[ITRP] E9B9: CLI
+[ITRP] E9BA: SEI
+[ITRP] E9BB: CMP $0240
+[ITRP] E9BE: BEQ $E9B9
+
+3) Drawing
+[ITRP] 0A50: LDA $2839,X
+[ITRP] 0A53: EOR ($89),Y
+[ITRP] 0A55: STA ($89),Y
+[ITRP] 0A57: TYA
+[ITRP] 0A58: CLC
+[ITRP] 0A59: ADC #$08
+[ITRP] 0A5B: TAY
+[ITRP] 0A5C: DEX
+[ITRP] 0A5D: BPL $0A50
+
+
+- Blagger
+1) MOS wait loop.
+[ITRP] E9B9: CLI
+[ITRP] E9BA: SEI
+[ITRP] E9BB: CMP $0240
+[ITRP] E9BE: BEQ $E9B9
+
+2) Drawing.
+[ITRP] 1934: LDA ($62),Y
+[ITRP] 1936: EOR $1CEA,X
+[ITRP] 1939: STA ($62),Y
+[ITRP] 193B: INX
+[ITRP] 193C: TYA
+[ITRP] 193D: CLC
+[ITRP] 193E: ADC #$08
+[ITRP] 1940: TAY
+[ITRP] 1941: DEC $61
+[ITRP] 1943: BNE $1934
+
+3) Clearing?
+[ITRP] 0C2A: STA ($06),Y
+[ITRP] 0C2C: DEY
+[ITRP] 0C2D: BPL $0C2A
+
+
+- Castle Quest
+1) Some wait loop in MOS.
+[ITRP] E9B9: CLI
+[ITRP] E9BA: SEI
+[ITRP] E9BB: CMP $0240
+[ITRP] E9BE: BEQ $E9B9
+
+2) Waiting for user VIA timer to hit some threshold.
+[ITRP] 2099: LDA $32
+[ITRP] 209B: SBC $FE79
+[ITRP] 209E: CMP #$50
+[ITRP] 20A0: BMI $2099
+[ITRP] 20A2: RTS
+(There's more of the same, also hot, at $2CF8)
+
+
+- Chuckie Egg
+1) Busy wait delay loop.
+[ITRP] 2DB7: DEX
+[ITRP] 2DB8: BNE $2DB7
+[ITRP] 2DBA: DEY
+[ITRP] 2DBB: BNE $2DB7
+(Another hot one...)
+[ITRP] 2C64: DEX
+[ITRP] 2C65: BNE $2C64
+
+2) Some MOS drawing loop.
+[ITRP] D744: TYA
+[ITRP] D745: SEC
+[ITRP] D746: SBC #$08
+[ITRP] D748: TAY
+[ITRP] D749: BCS $D74D
+[ITRP] D74B: DEC $D7
+[ITRP] D74D: JSR $D104
+...
+[ITRP] D104: LDA ($D6),Y
+[ITRP] D106: ORA $D4
+[ITRP] D108: EOR $D5
+[ITRP] D10A: STA ($D6),Y
+
+
 - CLOCKSP, Real REPEAT loop
 1) Interesting block with a lot of "known Y".
 [ITRP] 947D: LDY #$00
@@ -189,6 +326,28 @@ Notes on hot 6502 instruction sequences for various programs.
 Nothing significant to note beyond other CLOCKSP tests.
 
 
+- Contraption
+1) Drawing.
+[ITRP] 114E: LDA $1D82,X
+[ITRP] 1151: EOR ($90),Y
+[ITRP] 1153: STA ($90),Y
+[ITRP] 1155: DEX
+[ITRP] 1156: BEQ $1180
+[ITRP] 1158: TYA
+[ITRP] 1159: SEC
+[ITRP] 115A: SBC #$08
+[ITRP] 115C: TAY
+[ITRP] 115D: BNE $114E
+[ITRP] 115F: DEC $90
+[ITRP] 1161: LDA $90
+[ITRP] 1163: CMP #$FF
+[ITRP] 1165: BNE $1169
+
+2) Busy wait loop.
+[ITRP] 1B80: DEY
+[ITRP] 1B81: BNE $1B80
+
+
 - Elite
 1) Heavy keyboard polling during attract
 [ITRP] 3C20: LDX #$10
@@ -297,6 +456,38 @@ Nothing significant to note beyond other CLOCKSP tests.
 [ITRP] 1931: JSR $1B66
 [ITRP] 1934: ASL A
 [ITRP] 1935: BCS $1957
+
+
+- Labyrinth
+1) Very hot busy wait delay loop.
+(Unusual style, DEC not DEX or DEY.)
+[ITRP] 1F90: DEC $73
+[ITRP] 1F92: BNE $1F90
+[ITRP] 1F94: DEC $72
+[ITRP] 1F96: BNE $1F90
+
+
+- Manic Miner
+1) Busy wait delay loop.
+(Note, it's INX not DEX which is unusual.)
+[ITRP] 30C6: INX
+[ITRP] 30C7: BNE $30C6
+(Another one...)
+[ITRP] 23FA: INX
+[ITRP] 23FB: BNE $23FA
+
+2) Strange memory swap loop.
+[ITRP] 2076: LDA $0C00,X
+[ITRP] 2079: TAY
+[ITRP] 207A: LDA $0E00,X
+[ITRP] 207D: STA $0C00,X
+[ITRP] 2080: TYA
+[ITRP] 2081: STA $0E00,X
+[ITRP] 2084: INX
+[ITRP] 2085: CPX #$FF
+[ITRP] 2087: BNE $2076
+
+3) Plotting loop in MOS at $CFEE.
 
 
 - Micropower Chess
