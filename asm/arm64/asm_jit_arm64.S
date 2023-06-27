@@ -277,6 +277,24 @@ ASM_SYM(asm_jit_addr_trunc_8bit_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_call_scratch_param_load_param1)
+.globl ASM_SYM(asm_jit_call_scratch_param_load_param1_END)
+.globl ASM_SYM(asm_jit_call_scratch_param_load_function)
+.globl ASM_SYM(asm_jit_call_scratch_param_load_function_END)
+.globl ASM_SYM(asm_jit_call_scratch_param_call_function)
+.globl ASM_SYM(asm_jit_call_scratch_param_call_function_END)
+ASM_SYM(asm_jit_call_scratch_param_load_param1):
+  ldr REG_PARAM1, [REG_JIT_SCRATCH, 0x7FF8]
+ASM_SYM(asm_jit_call_scratch_param_load_param1_END):
+ASM_SYM(asm_jit_call_scratch_param_load_function):
+  ldr REG_SCRATCH1, [REG_JIT_SCRATCH, 0x7FF8]
+ASM_SYM(asm_jit_call_scratch_param_load_function_END):
+ASM_SYM(asm_jit_call_scratch_param_call_function):
+  blr REG_SCRATCH1
+ASM_SYM(asm_jit_call_scratch_param_call_function_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_check_bcd)
 .globl ASM_SYM(asm_jit_check_bcd_END)
 ASM_SYM(asm_jit_check_bcd):
@@ -537,6 +555,20 @@ ASM_SYM(asm_jit_push_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_restore_regs)
+.globl ASM_SYM(asm_jit_restore_regs_END)
+ASM_SYM(asm_jit_restore_regs):
+  ldp x7, REG_SCRATCH1, [sp, #48]
+  ldp x5, x6, [sp, #32]
+  ldp x2, x3, [sp, #16]
+  ldp x0, x1, [sp, #0]
+  msr nzcv, REG_SCRATCH1
+  add sp, sp, 64
+
+ASM_SYM(asm_jit_restore_regs_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_save_carry)
 .globl ASM_SYM(asm_jit_save_carry_END)
 ASM_SYM(asm_jit_save_carry):
@@ -552,6 +584,20 @@ ASM_SYM(asm_jit_save_overflow):
   cset REG_6502_OF, vs
 
 ASM_SYM(asm_jit_save_overflow_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_save_regs)
+.globl ASM_SYM(asm_jit_save_regs_END)
+ASM_SYM(asm_jit_save_regs):
+  mrs REG_SCRATCH1, nzcv
+  sub sp, sp, 64
+  stp x0, x1, [sp, #0]
+  stp x2, x3, [sp, #16]
+  stp x5, x6, [sp, #32]
+  stp x7, REG_SCRATCH1, [sp, #48]
+
+ASM_SYM(asm_jit_save_regs_END):
   ret
 
 
@@ -579,6 +625,24 @@ ASM_SYM(asm_jit_scratch_set):
   movz REG_JIT_SCRATCH, 0xFFFF
 
 ASM_SYM(asm_jit_scratch_set_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_set_param2)
+.globl ASM_SYM(asm_jit_set_param2_END)
+ASM_SYM(asm_jit_set_param2):
+  movz REG_PARAM2, 0xFFFF
+
+ASM_SYM(asm_jit_set_param2_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_set_param3_from_value)
+.globl ASM_SYM(asm_jit_set_param3_from_value_END)
+ASM_SYM(asm_jit_set_param3_from_value):
+  mov REG_PARAM3, REG_VALUE
+
+ASM_SYM(asm_jit_set_param3_from_value_END):
   ret
 
 
@@ -1361,15 +1425,6 @@ ASM_SYM(asm_jit_SLO_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_STA)
-.globl ASM_SYM(asm_jit_STA_END)
-ASM_SYM(asm_jit_STA):
-  strb REG_6502_A_32, [REG_MEM_WRITE, REG_JIT_ADDR]
-
-ASM_SYM(asm_jit_STA_END):
-  ret
-
-
 .globl ASM_SYM(asm_jit_STA_ABS)
 .globl ASM_SYM(asm_jit_STA_ABS_END)
 ASM_SYM(asm_jit_STA_ABS):
@@ -1379,12 +1434,21 @@ ASM_SYM(asm_jit_STA_ABS_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_STX)
-.globl ASM_SYM(asm_jit_STX_END)
-ASM_SYM(asm_jit_STX):
-  strb REG_6502_X_32, [REG_MEM_WRITE, REG_JIT_ADDR]
+.globl ASM_SYM(asm_jit_STA_addr)
+.globl ASM_SYM(asm_jit_STA_addr_END)
+ASM_SYM(asm_jit_STA_addr):
+  strb REG_6502_A_32, [REG_MEM_WRITE, REG_JIT_ADDR]
 
-ASM_SYM(asm_jit_STX_END):
+ASM_SYM(asm_jit_STA_addr_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_STA_value)
+.globl ASM_SYM(asm_jit_STA_value_END)
+ASM_SYM(asm_jit_STA_value):
+  mov REG_VALUE_32, REG_6502_A_32
+
+ASM_SYM(asm_jit_STA_value_END):
   ret
 
 
@@ -1397,12 +1461,21 @@ ASM_SYM(asm_jit_STX_ABS_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_STY)
-.globl ASM_SYM(asm_jit_STY_END)
-ASM_SYM(asm_jit_STY):
-  strb REG_6502_Y_32, [REG_MEM_WRITE, REG_JIT_ADDR]
+.globl ASM_SYM(asm_jit_STX_addr)
+.globl ASM_SYM(asm_jit_STX_addr_END)
+ASM_SYM(asm_jit_STX_addr):
+  strb REG_6502_X_32, [REG_MEM_WRITE, REG_JIT_ADDR]
 
-ASM_SYM(asm_jit_STY_END):
+ASM_SYM(asm_jit_STX_addr_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_STX_value)
+.globl ASM_SYM(asm_jit_STX_value_END)
+ASM_SYM(asm_jit_STX_value):
+  mov REG_VALUE_32, REG_6502_X_32
+
+ASM_SYM(asm_jit_STX_value_END):
   ret
 
 
@@ -1412,6 +1485,24 @@ ASM_SYM(asm_jit_STY_ABS):
   strb REG_6502_Y_32, [REG_MEM_WRITE, #0xFFF]
 
 ASM_SYM(asm_jit_STY_ABS_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_STY_addr)
+.globl ASM_SYM(asm_jit_STY_addr_END)
+ASM_SYM(asm_jit_STY_addr):
+  strb REG_6502_Y_32, [REG_MEM_WRITE, REG_JIT_ADDR]
+
+ASM_SYM(asm_jit_STY_addr_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_STY_value)
+.globl ASM_SYM(asm_jit_STY_value_END)
+ASM_SYM(asm_jit_STY_value):
+  mov REG_VALUE_32, REG_6502_Y_32
+
+ASM_SYM(asm_jit_STY_value_END):
   ret
 
 

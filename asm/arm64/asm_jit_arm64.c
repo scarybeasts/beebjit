@@ -44,8 +44,11 @@ enum {
   k_opcode_arm64_ORA_IMM,
   k_opcode_arm64_SBC_IMM,
   k_opcode_arm64_STA_ABS,
+  k_opcode_arm64_STA_addr,
   k_opcode_arm64_STX_ABS,
+  k_opcode_arm64_STX_addr,
   k_opcode_arm64_STY_ABS,
+  k_opcode_arm64_STY_addr,
   k_opcode_arm64_SUB_IMM,
 };
 
@@ -450,8 +453,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     }
   }
 
-  /* By default, replace the loads with fetched from an address. It'll be
-   * overriden later for other modes (e.g. mode IMM).
+  /* By default, replace the loads and stores with the address mode.
+   * It'll be overriden later for other modes if needed (e.g. mode IMM).
    */
   switch (p_main_uop->uopcode) {
   case k_opcode_LDA:
@@ -462,6 +465,15 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_LDY:
     p_main_uop->backend_tag = k_opcode_arm64_LDY_addr;
+    break;
+  case k_opcode_STA:
+    p_main_uop->backend_tag = k_opcode_arm64_STA_addr;
+    break;
+  case k_opcode_STX:
+    p_main_uop->backend_tag = k_opcode_arm64_STX_addr;
+    break;
+  case k_opcode_STY:
+    p_main_uop->backend_tag = k_opcode_arm64_STY_addr;
     break;
   default:
     break;
@@ -808,6 +820,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_add_y: ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_addr_set: ASM_IMM16(addr_set); break;
+  case k_opcode_call_scratch_param:
+    value1 /= 8;
+    ASM_IMM12(call_scratch_param_load_param1);
+    value1 = value2;
+    value1 /= 8;
+    ASM_IMM12(call_scratch_param_load_function);
+    ASM(call_scratch_param_call_function);
+    break;
   case k_opcode_check_bcd:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
     value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
@@ -882,8 +902,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_IMM16(scratch_set);
     ASM(push);
     break;
+  case k_opcode_restore_regs: ASM(restore_regs); break;
   case k_opcode_save_carry: ASM(save_carry); break;
+  case k_opcode_save_regs: ASM(save_regs); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
+  case k_opcode_set_param2: ASM_IMM16(set_param2); break;
+  case k_opcode_set_param3_from_value: ASM(set_param3_from_value); break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
@@ -976,9 +1000,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_SED: asm_emit_instruction_SED(p_buf); break;
   case k_opcode_SEI: asm_emit_instruction_SEI(p_buf); break;
   case k_opcode_SLO: ASM(SLO); break;
-  case k_opcode_STA: ASM(STA); break;
-  case k_opcode_STX: ASM(STX); break;
-  case k_opcode_STY: ASM(STY); break;
+  case k_opcode_STA: ASM(STA_value); break;
+  case k_opcode_STX: ASM(STX_value); break;
+  case k_opcode_STY: ASM(STY_value); break;
   case k_opcode_SUB: ASM(SUB); break;
   case k_opcode_TAX: asm_emit_instruction_TAX(p_buf); break;
   case k_opcode_TAY: asm_emit_instruction_TAY(p_buf); break;
@@ -986,7 +1010,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TXA: asm_emit_instruction_TXA(p_buf); break;
   case k_opcode_TXS: asm_emit_instruction_TXS(p_buf); break;
   case k_opcode_TYA: asm_emit_instruction_TYA(p_buf); break;
-  case k_opcode_arm64_addr_load_byte: asm_emit_jit_addr_load(p_buf, value1); break;
+  case k_opcode_arm64_addr_load_byte:
+    asm_emit_jit_addr_load(p_buf, value1);
+    break;
   case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
   case k_opcode_arm64_load_byte_pair:
     asm_emit_jit_addr_load(p_buf, value1);
@@ -1047,8 +1073,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_arm64_ORA_IMM: ASM_IMMR_IMMS(ORA_IMM); break;
   case k_opcode_arm64_SBC_IMM: ASM(SBC_IMM); break;
   case k_opcode_arm64_STA_ABS: ASM_IMM12(STA_ABS); break;
+  case k_opcode_arm64_STA_addr: ASM(STA_addr); break;
   case k_opcode_arm64_STX_ABS: ASM_IMM12(STX_ABS); break;
+  case k_opcode_arm64_STX_addr: ASM(STX_addr); break;
   case k_opcode_arm64_STY_ABS: ASM_IMM12(STY_ABS); break;
+  case k_opcode_arm64_STY_addr: ASM(STY_addr); break;
   case k_opcode_arm64_SUB_IMM: ASM(SUB_IMM); break;
   default:
     assert(0);

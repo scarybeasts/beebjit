@@ -1300,10 +1300,6 @@ bbc_get_write_jit_encoding(void* p,
 
   p_bbc = (struct bbc_struct*) p;
 
-  if (!asm_jit_supports_uopcode(k_opcode_save_regs)) {
-    return 0;
-  }
-
   if (addr_6502 != 0xFE00) {
     /* Bail. */
     return 0;
