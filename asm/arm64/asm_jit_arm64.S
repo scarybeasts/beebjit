@@ -646,6 +646,15 @@ ASM_SYM(asm_jit_set_param3_from_value_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_set_param4_from_countdown)
+.globl ASM_SYM(asm_jit_set_param4_from_countdown_END)
+ASM_SYM(asm_jit_set_param4_from_countdown):
+  mov REG_PARAM4, REG_COUNTDOWN
+
+ASM_SYM(asm_jit_set_param4_from_countdown_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_sync_even_cycle)
 .globl ASM_SYM(asm_jit_sync_even_cycle_END)
 ASM_SYM(asm_jit_sync_even_cycle):

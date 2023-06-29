@@ -718,11 +718,28 @@ via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
   return via_read_internal(p_via, reg, 1);
 }
 
+static void
+via_write_IFR(struct via_struct* p_via, uint8_t val) {
+  uint8_t new_IFR = (p_via->IFR & ~(val & 0x7F));
+
+  if (via_t1_just_fired(p_via)) {
+    /* Timer firing wins over a write to IFR. */
+    new_IFR |= k_int_TIMER1;
+  }
+  /* EMU TODO: assuming the same logic applies for T2, although it's untested
+   * on a real BBC.
+   */
+  if (via_t2_just_fired(p_via)) {
+    /* Timer firing wins over a write to IFR. */
+    new_IFR |= k_int_TIMER2;
+  }
+  via_set_IFR(p_via, new_IFR);
+}
+
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
   int32_t timer_val;
-  uint8_t new_IFR;
 
   switch (reg) {
   case k_via_ORB:
@@ -878,19 +895,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     }
     break;
   case k_via_IFR:
-    new_IFR = (p_via->IFR & ~(val & 0x7F));
-    if (via_t1_just_fired(p_via)) {
-      /* Timer firing wins over a write to IFR. */
-      new_IFR |= k_int_TIMER1;
-    }
-    /* EMU TODO: assuming the same logic applies for T2, although it's untested
-     * on a real BBC.
-     */
-    if (via_t2_just_fired(p_via)) {
-      /* Timer firing wins over a write to IFR. */
-      new_IFR |= k_int_TIMER2;
-    }
-    via_set_IFR(p_via, new_IFR);
+    via_write_IFR(p_via, val);
     break;
   case k_via_IER:
     if (val & 0x80) {
@@ -904,6 +909,16 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     assert(0);
     break;
   }
+}
+
+void
+via_write_IFR_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint8_t val,
+                             uint64_t countdown) {
+  (void) reg;
+  timing_sync_countdown(p_via->p_timing, (countdown + 2));
+  via_write_IFR(p_via, val);
 }
 
 void

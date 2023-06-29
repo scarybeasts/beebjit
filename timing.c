@@ -474,10 +474,32 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
   return timing_update_counts(p_timing);
 }
 
+void
+timing_sync_countdown(struct timing_struct* p_timing,
+                      int64_t countdown_target) {
+  uint64_t countdown;
+  int64_t delta;
+
+  countdown = p_timing->countdown;
+
+  assert(countdown_target > 0);
+  assert((uint64_t) countdown_target <= countdown);
+
+  delta = (countdown - countdown_target);
+  p_timing->total_timer_ticks += delta;
+  timing_set_countdown(p_timing, countdown_target);
+}
+
 int64_t
 timing_advance_time(struct timing_struct* p_timing, int64_t countdown_target) {
   uint64_t countdown;
   int64_t delta;
+
+  /* Common case: countdown isn't hitting zero. Get out quickly. */
+  if (countdown_target > 0) {
+    timing_sync_countdown(p_timing, countdown_target);
+    return countdown_target;
+  }
 
   countdown = p_timing->countdown;
   delta = (countdown - countdown_target);
@@ -485,9 +507,6 @@ timing_advance_time(struct timing_struct* p_timing, int64_t countdown_target) {
   assert(delta >= 0);
 
   while (delta) {
-    /* Common case: delta is less than the amount to the next event. Get out
-     * quickly.
-     */
     if ((uint64_t) delta < countdown) {
       countdown -= delta;
       p_timing->total_timer_ticks += delta;

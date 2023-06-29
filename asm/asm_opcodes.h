@@ -42,6 +42,7 @@ enum {
   k_opcode_save_overflow,
   k_opcode_set_param2,
   k_opcode_set_param3_from_value,
+  k_opcode_set_param4_from_countdown,
   k_opcode_jmp_uop,
   k_opcode_deref_context,
   k_opcode_deref_scratch,

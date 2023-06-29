@@ -908,6 +908,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_overflow: ASM(save_overflow); break;
   case k_opcode_set_param2: ASM_IMM16(set_param2); break;
   case k_opcode_set_param3_from_value: ASM(set_param3_from_value); break;
+  case k_opcode_set_param4_from_countdown:
+    ASM(set_param4_from_countdown);
+    break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
