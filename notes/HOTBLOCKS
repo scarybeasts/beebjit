@@ -370,6 +370,27 @@ Nothing significant to note beyond other CLOCKSP tests.
 [ITRP] 3CAB: RTS
 
 
+- Frak
+1) Busy wait loop.
+[ITRP] 0D03: CMP $44
+[ITRP] 0D05: BEQ $0D03
+
+2) Wait loop on timer.
+[ITRP] 0D1B: CMP $FE69
+[ITRP] 0D1E: BCC $0D1B
+
+3) Drawing?
+[ITRP] 1F41: LDA ($13),Y
+[ITRP] 1F43: STA $80
+[ITRP] 1F45: LDA ($80,X)
+[ITRP] 1F47: AND ($19),Y
+[ITRP] 1F49: ORA $80
+[ITRP] 1F4B: STA ($19),Y
+[ITRP] 1F4D: DEY
+[ITRP] 1F4E: BEQ $1F65
+[ITRP] 1F50: RTS
+
+
 - Galaforce
 1) Delay loop.
 [ITRP] 1207: LDY #$00
