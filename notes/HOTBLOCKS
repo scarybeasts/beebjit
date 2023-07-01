@@ -507,6 +507,31 @@ Nothing significant to note beyond other CLOCKSP tests.
 [ITRP] 20FD: BEQ $2109
 
 
+- Missile Command
+1) Read loop on timer.
+[ITRP] 1FB5: LDA $FE65
+[ITRP] 1FB8: CMP #$CD
+[ITRP] 1FBA: BCS $1FB5
+(Same, also hot, at $23C4)
+(And at $2A19)
+(And at $2FEE)
+
+2) Drawing?
+[ITRP] 1D13: LDX $1180,Y
+[ITRP] 1D16: STX $43
+[ITRP] 1D18: LDA ($47),Y
+[ITRP] 1D1A: AND #$C0
+[ITRP] 1D1C: BEQ $1D24
+[ITRP] 1D1E: CPX #$00
+[ITRP] 1D20: BEQ $1D24
+[ITRP] 1D22: STX $44
+[ITRP] 1D24: ORA $43
+[ITRP] 1D26: STA ($47),Y
+[ITRP] 1D28: DEY
+[ITRP] 1D29: CPY #$FF
+[ITRP] 1D2B: BNE $1D13
+
+
 - Starship Command
 1) Unknown
 [ITRP] 0FAC: LSR $73
