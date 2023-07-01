@@ -18,6 +18,10 @@ void adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta);
 
 uint8_t adc_read(struct adc_struct* p_adc, uint8_t addr);
 void adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val);
+uint64_t adc_write_with_countdown(struct adc_struct* p_adc,
+                                  uint8_t addr,
+                                  uint8_t val,
+                                  uint64_t countdown);
 
 void adc_set_channel_value(struct adc_struct* p_adc,
                            uint32_t channel,

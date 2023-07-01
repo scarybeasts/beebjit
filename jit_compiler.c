@@ -716,19 +716,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     use_interp = 0;
     p_details->max_cycles += jit_encoding_extra_cycles;
 
-    if (p_compiler->option_accurate_timings) {
-      /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
-       * For tick-then-read or tick-then-write hardware register access, an
-       * event that might affect a result might go missing if it occurs at the
-       * countdown==0 boundary.
-       * To compensate, claim the instruction takes a cycle longer but then
-       * fix up.
-       */
-      p_details->max_cycles++;
-      asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
-      p_uop++;
-    }
-
     if (jit_encoding_ends_block) {
       /* Make sure the compiler ends the block by tagging the next address
        * as a new block start.

@@ -917,7 +917,7 @@ via_write_IFR_with_countdown(struct via_struct* p_via,
                              uint8_t val,
                              uint64_t countdown) {
   (void) reg;
-  timing_sync_countdown(p_via->p_timing, (countdown + 2));
+  timing_sync_countdown(p_via->p_timing, (countdown + 1));
   via_write_IFR(p_via, val);
 }
 

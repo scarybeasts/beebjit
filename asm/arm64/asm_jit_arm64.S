@@ -628,6 +628,15 @@ ASM_SYM(asm_jit_scratch_set_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_set_countdown_from_ret)
+.globl ASM_SYM(asm_jit_set_countdown_from_ret_END)
+ASM_SYM(asm_jit_set_countdown_from_ret):
+  mov REG_COUNTDOWN, REG_RETURN
+
+ASM_SYM(asm_jit_set_countdown_from_ret_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_set_param2)
 .globl ASM_SYM(asm_jit_set_param2_END)
 ASM_SYM(asm_jit_set_param2):
@@ -658,7 +667,7 @@ ASM_SYM(asm_jit_set_param4_from_countdown_END):
 .globl ASM_SYM(asm_jit_sync_even_cycle)
 .globl ASM_SYM(asm_jit_sync_even_cycle_END)
 ASM_SYM(asm_jit_sync_even_cycle):
-  eon REG_VALUE, REG_COUNTDOWN, REG_VALUE
+  eor REG_VALUE, REG_COUNTDOWN, REG_VALUE
   and REG_VALUE, REG_VALUE, #1
   add REG_COUNTDOWN, REG_COUNTDOWN, REG_VALUE
 

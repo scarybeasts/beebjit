@@ -966,7 +966,6 @@ ASM_SYM(asm_jit_store_ZPG_END):
 .globl ASM_SYM(asm_jit_sync_even_cycle)
 .globl ASM_SYM(asm_jit_sync_even_cycle_END)
 ASM_SYM(asm_jit_sync_even_cycle):
-  not REG_SCRATCH2_32
   xor REG_SCRATCH2, REG_COUNTDOWN
   and REG_SCRATCH2_32, 1
   add REG_COUNTDOWN, REG_SCRATCH2

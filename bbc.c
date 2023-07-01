@@ -103,6 +103,7 @@ struct bbc_struct {
   void* p_via_read_func;
   void* p_via_write_IFR_func;
   struct adc_struct* p_adc;
+  void* p_adc_write_func;
   struct mc6850_struct* p_serial;
   struct intel_fdc_struct* p_intel_fdc;
   struct video_struct* p_video;
@@ -1213,12 +1214,25 @@ bbc_get_read_jit_encoding(void* p,
   p_uop++;
 
   *p_ends_block = 0;
-  *p_extra_cycles = 0;
+  if (do_accurate_timings) {
+    /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
+     * For tick-then-read or tick-then-write hardware register access, an
+     * event that might affect a result might go missing if it occurs at the
+     * countdown==0 boundary.
+     * To compensate, claim the instruction takes a cycle longer but then
+     * fix up.
+     */
+    *p_extra_cycles = 1;
+    asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
+    p_uop++;
+  } else {
+    *p_extra_cycles = 0;
+  }
 
   if (is_1MHz) {
     if (do_accurate_timings) {
       *p_ends_block = 1;
-      *p_extra_cycles = 2;
+      *p_extra_cycles += 2;
       asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x0);
       p_uop++;
       asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
@@ -1226,13 +1240,13 @@ bbc_get_read_jit_encoding(void* p,
       asm_make_uop0(p_uop, k_opcode_sync_even_cycle);
       p_uop++;
     } else {
-      *p_extra_cycles = 1;
+      *p_extra_cycles += 1;
     }
   }
 
   switch (addr_6502) {
   case 0xFE08:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x30);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x18);
     p_uop++;
@@ -1256,7 +1270,7 @@ bbc_get_read_jit_encoding(void* p,
     p_uop++;
     break;
   case 0xFE80:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x40);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
     p_uop++;
@@ -1297,6 +1311,8 @@ bbc_get_write_jit_encoding(void* p,
   struct asm_uop* p_uop = p_uops;
   uint32_t func_offset = 0;
   uint32_t param_offset = 0;
+  int syncs_time = 0;
+  int returns_time = 0;
 
   (void) num_uops;
 
@@ -1304,12 +1320,19 @@ bbc_get_write_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE00:
-    func_offset = 0x48;
-    param_offset = 0x40;
+    func_offset = 0x50;
+    param_offset = 0x48;
     break;
   case 0xFE4D:
     func_offset = 0x20;
     param_offset = 0x8;
+    syncs_time = 1;
+    break;
+  case 0xFEC0:
+    func_offset = 0x30;
+    param_offset = 0x28;
+    syncs_time = 1;
+    returns_time = 1;
     break;
   default:
     /* Bail. */
@@ -1330,7 +1353,20 @@ bbc_get_write_jit_encoding(void* p,
   p_uop++;
 
   *p_ends_block = 0;
-  *p_extra_cycles = 0;
+  if (do_accurate_timings) {
+    /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
+     * For tick-then-read or tick-then-write hardware register access, an
+     * event that might affect a result might go missing if it occurs at the
+     * countdown==0 boundary.
+     * To compensate, claim the instruction takes a cycle longer but then
+     * fix up.
+     */
+    *p_extra_cycles = 1;
+    asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
+    p_uop++;
+  } else {
+    *p_extra_cycles = 0;
+  }
 
   /* Set up param3.
    * Do it before the timing fixup because that will trash the value in
@@ -1342,7 +1378,7 @@ bbc_get_write_jit_encoding(void* p,
   if (is_1MHz) {
     if (do_accurate_timings) {
       *p_ends_block = 1;
-      *p_extra_cycles = 2;
+      *p_extra_cycles += 2;
       asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x0);
       p_uop++;
       asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
@@ -1350,7 +1386,7 @@ bbc_get_write_jit_encoding(void* p,
       asm_make_uop0(p_uop, k_opcode_sync_even_cycle);
       p_uop++;
     } else {
-      *p_extra_cycles = 1;
+      *p_extra_cycles += 1;
     }
   }
 
@@ -1359,12 +1395,19 @@ bbc_get_write_jit_encoding(void* p,
   p_uop++;
 
   /* Set up param4. */
-  asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
-  p_uop++;
+  if (syncs_time) {
+    asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
+    p_uop++;
+  }
 
   /* Call C function. */
   asm_make_uop2(p_uop, k_opcode_call_scratch_param, param_offset, func_offset);
   p_uop++;
+
+  if (returns_time) {
+    asm_make_uop0(p_uop, k_opcode_set_countdown_from_ret);
+    p_uop++;
+  }
 
   /* Restore registers. */
   asm_make_uop0(p_uop, k_opcode_restore_regs);
@@ -1872,6 +1915,7 @@ bbc_create(int mode,
   p_bbc->p_adc = adc_create(externally_clocked_adc,
                             p_timing,
                             p_bbc->p_system_via);
+  p_bbc->p_adc_write_func = adc_write_with_countdown;
 
   p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
                                       p_bbc->p_adc,
