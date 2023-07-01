@@ -927,6 +927,15 @@ ASM_SYM(asm_jit_scratch_sub_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_set_countdown_from_ret)
+.globl ASM_SYM(asm_jit_set_countdown_from_ret_END)
+ASM_SYM(asm_jit_set_countdown_from_ret):
+  mov REG_COUNTDOWN, REG_RETURN
+
+ASM_SYM(asm_jit_set_countdown_from_ret_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_set_param2)
 .globl ASM_SYM(asm_jit_set_param2_END)
 ASM_SYM(asm_jit_set_param2):
@@ -942,6 +951,15 @@ ASM_SYM(asm_jit_set_param3_from_value):
   mov REG_PARAM3_32, REG_SCRATCH2_32
 
 ASM_SYM(asm_jit_set_param3_from_value_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_set_param4_from_countdown)
+.globl ASM_SYM(asm_jit_set_param4_from_countdown_END)
+ASM_SYM(asm_jit_set_param4_from_countdown):
+  mov REG_PARAM4, REG_COUNTDOWN
+
+ASM_SYM(asm_jit_set_param4_from_countdown_END):
   ret
 
 
