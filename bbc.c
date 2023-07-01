@@ -1170,48 +1170,15 @@ bbc_write_callback(void* p,
   return ret;
 }
 
-uint32_t
-bbc_get_read_jit_encoding(void* p,
-                          struct asm_uop* p_uops,
-                          int* p_ends_block,
-                          uint32_t* p_extra_cycles,
-                          uint32_t num_uops,
-                          uint16_t addr_6502,
-                          int do_accurate_timings) {
-  struct bbc_struct* p_bbc;
-  int is_1MHz;
-  struct asm_uop* p_uop = p_uops;
-
-  (void) num_uops;
-
-  p_bbc = (struct bbc_struct*) p;
-
-  switch (addr_6502) {
-  case 0xFE08:
-  case 0xFE4D:
-  case 0xFE4E:
-  case 0xFE6D:
-  case 0xFEC0:
-  case 0xFEC1:
-  case 0xFEC2:
-    /* Continue. */
-    break;
-  case 0xFE80:
-    if (p_bbc->is_wd_fdc) {
-      return 0;
-    }
-    /* Continue. */
-    break;
-  default:
-    /* Bail. */
-    return 0;
-  }
-
-  is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
-
-  /* TODO: fetch these unseemly constants in a more graceful manner! */
-  asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
-  p_uop++;
+static void
+bbc_jit_encoding_handle_timing(struct bbc_struct* p_bbc,
+                               struct asm_uop** p_p_uop,
+                               int* p_ends_block,
+                               uint32_t* p_extra_cycles,
+                               uint16_t addr_6502,
+                               int do_accurate_timings) {
+  struct asm_uop* p_uop = *p_p_uop;
+  int is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
 
   *p_ends_block = 0;
   if (do_accurate_timings) {
@@ -1243,6 +1210,56 @@ bbc_get_read_jit_encoding(void* p,
       *p_extra_cycles += 1;
     }
   }
+
+  *p_p_uop = p_uop;
+}
+
+uint32_t
+bbc_get_read_jit_encoding(void* p,
+                          struct asm_uop* p_uops,
+                          int* p_ends_block,
+                          uint32_t* p_extra_cycles,
+                          uint32_t num_uops,
+                          uint16_t addr_6502,
+                          int do_accurate_timings) {
+  struct bbc_struct* p_bbc;
+  struct asm_uop* p_uop = p_uops;
+
+  (void) num_uops;
+
+  p_bbc = (struct bbc_struct*) p;
+
+  switch (addr_6502) {
+  case 0xFE08:
+  case 0xFE4D:
+  case 0xFE4E:
+  case 0xFE6D:
+  case 0xFEC0:
+  case 0xFEC1:
+  case 0xFEC2:
+    /* Continue. */
+    break;
+  case 0xFE80:
+    if (p_bbc->is_wd_fdc) {
+      return 0;
+    }
+    /* Continue. */
+    break;
+  default:
+    /* Bail. */
+    return 0;
+  }
+
+  /* TODO: fetch these unseemly constants in a more graceful manner! */
+  asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
+  p_uop++;
+
+  bbc_jit_encoding_handle_timing(p_bbc,
+                                 &p_uop,
+                                 p_ends_block,
+                                 p_extra_cycles,
+                                 addr_6502,
+                                 do_accurate_timings);
 
   switch (addr_6502) {
   case 0xFE08:
@@ -1307,7 +1324,6 @@ bbc_get_write_jit_encoding(void* p,
                            uint16_t addr_6502,
                            int do_accurate_timings) {
   struct bbc_struct* p_bbc;
-  int is_1MHz;
   struct asm_uop* p_uop = p_uops;
   uint32_t func_offset = 0;
   uint32_t param_offset = 0;
@@ -1339,8 +1355,6 @@ bbc_get_write_jit_encoding(void* p,
     return 0;
   }
 
-  is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
-
   /* TODO: fetch these unseemly constants in a more graceful manner! */
   asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
   p_uop++;
@@ -1352,22 +1366,6 @@ bbc_get_write_jit_encoding(void* p,
   asm_make_uop0(p_uop, k_opcode_save_regs);
   p_uop++;
 
-  *p_ends_block = 0;
-  if (do_accurate_timings) {
-    /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
-     * For tick-then-read or tick-then-write hardware register access, an
-     * event that might affect a result might go missing if it occurs at the
-     * countdown==0 boundary.
-     * To compensate, claim the instruction takes a cycle longer but then
-     * fix up.
-     */
-    *p_extra_cycles = 1;
-    asm_make_uop1(p_uop, k_opcode_add_cycles, 1);
-    p_uop++;
-  } else {
-    *p_extra_cycles = 0;
-  }
-
   /* Set up param3.
    * Do it before the timing fixup because that will trash the value in
    * the register.
@@ -1375,20 +1373,12 @@ bbc_get_write_jit_encoding(void* p,
   asm_make_uop0(p_uop, k_opcode_set_param3_from_value);
   p_uop++;
 
-  if (is_1MHz) {
-    if (do_accurate_timings) {
-      *p_ends_block = 1;
-      *p_extra_cycles += 2;
-      asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x0);
-      p_uop++;
-      asm_make_uop1(p_uop, k_opcode_load_deref_scratch_quad, 0x10);
-      p_uop++;
-      asm_make_uop0(p_uop, k_opcode_sync_even_cycle);
-      p_uop++;
-    } else {
-      *p_extra_cycles += 1;
-    }
-  }
+  bbc_jit_encoding_handle_timing(p_bbc,
+                                 &p_uop,
+                                 p_ends_block,
+                                 p_extra_cycles,
+                                 addr_6502,
+                                 do_accurate_timings);
 
   /* Set up param2. */
   asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
