@@ -580,6 +580,30 @@ via_t2_just_fired(struct via_struct* p_via) {
 }
 
 static uint8_t
+via_read_T1CH(struct via_struct* p_via) {
+  uint8_t ret;
+  int32_t t1_val = via_get_t1c(p_via);
+  if (via_t1_just_fired(p_via)) {
+    /* If the timer is firing, return -1. Need to force this because the raw
+     * timer value is set to the relatch value plus one which must not be
+     * exposed.
+     */
+    t1_val = -1;
+  }
+
+  ret = (((uint16_t) t1_val) >> 8);
+  return ret;
+}
+
+static uint8_t
+via_read_T2CH(struct via_struct* p_via) {
+  uint8_t ret;
+  int32_t t2_val = via_get_t2c(p_via);
+  ret = ((uint16_t) t2_val >> 8);
+  return ret;
+}
+
+static uint8_t
 via_read_internal(struct via_struct* p_via,
                   uint8_t reg,
                   int do_avoid_side_effects) {
@@ -657,16 +681,7 @@ via_read_internal(struct via_struct* p_via,
     ret = (((uint16_t) t1_val) & 0xFF);
     break;
   case k_via_T1CH:
-    t1_val = via_get_t1c(p_via);
-    if (via_t1_just_fired(p_via)) {
-      /* If the timer is firing, return -1. Need to force this because the raw
-       * timer value is set to the relatch value plus one which must not be
-       * exposed.
-       */
-      t1_val = -1;
-    }
-    ret = (((uint16_t) t1_val) >> 8);
-    break;
+    return via_read_T1CH(p_via);
   case k_via_T1LL:
     ret = (p_via->T1L & 0xFF);
     break;
@@ -681,9 +696,7 @@ via_read_internal(struct via_struct* p_via,
     ret = ((uint16_t) t2_val & 0xFF);
     break;
   case k_via_T2CH:
-    t2_val = via_get_t2c(p_via);
-    ret = ((uint16_t) t2_val >> 8);
-    break;
+    return via_read_T2CH(p_via);
   case k_via_SR:
     ret = p_via->SR;
     break;
@@ -716,6 +729,24 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 uint8_t
 via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
   return via_read_internal(p_via, reg, 1);
+}
+
+uint8_t
+via_read_T1CH_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint64_t countdown) {
+  (void) reg;
+  timing_sync_countdown(p_via->p_timing, (countdown + 1));
+  return via_read_T1CH(p_via);
+}
+
+uint8_t
+via_read_T2CH_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint64_t countdown) {
+  (void) reg;
+  timing_sync_countdown(p_via->p_timing, (countdown + 1));
+  return via_read_T2CH(p_via);
 }
 
 static void

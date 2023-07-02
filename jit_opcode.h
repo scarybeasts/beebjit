@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 enum {
-  k_max_uops_per_opcode = 16,
+  k_max_uops_per_opcode = 20,
 };
 
 struct jit_opcode_details {

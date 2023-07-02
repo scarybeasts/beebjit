@@ -1126,8 +1126,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 16);
   emit_JMP(p_buf, k_abs, 0xCF40);
 
-  /* Exit sequence. */
+  /* Test an SBC + register access that blew the uops-per-opcode quota. */
   set_new_index(p_buf, 0x0F40);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_SEC(p_buf);
+  emit_SBC(p_buf, k_abs, 0xFE45);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xCF80);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0F80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

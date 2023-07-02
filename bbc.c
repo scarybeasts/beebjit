@@ -100,7 +100,8 @@ struct bbc_struct {
   struct timing_struct* p_timing;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
-  void* p_via_read_func;
+  void* p_via_read_T1CH_func;
+  void* p_via_read_T2CH_func;
   void* p_via_write_IFR_func;
   struct adc_struct* p_adc;
   void* p_adc_write_func;
@@ -1224,6 +1225,11 @@ bbc_get_read_jit_encoding(void* p,
                           int do_accurate_timings) {
   struct bbc_struct* p_bbc;
   struct asm_uop* p_uop = p_uops;
+  int is_call = 0;
+  uint32_t func_offset = 0;
+  uint32_t param_offset = 0;
+  uint32_t field_offset = 0;
+  int syncs_time = 0;
 
   (void) num_uops;
 
@@ -1231,19 +1237,64 @@ bbc_get_read_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE08:
+    param_offset = 0x40;
+    field_offset = 0x18;
+    break;
+  case 0xFE45:
+    is_call = 1;
+    func_offset = 0x18;
+    param_offset = 0x8;
+    syncs_time = 1;
+    break;
+  case 0xFE49:
+    is_call = 1;
+    func_offset = 0x20;
+    param_offset = 0x8;
+    syncs_time = 1;
+    break;
   case 0xFE4D:
+    param_offset = 0x8;
+    field_offset = 0x59;
+    break;
   case 0xFE4E:
+    param_offset = 0x8;
+    field_offset = 0x5A;
+    break;
+  case 0xFE65:
+    is_call = 1;
+    func_offset = 0x18;
+    param_offset = 0x10;
+    syncs_time = 1;
+    break;
+  case 0xFE69:
+  case 0xFE79: /* Castle Quest hits this alias. */
+    is_call = 1;
+    func_offset = 0x20;
+    param_offset = 0x10;
+    syncs_time = 1;
+    break;
   case 0xFE6D:
-  case 0xFEC0:
-  case 0xFEC1:
-  case 0xFEC2:
-    /* Continue. */
+    param_offset = 0x10;
+    field_offset = 0x59;
     break;
   case 0xFE80:
     if (p_bbc->is_wd_fdc) {
       return 0;
     }
-    /* Continue. */
+    param_offset = 0x48;
+    field_offset = 0x68;
+    break;
+  case 0xFEC0:
+    param_offset = 0x30;
+    field_offset = 0x20;
+    break;
+  case 0xFEC1:
+    param_offset = 0x30;
+    field_offset = 0x21;
+    break;
+  case 0xFEC2:
+    param_offset = 0x30;
+    field_offset = 0x22;
     break;
   default:
     /* Bail. */
@@ -1254,6 +1305,15 @@ bbc_get_read_jit_encoding(void* p,
   asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
   p_uop++;
 
+  if (is_call) {
+    /* Save registers.
+     * Do this before the 1MHz timing adjustment so that the timing adjustment
+     * can trash the NZ flags in the host flags if desired.
+     */
+    asm_make_uop0(p_uop, k_opcode_save_regs);
+    p_uop++;
+  }
+
   bbc_jit_encoding_handle_timing(p_bbc,
                                  &p_uop,
                                  p_ends_block,
@@ -1261,55 +1321,35 @@ bbc_get_read_jit_encoding(void* p,
                                  addr_6502,
                                  do_accurate_timings);
 
-  switch (addr_6502) {
-  case 0xFE08:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x38);
+  if (is_call) {
+    /* Set up param2. */
+    asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
     p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x18);
+
+    /* Set up param4. */
+    if (syncs_time) {
+      asm_make_uop0(p_uop, k_opcode_set_param3_from_countdown);
+      p_uop++;
+    }
+
+    /* Call C function. */
+    asm_make_uop2(p_uop,
+                  k_opcode_call_scratch_param,
+                  param_offset,
+                  func_offset);
     p_uop++;
-    break;
-  case 0xFE4D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x8);
+
+    asm_make_uop0(p_uop, k_opcode_set_value_from_ret);
     p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
+
+    /* Restore registers. */
+    asm_make_uop0(p_uop, k_opcode_restore_regs);
     p_uop++;
-    break;
-  case 0xFE4E:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x8);
+  } else {
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, param_offset);
     p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x5A);
+    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, field_offset);
     p_uop++;
-    break;
-  case 0xFE6D:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x10);
-    p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x59);
-    p_uop++;
-    break;
-  case 0xFE80:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x40);
-    p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x68);
-    p_uop++;
-    break;
-  case 0xFEC0:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
-    p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x20);
-    p_uop++;
-    break;
-  case 0xFEC1:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
-    p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x21);
-    p_uop++;
-    break;
-  case 0xFEC2:
-    asm_make_uop1(p_uop, k_opcode_deref_scratch, 0x28);
-    p_uop++;
-    asm_make_uop1(p_uop, k_opcode_load_deref_scratch, 0x22);
-    p_uop++;
-    break;
   }
 
   return (p_uop - p_uops);
@@ -1336,17 +1376,17 @@ bbc_get_write_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE00:
-    func_offset = 0x50;
-    param_offset = 0x48;
+    func_offset = 0x58;
+    param_offset = 0x50;
     break;
   case 0xFE4D:
-    func_offset = 0x20;
+    func_offset = 0x28;
     param_offset = 0x8;
     syncs_time = 1;
     break;
   case 0xFEC0:
-    func_offset = 0x30;
-    param_offset = 0x28;
+    func_offset = 0x38;
+    param_offset = 0x30;
     syncs_time = 1;
     returns_time = 1;
     break;
@@ -1891,7 +1931,8 @@ bbc_create(int mode,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
-  p_bbc->p_via_read_func = via_read;
+  p_bbc->p_via_read_T1CH_func = via_read_T1CH_with_countdown;
+  p_bbc->p_via_read_T2CH_func = via_read_T2CH_with_countdown;
   p_bbc->p_via_write_IFR_func = via_write_IFR_with_countdown;
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);

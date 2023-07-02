@@ -655,12 +655,30 @@ ASM_SYM(asm_jit_set_param3_from_value_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_set_param3_from_countdown)
+.globl ASM_SYM(asm_jit_set_param3_from_countdown_END)
+ASM_SYM(asm_jit_set_param3_from_countdown):
+  mov REG_PARAM3, REG_COUNTDOWN
+
+ASM_SYM(asm_jit_set_param3_from_countdown_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_set_param4_from_countdown)
 .globl ASM_SYM(asm_jit_set_param4_from_countdown_END)
 ASM_SYM(asm_jit_set_param4_from_countdown):
   mov REG_PARAM4, REG_COUNTDOWN
 
 ASM_SYM(asm_jit_set_param4_from_countdown_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_set_value_from_ret)
+.globl ASM_SYM(asm_jit_set_value_from_ret_END)
+ASM_SYM(asm_jit_set_value_from_ret):
+  mov REG_VALUE, REG_RETURN
+
+ASM_SYM(asm_jit_set_value_from_ret_END):
   ret
 
 

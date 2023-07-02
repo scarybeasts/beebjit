@@ -465,7 +465,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
          (optype == k_ldx) ||
          (optype == k_ldy) ||
          (optype == k_and) ||
-         (optype == k_bit))) {
+         (optype == k_bit) ||
+         (optype == k_cmp) ||
+         (optype == k_sbc))) {
     uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
     /* Write the uops on top of the addr_set and value_load. */
     num_callback_uops =
