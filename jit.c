@@ -65,7 +65,6 @@ struct jit_struct {
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
-  uint32_t counter_stay_in_interp;
   uint64_t last_housekeeping_cycles;
 
   int log_compile;
@@ -83,34 +82,13 @@ jit_interp_instruction_callback(void* p,
                                 uint8_t done_opcode,
                                 uint16_t done_addr,
                                 int next_is_irq,
-                                int irq_pending,
-                                int hit_special) {
+                                int irq_pending) {
   int32_t next_block;
   int32_t next_block_prev;
   uint8_t opmem;
 
   struct jit_metadata* p_metadata;
   struct jit_struct* p_jit = (struct jit_struct*) p;
-
-  if (hit_special) {
-    if ((done_addr == 0xFE80) ||
-        (done_addr == 0xFE4D) ||
-        (done_addr == 0xFE6D) ||
-        (done_addr == 0xFE08) ||
-        (done_addr == 0xFE01) ||
-        (done_addr == 0xFE65) ||
-        (done_addr == 0xFE69) ||
-        (done_addr == 0xFE79)) {
-      /* Temporary hack to make our nascent JIT encoded callback used.
-       * This is needed for any hardware register accesses that might be hit
-       * in a tight loop. Otherwise, something could cause a bounce to interp
-       * (typicall a timer expire / IRQ) and then it'd stay in interp.
-       */
-    } else {
-      p_jit->counter_stay_in_interp = 2;
-      return 0;
-    }
-  }
 
   p_metadata = p_jit->p_metadata;
   opmem = p_jit->p_opcode_mem[done_opcode];
@@ -126,13 +104,6 @@ jit_interp_instruction_callback(void* p,
       asm_jit_start_code_updates(p_jit->p_asm, p_jit_ptr, 4);
       asm_jit_invalidate_code_at(p_jit_ptr);
       asm_jit_finish_code_updates(p_jit->p_asm);
-    }
-  }
-
-  if (p_jit->counter_stay_in_interp > 0) {
-    p_jit->counter_stay_in_interp--;
-    if (p_jit->counter_stay_in_interp > 0) {
-      return 0;
     }
   }
 
@@ -202,8 +173,6 @@ jit_enter_interp(struct jit_struct* p_jit,
                                        countdown,
                                        host_flags,
                                        0);
-
-  p_jit->counter_stay_in_interp = 0;
 
   countdown = interp_enter_with_countdown(p_interp, countdown);
 
