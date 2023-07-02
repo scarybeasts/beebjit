@@ -954,12 +954,30 @@ ASM_SYM(asm_jit_set_param3_from_value_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_set_param3_from_countdown)
+.globl ASM_SYM(asm_jit_set_param3_from_countdown_END)
+ASM_SYM(asm_jit_set_param3_from_countdown):
+  mov REG_PARAM3, REG_COUNTDOWN
+
+ASM_SYM(asm_jit_set_param3_from_countdown_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_set_param4_from_countdown)
 .globl ASM_SYM(asm_jit_set_param4_from_countdown_END)
 ASM_SYM(asm_jit_set_param4_from_countdown):
   mov REG_PARAM4, REG_COUNTDOWN
 
 ASM_SYM(asm_jit_set_param4_from_countdown_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_set_value_from_ret)
+.globl ASM_SYM(asm_jit_set_value_from_ret_END)
+ASM_SYM(asm_jit_set_value_from_ret):
+  mov REG_SCRATCH2, REG_RETURN
+
+ASM_SYM(asm_jit_set_value_from_ret_END):
   ret
 
 
@@ -1555,6 +1573,15 @@ ASM_SYM(asm_jit_BVS_8bit):
   .byte 0x00
 
 ASM_SYM(asm_jit_BVS_8bit_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_CMP)
+.globl ASM_SYM(asm_jit_CMP_END)
+ASM_SYM(asm_jit_CMP):
+  cmp REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_CMP_END):
   ret
 
 
@@ -2375,6 +2402,15 @@ ASM_SYM(asm_jit_SAX_ABS_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_SBC)
+.globl ASM_SYM(asm_jit_SBC_END)
+ASM_SYM(asm_jit_SBC):
+  sbb REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_SBC_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_SBC_ABS)
 .globl ASM_SYM(asm_jit_SBC_ABS_END)
 ASM_SYM(asm_jit_SBC_ABS):
@@ -2644,6 +2680,15 @@ ASM_SYM(asm_jit_STY_ZPG):
   mov [REG_MEM + 0x7f], REG_6502_Y
 
 ASM_SYM(asm_jit_STY_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_SUB)
+.globl ASM_SYM(asm_jit_SUB_END)
+ASM_SYM(asm_jit_SUB):
+  sub REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_SUB_END):
   ret
 
 

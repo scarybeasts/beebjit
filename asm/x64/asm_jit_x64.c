@@ -1812,9 +1812,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_set_countdown_from_ret: ASM(set_countdown_from_ret); break;
   case k_opcode_set_param2: ASM_U32(set_param2); break;
   case k_opcode_set_param3_from_value: ASM(set_param3_from_value); break;
+  case k_opcode_set_param3_from_countdown:
+    ASM(set_param3_from_countdown);
+    break;
   case k_opcode_set_param4_from_countdown:
     ASM(set_param4_from_countdown);
     break;
+  case k_opcode_set_value_from_ret: ASM(set_value_from_ret); break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
@@ -1835,6 +1839,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_CLD: asm_emit_instruction_CLD(p_dest_buf); break;
   case k_opcode_CLI: asm_emit_instruction_CLI(p_dest_buf); break;
   case k_opcode_CLV: asm_emit_instruction_CLV(p_dest_buf); break;
+  case k_opcode_CMP: ASM(CMP); break;
   case k_opcode_DEC_value: ASM(DEC_value); break;
   case k_opcode_DEX: asm_emit_instruction_DEX(p_dest_buf); break;
   case k_opcode_DEY: asm_emit_instruction_DEY(p_dest_buf); break;
@@ -1875,12 +1880,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(save_carry);
     ASM(flags_nz_value);
     break;
+  case k_opcode_SBC: ASM(SBC); break;
   case k_opcode_SEC: asm_emit_instruction_SEC(p_dest_buf); break;
   case k_opcode_SED: asm_emit_instruction_SED(p_dest_buf); break;
   case k_opcode_SEI: asm_emit_instruction_SEI(p_dest_buf); break;
   case k_opcode_STA: ASM(STA_value); break;
   case k_opcode_STX: ASM(STX_value); break;
   case k_opcode_STY: ASM(STY_value); break;
+  case k_opcode_SUB: ASM(SUB); break;
   case k_opcode_TAX: asm_emit_instruction_TAX(p_dest_buf); break;
   case k_opcode_TAY: asm_emit_instruction_TAY(p_dest_buf); break;
   case k_opcode_TSX: asm_emit_instruction_TSX(p_dest_buf); break;
