@@ -626,7 +626,7 @@ via_read_internal(struct via_struct* p_via,
   uint8_t port_val;
   int32_t t1_val;
   int32_t t2_val;
-  uint8_t ret;
+  uint8_t ret = 0;
 
   switch (reg) {
   case k_via_ORB:
