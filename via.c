@@ -603,6 +603,20 @@ via_read_T2CH(struct via_struct* p_via) {
   return ret;
 }
 
+uint8_t
+via_read_ORAnh(struct via_struct* p_via) {
+  uint8_t ret;
+  /* A read of VIA port A reads the current pins levels, or uses the pin
+   * levels at the last latch, regardless of input vs. output configuration.
+   */
+  if (p_via->ACR & 0x01) {
+    ret = p_via->IRA;
+  } else {
+    ret = via_calculate_port_a(p_via);
+  }
+  return ret;
+}
+
 static uint8_t
 via_read_internal(struct via_struct* p_via,
                   uint8_t reg,
@@ -651,15 +665,7 @@ via_read_internal(struct via_struct* p_via,
     }
   /* Fall through. */
   case k_via_ORAnh:
-    /* A read of VIA port A reads the current pins levels, or uses the pin
-     * levels at the last latch, regardless of input vs. output configuration.
-     */
-    if (p_via->ACR & 0x01) {
-      ret = p_via->IRA;
-    } else {
-      ret = via_calculate_port_a(p_via);
-    }
-    break;
+    return via_read_ORAnh(p_via);
   case k_via_DDRB:
     ret = p_via->DDRB;
     break;
@@ -712,10 +718,6 @@ via_read_internal(struct via_struct* p_via,
   case k_via_IER:
     ret = p_via->IER;
     break;
-  default:
-    assert(0);
-    ret = 0;
-    break;
   }
 
   return ret;
@@ -750,6 +752,25 @@ via_read_T2CH_with_countdown(struct via_struct* p_via,
 }
 
 static void
+via_write_ORB(struct via_struct* p_via, uint8_t val) {
+  /* Independent interrupt not supported yet. */
+  assert((p_via->PCR & 0xA0) != 0x20);
+  /* Handshake mode not supported yet. */
+  assert((p_via->PCR & 0xE0) != 0x80);
+  /* Pulse output not supported yet. */
+  assert((p_via->PCR & 0xE0) != 0xA0);
+  p_via->ORB = val;
+  via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
+  via_update_port_b(p_via);
+}
+
+static void
+via_write_DDRA(struct via_struct* p_via, uint8_t val) {
+  p_via->DDRA = val;
+  via_update_port_a(p_via);
+}
+
+static void
 via_write_IFR(struct via_struct* p_via, uint8_t val) {
   uint8_t new_IFR = (p_via->IFR & ~(val & 0x7F));
 
@@ -767,6 +788,12 @@ via_write_IFR(struct via_struct* p_via, uint8_t val) {
   via_set_IFR(p_via, new_IFR);
 }
 
+static void
+via_write_ORAnh(struct via_struct* p_via, uint8_t val) {
+  p_via->ORA = val;
+  via_update_port_a(p_via);
+}
+
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
@@ -774,16 +801,8 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
 
   switch (reg) {
   case k_via_ORB:
-    /* Independent interrupt not supported yet. */
-    assert((p_via->PCR & 0xA0) != 0x20);
-    /* Handshake mode not supported yet. */
-    assert((p_via->PCR & 0xE0) != 0x80);
-    /* Pulse output not supported yet. */
-    assert((p_via->PCR & 0xE0) != 0xA0);
-    p_via->ORB = val;
-    via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
-    via_update_port_b(p_via);
-    break;
+    via_write_ORB(p_via, val);
+    return;
   case k_via_ORA:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
@@ -794,17 +813,15 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
   /* Fall through. */
   case k_via_ORAnh:
-    p_via->ORA = val;
-    via_update_port_a(p_via);
-    break;
+    via_write_ORAnh(p_via, val);
+    return;
   case k_via_DDRB:
     p_via->DDRB = val;
     via_update_port_b(p_via);
     break;
   case k_via_DDRA:
-    p_via->DDRA = val;
-    via_update_port_a(p_via);
-    break;
+    via_write_DDRA(p_via, val);
+    return;
   case k_via_T1CL:
   case k_via_T1LL:
     /* We don't reload the timer, so tick it based on the current latch value
@@ -927,7 +944,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_IFR:
     via_write_IFR(p_via, val);
-    break;
+    return;
   case k_via_IER:
     if (val & 0x80) {
       p_via->IER |= val;
@@ -936,10 +953,27 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     }
     via_check_interrupt(p_via);
     break;
-  default:
-    assert(0);
-    break;
   }
+}
+
+void
+via_write_ORB_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint8_t val,
+                             uint64_t countdown) {
+  (void) reg;
+  (void) countdown;
+  via_write_ORB(p_via, val);
+}
+
+void
+via_write_DDRA_with_countdown(struct via_struct* p_via,
+                              uint8_t reg,
+                              uint8_t val,
+                              uint64_t countdown) {
+  (void) reg;
+  (void) countdown;
+  via_write_DDRA(p_via, val);
 }
 
 void
@@ -951,6 +985,17 @@ via_write_IFR_with_countdown(struct via_struct* p_via,
   timing_sync_countdown(p_via->p_timing, (countdown + 1));
   via_write_IFR(p_via, val);
 }
+
+void
+via_write_ORAnh_with_countdown(struct via_struct* p_via,
+                               uint8_t reg,
+                               uint8_t val,
+                               uint64_t countdown) {
+  (void) reg;
+  (void) countdown;
+  via_write_ORAnh(p_via, val);
+}
+
 
 void
 via_get_all_CAB(struct via_struct* p_via,

@@ -44,11 +44,28 @@ uint8_t via_read_T1CH_with_countdown(struct via_struct* p_via,
 uint8_t via_read_T2CH_with_countdown(struct via_struct* p_via,
                                      uint8_t reg,
                                      uint64_t countdown);
+uint8_t via_read_T2CH_with_countdown(struct via_struct* p_via,
+                                     uint8_t reg,
+                                     uint64_t countdown);
+uint8_t via_read_ORAnh(struct via_struct* p_via);
+
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
+void via_write_ORB_with_countdown(struct via_struct* p_via,
+                                  uint8_t reg,
+                                  uint8_t val,
+                                  uint64_t countdown);
+void via_write_DDRA_with_countdown(struct via_struct* p_via,
+                                   uint8_t reg,
+                                   uint8_t val,
+                                   uint64_t countdown);
 void via_write_IFR_with_countdown(struct via_struct* p_via,
                                   uint8_t reg,
                                   uint8_t val,
                                   uint64_t countdown);
+void via_write_ORAnh_with_countdown(struct via_struct* p_via,
+                                    uint8_t reg,
+                                    uint8_t val,
+                                    uint64_t countdown);
 
 uint8_t via_calculate_port_a(struct via_struct* p_via);
 uint8_t via_calculate_port_b(struct via_struct* p_via);

@@ -102,7 +102,11 @@ struct bbc_struct {
   struct via_struct* p_user_via;
   void* p_via_read_T1CH_func;
   void* p_via_read_T2CH_func;
+  void* p_via_read_ORAnh_func;
+  void* p_via_write_ORB_func;
+  void* p_via_write_DDRA_func;
   void* p_via_write_IFR_func;
+  void* p_via_write_ORAnh_func;
   struct adc_struct* p_adc;
   void* p_adc_write_func;
   struct mc6850_struct* p_serial;
@@ -1237,7 +1241,7 @@ bbc_get_read_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE08:
-    param_offset = 0x40;
+    param_offset = 0x60;
     field_offset = 0x18;
     break;
   case 0xFE45:
@@ -1260,6 +1264,11 @@ bbc_get_read_jit_encoding(void* p,
     param_offset = 0x8;
     field_offset = 0x5A;
     break;
+  case 0xFE4F:
+    is_call = 1;
+    func_offset = 0x28;
+    param_offset = 0x8;
+    break;
   case 0xFE65:
     is_call = 1;
     func_offset = 0x18;
@@ -1281,19 +1290,19 @@ bbc_get_read_jit_encoding(void* p,
     if (p_bbc->is_wd_fdc) {
       return 0;
     }
-    param_offset = 0x48;
+    param_offset = 0x68;
     field_offset = 0x68;
     break;
   case 0xFEC0:
-    param_offset = 0x30;
+    param_offset = 0x50;
     field_offset = 0x20;
     break;
   case 0xFEC1:
-    param_offset = 0x30;
+    param_offset = 0x50;
     field_offset = 0x21;
     break;
   case 0xFEC2:
-    param_offset = 0x30;
+    param_offset = 0x50;
     field_offset = 0x22;
     break;
   default:
@@ -1376,17 +1385,29 @@ bbc_get_write_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE00:
-    func_offset = 0x58;
-    param_offset = 0x50;
+    func_offset = 0x78;
+    param_offset = 0x70;
+    break;
+  case 0xFE40:
+    func_offset = 0x30;
+    param_offset = 0x8;
+    break;
+  case 0xFE43:
+    func_offset = 0x38;
+    param_offset = 0x8;
     break;
   case 0xFE4D:
-    func_offset = 0x28;
+    func_offset = 0x40;
     param_offset = 0x8;
     syncs_time = 1;
     break;
+  case 0xFE4F:
+    func_offset = 0x48;
+    param_offset = 0x8;
+    break;
   case 0xFEC0:
-    func_offset = 0x38;
-    param_offset = 0x30;
+    func_offset = 0x58;
+    param_offset = 0x50;
     syncs_time = 1;
     returns_time = 1;
     break;
@@ -1933,7 +1954,11 @@ bbc_create(int mode,
                                  p_bbc);
   p_bbc->p_via_read_T1CH_func = via_read_T1CH_with_countdown;
   p_bbc->p_via_read_T2CH_func = via_read_T2CH_with_countdown;
+  p_bbc->p_via_read_ORAnh_func = via_read_ORAnh;
+  p_bbc->p_via_write_ORB_func = via_write_ORB_with_countdown;
+  p_bbc->p_via_write_DDRA_func = via_write_DDRA_with_countdown;
   p_bbc->p_via_write_IFR_func = via_write_IFR_with_countdown;
+  p_bbc->p_via_write_ORAnh_func = via_write_ORAnh_with_countdown;
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
