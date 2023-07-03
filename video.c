@@ -1895,9 +1895,10 @@ video_ula_write_ctrl_with_countdown(struct video_struct* p_video,
                                     uint64_t countdown) {
   struct timing_struct* p_timing = p_video->p_timing;
   (void) addr;
-  timing_sync_countdown(p_timing, countdown);
+  timing_sync_countdown(p_timing, (countdown + 1));
   video_ula_write_ctrl(p_video, val);
-  return timing_get_countdown(p_timing);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
 }
 
 void
@@ -1907,7 +1908,7 @@ video_ula_write_palette_with_countdown(struct video_struct* p_video,
                                        uint64_t countdown) {
   struct timing_struct* p_timing = p_video->p_timing;
   (void) addr;
-  timing_sync_countdown(p_timing, countdown);
+  timing_sync_countdown(p_timing, (countdown + 1));
   video_ula_write_palette(p_video, val);
 }
 

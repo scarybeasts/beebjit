@@ -30,6 +30,7 @@ echo 'Checking 6502 instruction timings (with cycle stretch).'
 echo 'Checking 65C12 instruction timings (with cycle stretch).'
 ./beebjit -0 test/misc/65C12timing1M.ssd \
     -master \
+    -mode interp \
     -headless -fast -accurate -debug \
     -autoboot \
     -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
@@ -37,7 +38,15 @@ echo 'Checking 65C12 instruction timings (with cycle stretch).'
 echo 'Checking RVI rendering.'
 # This checks the framebuffer looks as expected, once the Bitshifters RVI
 # technique is loaded and running.
+# Test it with both interp and then JIT.
 ./beebjit -0 test/display/raster-c.ssd \
+    -mode interp \
+    -autoboot \
+    -fast -accurate -debug \
+    -opt video:always-render \
+    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q"
+./beebjit -0 test/display/raster-c.ssd \
+    -mode jit \
     -autoboot \
     -fast -accurate -debug \
     -opt video:always-render \
@@ -46,6 +55,7 @@ echo 'Checking RVI rendering.'
 # This checks the framebuffer looks as expected, in an RVI test case that uses
 # teletext output to implement pre-line blanking.
 ./beebjit -0 test/display/rvi-working.ssd \
+    -mode interp \
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
@@ -55,6 +65,7 @@ echo 'Checking RVI rendering.'
 # hits corner cases with 2MHz teletext operation, non-rounded teletext
 # rendering, teletext line tracking, and more.
 ./beebjit -0 test/display/mode1+7.ssd \
+    -mode interp \
     -debug -fast -accurate \
     -opt video:always-render \
     -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x7c91a13d)||bail';q"
