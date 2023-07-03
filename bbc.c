@@ -112,7 +112,9 @@ struct bbc_struct {
   struct mc6850_struct* p_serial;
   struct intel_fdc_struct* p_intel_fdc;
   struct video_struct* p_video;
-  void* p_video_write_func;
+  void* p_video_crtc_write_func;
+  void* p_video_ula_write_ctrl_func;
+  void* p_video_ula_write_palette_func;
 
   /* Internal system mechanics. */
   struct os_thread_struct* p_thread_cpu;
@@ -1181,11 +1183,12 @@ bbc_jit_encoding_handle_timing(struct bbc_struct* p_bbc,
                                int* p_ends_block,
                                uint32_t* p_extra_cycles,
                                uint16_t addr_6502,
-                               int do_accurate_timings) {
+                               int do_accurate_timings,
+                               int syncs_time) {
   struct asm_uop* p_uop = *p_p_uop;
   int is_1MHz = bbc_is_1MHz_address(p_bbc, addr_6502);
 
-  *p_ends_block = 0;
+  *p_ends_block = syncs_time;
   if (do_accurate_timings) {
     /* A subtlety: JIT fires countdown when it hits -1, not when it hits 0.
      * For tick-then-read or tick-then-write hardware register access, an
@@ -1328,7 +1331,8 @@ bbc_get_read_jit_encoding(void* p,
                                  p_ends_block,
                                  p_extra_cycles,
                                  addr_6502,
-                                 do_accurate_timings);
+                                 do_accurate_timings,
+                                 syncs_time);
 
   if (is_call) {
     /* Set up param2. */
@@ -1388,6 +1392,17 @@ bbc_get_write_jit_encoding(void* p,
     func_offset = 0x78;
     param_offset = 0x70;
     break;
+  case 0xFE20:
+    func_offset = 0x80;
+    param_offset = 0x70;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE21:
+    func_offset = 0x88;
+    param_offset = 0x70;
+    syncs_time = 1;
+    break;
   case 0xFE40:
     func_offset = 0x30;
     param_offset = 0x8;
@@ -1439,7 +1454,8 @@ bbc_get_write_jit_encoding(void* p,
                                  p_ends_block,
                                  p_extra_cycles,
                                  addr_6502,
-                                 do_accurate_timings);
+                                 do_accurate_timings,
+                                 syncs_time);
 
   /* Set up param2. */
   asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
@@ -1995,7 +2011,10 @@ bbc_create(int mode,
                                 p_bbc,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
-  p_bbc->p_video_write_func = video_crtc_write;
+  p_bbc->p_video_crtc_write_func = video_crtc_write;
+  p_bbc->p_video_ula_write_ctrl_func = video_ula_write_ctrl_with_countdown;
+  p_bbc->p_video_ula_write_palette_func =
+      video_ula_write_palette_with_countdown;
 
   p_bbc->p_drive_0 = disc_drive_create(0, p_timing, &p_bbc->options);
   p_bbc->p_drive_1 = disc_drive_create(1, p_timing, &p_bbc->options);

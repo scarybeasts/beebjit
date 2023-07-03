@@ -1799,11 +1799,8 @@ video_check_hack_legacy_shift_mode7(struct video_struct* p_video) {
   video_framing_changed(p_video);
 }
 
-void
-video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
-  uint8_t index;
-  uint8_t rgbf;
-
+static void
+video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
   int old_flash;
   int new_flash;
   int new_clock_speed;
@@ -1814,23 +1811,6 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
-
-  if (addr == 1) {
-    /* Palette register. */
-    index = (val >> 4);
-    /* The xor is to map incoming color to real physical color. e.g. MOS writes
-     * 7 for black, which xors to 0, which is the number for physical black.
-     */
-    rgbf = ((val & 0x0F) ^ 0x7);
-    p_video->ula_palette[index] = rgbf;
-
-    video_update_real_color(p_video, index);
-
-    return;
-  }
-
-  /* Video ULA control register. */
-  assert(addr == 0);
 
   old_flash = video_get_flash(p_video);
   old_clock_speed = video_get_clock_speed(p_video);
@@ -1877,6 +1857,58 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   video_mode_updated(p_video);
 
   video_check_hack_legacy_shift_mode7(p_video);
+}
+
+static void
+video_ula_write_palette(struct video_struct* p_video, uint8_t val) {
+  uint8_t index;
+  uint8_t rgbf;
+
+  if (p_video->is_rendering_active) {
+    video_advance_crtc_timing(p_video);
+  }
+
+  index = (val >> 4);
+  /* The xor is to map incoming color to real physical color. e.g. MOS writes
+   * 7 for black, which xors to 0, which is the number for physical black.
+   */
+  rgbf = ((val & 0x0F) ^ 0x7);
+  p_video->ula_palette[index] = rgbf;
+
+  video_update_real_color(p_video, index);
+}
+
+void
+video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
+  if (addr == 0) {
+    video_ula_write_ctrl(p_video, val);
+  } else {
+    assert(addr == 1);
+    video_ula_write_palette(p_video, val);
+  }
+}
+
+uint64_t
+video_ula_write_ctrl_with_countdown(struct video_struct* p_video,
+                                    uint8_t addr,
+                                    uint8_t val,
+                                    uint64_t countdown) {
+  struct timing_struct* p_timing = p_video->p_timing;
+  (void) addr;
+  timing_sync_countdown(p_timing, countdown);
+  video_ula_write_ctrl(p_video, val);
+  return timing_get_countdown(p_timing);
+}
+
+void
+video_ula_write_palette_with_countdown(struct video_struct* p_video,
+                                       uint8_t addr,
+                                       uint8_t val,
+                                       uint64_t countdown) {
+  struct timing_struct* p_timing = p_video->p_timing;
+  (void) addr;
+  timing_sync_countdown(p_timing, countdown);
+  video_ula_write_palette(p_video, val);
 }
 
 uint8_t

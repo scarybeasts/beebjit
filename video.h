@@ -45,6 +45,15 @@ struct render_struct* video_get_render(struct video_struct* p_video);
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
 
 void video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
+uint64_t video_ula_write_ctrl_with_countdown(struct video_struct* p_video,
+                                             uint8_t addr,
+                                             uint8_t val,
+                                             uint64_t countdown);
+void video_ula_write_palette_with_countdown(struct video_struct* p_video,
+                                            uint8_t addr,
+                                            uint8_t val,
+                                            uint64_t countdown);
+
 uint8_t video_crtc_read(struct video_struct* p_video, uint8_t addr);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 
