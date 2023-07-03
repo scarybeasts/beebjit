@@ -56,6 +56,13 @@ void video_ula_write_palette_with_countdown(struct video_struct* p_video,
 
 uint8_t video_crtc_read(struct video_struct* p_video, uint8_t addr);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
+void video_crtc_write_address(struct video_struct* p_video,
+                              uint8_t addr,
+                              uint8_t val);
+uint64_t video_crtc_write_value_with_countdown(struct video_struct* p_video,
+                                               uint8_t addr,
+                                               uint8_t val,
+                                               uint64_t countdown);
 
 void video_render_full_frame(struct video_struct* p_video);
 

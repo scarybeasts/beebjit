@@ -112,7 +112,8 @@ struct bbc_struct {
   struct mc6850_struct* p_serial;
   struct intel_fdc_struct* p_intel_fdc;
   struct video_struct* p_video;
-  void* p_video_crtc_write_func;
+  void* p_video_crtc_write_address_func;
+  void* p_video_crtc_write_value_func;
   void* p_video_ula_write_ctrl_func;
   void* p_video_ula_write_palette_func;
 
@@ -1392,14 +1393,20 @@ bbc_get_write_jit_encoding(void* p,
     func_offset = 0x78;
     param_offset = 0x70;
     break;
-  case 0xFE20:
+  case 0xFE01:
     func_offset = 0x80;
     param_offset = 0x70;
     syncs_time = 1;
     returns_time = 1;
     break;
-  case 0xFE21:
+  case 0xFE20:
     func_offset = 0x88;
+    param_offset = 0x70;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE21:
+    func_offset = 0x90;
     param_offset = 0x70;
     syncs_time = 1;
     break;
@@ -2016,7 +2023,8 @@ bbc_create(int mode,
                                 p_bbc,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
-  p_bbc->p_video_crtc_write_func = video_crtc_write;
+  p_bbc->p_video_crtc_write_address_func = video_crtc_write_address;
+  p_bbc->p_video_crtc_write_value_func = video_crtc_write_value_with_countdown;
   p_bbc->p_video_ula_write_ctrl_func = video_ula_write_ctrl_with_countdown;
   p_bbc->p_video_ula_write_palette_func =
       video_ula_write_palette_with_countdown;

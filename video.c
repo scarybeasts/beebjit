@@ -1961,20 +1961,20 @@ video_update_cursor_disabled(struct video_struct* p_video) {
 }
 
 void
-video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
-  uint8_t reg;
+video_crtc_write_address(struct video_struct* p_video,
+                         uint8_t addr,
+                         uint8_t val) {
+  (void) addr;
+  p_video->crtc_address_register = (val & k_crtc_register_mask);
+}
 
+static void
+video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
+  uint8_t reg;
   uint8_t mask = 0xFF;
   int does_not_change_framing = 0;
   uint8_t hsync_pulse_width = 0;
   uint8_t vsync_pulse_width = 0;
-
-  if (addr == k_crtc_addr_reg) {
-    p_video->crtc_address_register = (val & k_crtc_register_mask);
-    return;
-  }
-
-  assert(addr == k_crtc_addr_val);
 
   reg = p_video->crtc_address_register;
 
@@ -2152,6 +2152,29 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   }
 
   video_check_hack_legacy_shift_mode7(p_video);
+}
+
+void
+video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
+  if (addr == k_crtc_addr_reg) {
+    video_crtc_write_address(p_video, 0, val);
+  } else {
+    assert(addr == k_crtc_addr_val);
+    video_crtc_write_value(p_video, val);
+  }
+}
+
+uint64_t
+video_crtc_write_value_with_countdown(struct video_struct* p_video,
+                                      uint8_t addr,
+                                      uint8_t val,
+                                      uint64_t countdown) {
+  struct timing_struct* p_timing = p_video->p_timing;
+  (void) addr;
+  timing_sync_countdown(p_timing, countdown);
+  video_crtc_write_value(p_video, val);
+  countdown = timing_get_countdown(p_timing);
+  return countdown;
 }
 
 uint8_t
