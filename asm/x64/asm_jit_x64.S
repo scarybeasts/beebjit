@@ -381,10 +381,10 @@ ASM_SYM(asm_jit_value_store_END):
 .globl ASM_SYM(asm_jit_call_scratch_param_call)
 .globl ASM_SYM(asm_jit_call_scratch_param_call_END)
 ASM_SYM(asm_jit_call_scratch_param_load_param1):
-  mov REG_PARAM1, [REG_6502_PC + 0x7f]
+  mov REG_PARAM1, [REG_6502_PC + 0x7fffffff]
 ASM_SYM(asm_jit_call_scratch_param_load_param1_END):
 ASM_SYM(asm_jit_call_scratch_param_call):
-  call [REG_6502_PC + 0x7f]
+  call [REG_6502_PC + 0x7fffffff]
 ASM_SYM(asm_jit_call_scratch_param_call_END):
   ret
 

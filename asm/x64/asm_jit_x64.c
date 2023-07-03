@@ -1723,9 +1723,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_call_scratch_param:
-    ASM_U8(call_scratch_param_load_param1);
+    ASM_U32(call_scratch_param_load_param1);
     value1 = value2;
-    ASM_U8(call_scratch_param_call);
+    ASM_U32(call_scratch_param_call);
     break;
   case k_opcode_carry_invert: ASM(carry_invert); break;
   case k_opcode_check_page_crossing_n:
