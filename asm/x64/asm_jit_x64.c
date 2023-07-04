@@ -1823,6 +1823,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); ASM(write_inv_commit); break;
+  case k_opcode_ADD: ASM(ADD); break;
+  case k_opcode_ADC: ASM(ADC); break;
   case k_opcode_AND: ASM(AND); break;
   case k_opcode_ASL_acc: ASM(ASL_ACC); break;
   case k_opcode_ASL_value: ASM(ASL_value); break;
@@ -1840,9 +1842,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_CLI: asm_emit_instruction_CLI(p_dest_buf); break;
   case k_opcode_CLV: asm_emit_instruction_CLV(p_dest_buf); break;
   case k_opcode_CMP: ASM(CMP); break;
+  case k_opcode_CPX: ASM(CPX); break;
+  case k_opcode_CPY: ASM(CPY); break;
   case k_opcode_DEC_value: ASM(DEC_value); break;
   case k_opcode_DEX: asm_emit_instruction_DEX(p_dest_buf); break;
   case k_opcode_DEY: asm_emit_instruction_DEY(p_dest_buf); break;
+  case k_opcode_EOR: ASM(EOR); break;
   case k_opcode_INC_value: ASM(INC_value); break;
   case k_opcode_INX: asm_emit_instruction_INX(p_dest_buf); break;
   case k_opcode_INY: asm_emit_instruction_INY(p_dest_buf); break;
@@ -1864,6 +1869,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_instruction_REAL_NOP(p_dest_buf);
     asm_emit_instruction_REAL_NOP(p_dest_buf);
     break;
+  case k_opcode_ORA: ASM(ORA); break;
   case k_opcode_PHA: asm_emit_instruction_PHA(p_dest_buf); break;
   case k_opcode_PHP: asm_emit_instruction_PHP(p_dest_buf); break;
   case k_opcode_PLA: asm_emit_instruction_PLA(p_dest_buf); break;

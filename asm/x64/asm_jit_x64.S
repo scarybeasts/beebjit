@@ -1084,6 +1084,15 @@ ASM_SYM(asm_jit_write_inv_IDY_X_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_ADC)
+.globl ASM_SYM(asm_jit_ADC_END)
+ASM_SYM(asm_jit_ADC):
+  adc REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_ADC_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_ADC_ABS)
 .globl ASM_SYM(asm_jit_ADC_ABS_END)
 ASM_SYM(asm_jit_ADC_ABS):
@@ -1162,6 +1171,15 @@ ASM_SYM(asm_jit_ADC_ZPG):
   adc REG_6502_A, [REG_MEM + 0x7f]
 
 ASM_SYM(asm_jit_ADC_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_ADD)
+.globl ASM_SYM(asm_jit_ADD_END)
+ASM_SYM(asm_jit_ADD):
+  add REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_ADD_END):
   ret
 
 
@@ -1666,6 +1684,15 @@ ASM_SYM(asm_jit_CMP_ZPG_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_CPX)
+.globl ASM_SYM(asm_jit_CPX_END)
+ASM_SYM(asm_jit_CPX):
+  cmp REG_6502_X, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_CPX_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_CPX_ABS)
 .globl ASM_SYM(asm_jit_CPX_ABS_END)
 ASM_SYM(asm_jit_CPX_ABS):
@@ -1690,6 +1717,15 @@ ASM_SYM(asm_jit_CPX_ZPG):
   cmp REG_6502_X, [REG_MEM + 0x7f]
 
 ASM_SYM(asm_jit_CPX_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_CPY)
+.globl ASM_SYM(asm_jit_CPY_END)
+ASM_SYM(asm_jit_CPY):
+  cmp REG_6502_Y, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_CPY_END):
   ret
 
 
@@ -1762,6 +1798,15 @@ ASM_SYM(asm_jit_DEY_n):
   sub cl, 1
 
 ASM_SYM(asm_jit_DEY_n_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_EOR)
+.globl ASM_SYM(asm_jit_EOR_END)
+ASM_SYM(asm_jit_EOR):
+  xor REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_EOR_END):
   ret
 
 
@@ -2215,6 +2260,15 @@ ASM_SYM(asm_jit_LSR_ZPG):
   shr BYTE PTR [REG_MEM + 0x7f], 1
 
 ASM_SYM(asm_jit_LSR_ZPG_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_ORA)
+.globl ASM_SYM(asm_jit_ORA_END)
+ASM_SYM(asm_jit_ORA):
+  or REG_6502_A, REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_ORA_END):
   ret
 
 
