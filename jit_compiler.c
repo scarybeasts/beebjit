@@ -459,15 +459,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (uses_callback) {
     use_interp = 1;
   }
-  if (uses_callback &&
-      is_addr_known &&
-      ((optype == k_lda) ||
-         (optype == k_ldx) ||
-         (optype == k_ldy) ||
-         (optype == k_and) ||
-         (optype == k_bit) ||
-         (optype == k_cmp) ||
-         (optype == k_sbc))) {
+  if (uses_callback && is_addr_known && is_read && !is_write) {
     uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
     /* Write the uops on top of the addr_set and value_load. */
     num_callback_uops =
