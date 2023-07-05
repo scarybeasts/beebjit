@@ -2050,7 +2050,7 @@ ASM_SYM(asm_jit_LDA_ABY_END):
 .globl ASM_SYM(asm_jit_LDA_value)
 .globl ASM_SYM(asm_jit_LDA_value_END)
 ASM_SYM(asm_jit_LDA_value):
-  mov REG_6502_A_32, REG_SCRATCH2_32
+  mov REG_6502_A, REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_LDA_value_END):
   ret
@@ -2122,7 +2122,7 @@ ASM_SYM(asm_jit_LDX_IMM_END):
 .globl ASM_SYM(asm_jit_LDX_value)
 .globl ASM_SYM(asm_jit_LDX_value_END)
 ASM_SYM(asm_jit_LDX_value):
-  mov REG_6502_X_32, REG_SCRATCH2_32
+  mov REG_6502_X, REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_LDX_value_END):
   ret
@@ -2194,7 +2194,7 @@ ASM_SYM(asm_jit_LDY_IMM_END):
 .globl ASM_SYM(asm_jit_LDY_value)
 .globl ASM_SYM(asm_jit_LDY_value_END)
 ASM_SYM(asm_jit_LDY_value):
-  mov REG_6502_Y_32, REG_SCRATCH2_32
+  mov REG_6502_Y, REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_LDY_value_END):
   ret
