@@ -979,7 +979,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
       return;
     }
     p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
-    if (p_uop == NULL) {
+    if ((p_uop == NULL) || p_uop->is_eliminated) {
       /* It's a JIT encoded callback. */
       assert(jit_opcode_find_uop(p_opcode, &index, k_opcode_deref_context) !=
              NULL);
