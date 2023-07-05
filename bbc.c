@@ -1460,6 +1460,30 @@ bbc_get_write_jit_encoding(void* p,
     param_offset = 0x8;
     func_offset = 0x48;
     break;
+  case 0xFE44:
+    param_offset = 0x8;
+    func_offset = 0x50;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE45:
+    param_offset = 0x8;
+    func_offset = 0x58;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE48:
+    param_offset = 0x8;
+    func_offset = 0x60;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE49:
+    param_offset = 0x8;
+    func_offset = 0x68;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
   case 0xFE4D:
     param_offset = 0x8;
     func_offset = 0x70;
@@ -1468,6 +1492,30 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE4F:
     param_offset = 0x8;
     func_offset = 0x78;
+    break;
+  case 0xFE64:
+    param_offset = 0x10;
+    func_offset = 0x50;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE65:
+    param_offset = 0x10;
+    func_offset = 0x58;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE68:
+    param_offset = 0x10;
+    func_offset = 0x60;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE69:
+    param_offset = 0x10;
+    func_offset = 0x68;
+    syncs_time = 1;
+    returns_time = 1;
     break;
   case 0xFE6D:
     param_offset = 0x10;
@@ -2032,6 +2080,10 @@ bbc_create(int mode,
   p_bbc->p_via_read_ORAnh_func = via_read_ORAnh;
   p_bbc->p_via_write_ORB_func = via_write_ORB_with_countdown;
   p_bbc->p_via_write_DDRA_func = via_write_DDRA_with_countdown;
+  p_bbc->p_via_write_T1CL_func = via_write_T1CL_with_countdown;
+  p_bbc->p_via_write_T1CH_func = via_write_T1CH_with_countdown;
+  p_bbc->p_via_write_T2CL_func = via_write_T2CL_with_countdown;
+  p_bbc->p_via_write_T2CH_func = via_write_T2CH_with_countdown;
   p_bbc->p_via_write_IFR_func = via_write_IFR_with_countdown;
   p_bbc->p_via_write_ORAnh_func = via_write_ORAnh_with_countdown;
 

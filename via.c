@@ -801,6 +801,56 @@ via_write_DDRA(struct via_struct* p_via, uint8_t val) {
 }
 
 static void
+via_write_T1CL(struct via_struct* p_via, uint8_t val) {
+  /* We don't reload the timer, so tick it based on the current latch value
+   * before we change the latch value.
+   */
+  (void) via_get_t1c_raw(p_via);
+  /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
+  p_via->T1L = ((p_via->T1L & 0xFF00) | val);
+  /* EMU NOTE: If we reloaded the timer from the latch at the same VIA cycle
+   * as a write to change the latch, the newly written value must take effect.
+   * Finally hit by the second(?) stage Nightshade tape loader at $7300.
+   */
+  if (via_t1_just_fired(p_via) && (p_via->ACR & 0x40)) {
+    via_load_T1(p_via);
+  }
+}
+
+static void
+via_write_T1CH(struct via_struct* p_via, uint8_t val) {
+  if (!via_t1_just_fired(p_via)) {
+    via_clear_interrupt(p_via, k_int_TIMER1);
+  }
+  p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
+  via_load_T1(p_via);
+  timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
+  /* EMU TODO: does this behave differently if t1_firing as well? */
+  p_via->t1_pb7 = 0;
+}
+
+static void
+via_write_T2CL(struct via_struct* p_via, uint8_t val) {
+  p_via->T2L = ((p_via->T2L & 0xFF00) | val);
+}
+
+static void
+via_write_T2CH(struct via_struct* p_via, uint8_t val) {
+  int32_t timer_val;
+  if (!via_t2_just_fired(p_via)) {
+    via_clear_interrupt(p_via, k_int_TIMER2);
+  }
+  p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
+  timer_val = p_via->T2L;
+  /* Increment the value because it must take effect in 1 tick. */
+  if (!(p_via->ACR & 0x20)) {
+    timer_val++;
+  }
+  via_set_t2c(p_via, timer_val);
+  timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
+}
+
+static void
 via_write_IFR(struct via_struct* p_via, uint8_t val) {
   uint8_t new_IFR = (p_via->IFR & ~(val & 0x7F));
 
@@ -827,7 +877,6 @@ via_write_ORAnh(struct via_struct* p_via, uint8_t val) {
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
-  int32_t timer_val;
 
   switch (reg) {
   case k_via_ORB:
@@ -854,30 +903,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     return;
   case k_via_T1CL:
   case k_via_T1LL:
-    /* We don't reload the timer, so tick it based on the current latch value
-     * before we change the latch value.
-     */
-    (void) via_get_t1c_raw(p_via);
-    /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
-    p_via->T1L = ((p_via->T1L & 0xFF00) | val);
-    /* EMU NOTE: If we reloaded the timer from the latch at the same VIA cycle
-     * as a write to change the latch, the newly written value must take effect.
-     * Finally hit by the second(?) stage Nightshade tape loader at $7300.
-     */
-    if (via_t1_just_fired(p_via) && (p_via->ACR & 0x40)) {
-      via_load_T1(p_via);
-    }
-    break;
+    via_write_T1CL(p_via, val);
+    return;
   case k_via_T1CH:
-    if (!via_t1_just_fired(p_via)) {
-      via_clear_interrupt(p_via, k_int_TIMER1);
-    }
-    p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-    via_load_T1(p_via);
-    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
-    /* EMU TODO: does this behave differently if t1_firing as well? */
-    p_via->t1_pb7 = 0;
-    break;
+    via_write_T1CH(p_via, val);
+    return;
   case k_via_T1LH:
     /* EMU NOTE: clear interrupt as per 6522 data sheet.
      * Behavior validated on a real BBC.
@@ -901,21 +931,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     }
     break;
   case k_via_T2CL:
-    p_via->T2L = ((p_via->T2L & 0xFF00) | val);
-    break;
+    via_write_T2CL(p_via, val);
+    return;
   case k_via_T2CH:
-    if (!via_t2_just_fired(p_via)) {
-      via_clear_interrupt(p_via, k_int_TIMER2);
-    }
-    p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
-    timer_val = p_via->T2L;
-    /* Increment the value because it must take effect in 1 tick. */
-    if (!(p_via->ACR & 0x20)) {
-      timer_val++;
-    }
-    via_set_t2c(p_via, timer_val);
-    timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
-    break;
+    via_write_T2CH(p_via, val);
+    return;
   case k_via_SR:
     p_via->SR = val;
     break;
@@ -1004,6 +1024,58 @@ via_write_DDRA_with_countdown(struct via_struct* p_via,
   (void) reg;
   (void) countdown;
   via_write_DDRA(p_via, val);
+}
+
+uint64_t
+via_write_T1CL_with_countdown(struct via_struct* p_via,
+                              uint8_t reg,
+                              uint8_t val,
+                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  (void) reg;
+  timing_sync_countdown(p_timing, (countdown + 1));
+  via_write_T1CL(p_via, val);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
+}
+
+uint64_t
+via_write_T1CH_with_countdown(struct via_struct* p_via,
+                              uint8_t reg,
+                              uint8_t val,
+                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  (void) reg;
+  timing_sync_countdown(p_timing, (countdown + 1));
+  via_write_T1CH(p_via, val);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
+}
+
+uint64_t
+via_write_T2CL_with_countdown(struct via_struct* p_via,
+                              uint8_t reg,
+                              uint8_t val,
+                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  (void) reg;
+  timing_sync_countdown(p_timing, (countdown + 1));
+  via_write_T2CL(p_via, val);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
+}
+
+uint64_t
+via_write_T2CH_with_countdown(struct via_struct* p_via,
+                              uint8_t reg,
+                              uint8_t val,
+                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  (void) reg;
+  timing_sync_countdown(p_timing, (countdown + 1));
+  via_write_T2CH(p_via, val);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
 }
 
 void

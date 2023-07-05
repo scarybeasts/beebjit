@@ -61,6 +61,22 @@ void via_write_DDRA_with_countdown(struct via_struct* p_via,
                                    uint8_t reg,
                                    uint8_t val,
                                    uint64_t countdown);
+uint64_t via_write_T1CL_with_countdown(struct via_struct* p_via,
+                                       uint8_t reg,
+                                       uint8_t val,
+                                       uint64_t countdown);
+uint64_t via_write_T1CH_with_countdown(struct via_struct* p_via,
+                                       uint8_t reg,
+                                       uint8_t val,
+                                       uint64_t countdown);
+uint64_t via_write_T2CL_with_countdown(struct via_struct* p_via,
+                                       uint8_t reg,
+                                       uint8_t val,
+                                       uint64_t countdown);
+uint64_t via_write_T2CH_with_countdown(struct via_struct* p_via,
+                                       uint8_t reg,
+                                       uint8_t val,
+                                       uint64_t countdown);
 void via_write_IFR_with_countdown(struct via_struct* p_via,
                                   uint8_t reg,
                                   uint8_t val,
