@@ -1485,6 +1485,10 @@ bbc_get_write_jit_encoding(void* p,
     param_offset = 0x8;
     func_offset = 0x48;
     break;
+  case 0xFE41:
+    param_offset = 0x8;
+    func_offset = 0x50;
+    break;
   case 0xFE43:
     param_offset = 0x8;
     func_offset = 0x58;
@@ -2110,6 +2114,7 @@ bbc_create(int mode,
   p_bbc->p_via_read_T2CH_func = via_read_T2CH_with_countdown;
   p_bbc->p_via_read_ORAnh_func = via_read_ORAnh;
   p_bbc->p_via_write_ORB_func = via_write_ORB_with_countdown;
+  p_bbc->p_via_write_ORA_func = via_write_ORA_with_countdown;
   p_bbc->p_via_write_DDRA_func = via_write_DDRA_with_countdown;
   p_bbc->p_via_write_T1CL_func = via_write_T1CL_with_countdown;
   p_bbc->p_via_write_T1CH_func = via_write_T1CH_with_countdown;

@@ -58,6 +58,10 @@ void via_write_ORB_with_countdown(struct via_struct* p_via,
                                   uint8_t reg,
                                   uint8_t val,
                                   uint64_t countdown);
+void via_write_ORA_with_countdown(struct via_struct* p_via,
+                                  uint8_t reg,
+                                  uint8_t val,
+                                  uint64_t countdown);
 void via_write_DDRA_with_countdown(struct via_struct* p_via,
                                    uint8_t reg,
                                    uint8_t val,

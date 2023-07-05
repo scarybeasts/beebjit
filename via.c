@@ -887,6 +887,18 @@ via_write_ORAnh(struct via_struct* p_via, uint8_t val) {
   via_update_port_a(p_via);
 }
 
+static void
+via_write_ORA(struct via_struct* p_via, uint8_t val) {
+  /* Independent interrupt not supported yet. */
+  assert((p_via->PCR & 0x0A) != 0x02);
+  /* Handshake mode not supported yet. */
+  assert((p_via->PCR & 0x0E) != 0x08);
+  /* Pulse output not supported yet. */
+  assert((p_via->PCR & 0x0E) != 0x0A);
+  via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
+  via_write_ORAnh(p_via, val);
+}
+
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
@@ -896,14 +908,8 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     via_write_ORB(p_via, val);
     return;
   case k_via_ORA:
-    /* Independent interrupt not supported yet. */
-    assert((p_via->PCR & 0x0A) != 0x02);
-    /* Handshake mode not supported yet. */
-    assert((p_via->PCR & 0x0E) != 0x08);
-    /* Pulse output not supported yet. */
-    assert((p_via->PCR & 0x0E) != 0x0A);
-    via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
-  /* Fall through. */
+    via_write_ORA(p_via, val);
+    return;
   case k_via_ORAnh:
     via_write_ORAnh(p_via, val);
     return;
@@ -1027,6 +1033,16 @@ via_write_ORB_with_countdown(struct via_struct* p_via,
   (void) reg;
   (void) countdown;
   via_write_ORB(p_via, val);
+}
+
+void
+via_write_ORA_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint8_t val,
+                             uint64_t countdown) {
+  (void) reg;
+  (void) countdown;
+  via_write_ORA(p_via, val);
 }
 
 void
