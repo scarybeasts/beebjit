@@ -2579,6 +2579,9 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xE500);
 
+  /* Test an invalidation corner case where the invalidation occurs inside
+   * a JIT -> inturbo -> interp call.
+   */
   set_new_index(p_buf, 0x2500);
   emit_LDA(p_buf, k_imm, 0xAD);   /* LDA $0000 */
   emit_STA(p_buf, k_abs, 0x6500);
@@ -2621,8 +2624,33 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0F);
   emit_JMP(p_buf, k_abs, 0xE580);
 
-  /* End of test. */
+  /* Test a dynamic operand that hits a hardware register. */
   set_new_index(p_buf, 0x2580);
+  emit_LDA(p_buf, k_imm, 0x71);
+  emit_STA(p_buf, k_abs, 0xFE4A);
+  emit_LDA(p_buf, k_imm, 0xAD);   /* LDA $0000 */
+  emit_STA(p_buf, k_abs, 0x5580);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5581);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5582);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5583);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x5581);
+  emit_JSR(p_buf, 0x5580);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_abs, 0x5581);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_abs, 0x5582);
+  emit_JSR(p_buf, 0x5580);
+  emit_REQUIRE_EQ(p_buf, 0x71);
+  emit_JMP(p_buf, k_abs, 0xE5C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x25C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

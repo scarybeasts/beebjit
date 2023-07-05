@@ -1003,7 +1003,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
       index++;
     }
     p_uop = jit_opcode_insert_uop(p_opcode, index);
-    asm_make_uop0(p_uop, k_opcode_addr_check);
+    asm_make_uop1(p_uop, k_opcode_addr_check, addr);
     break;
   case k_zpg:
     if (optype == k_bit) {
