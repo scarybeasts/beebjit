@@ -510,6 +510,27 @@ Nothing significant to note beyond other CLOCKSP tests.
 
 3) Plotting loop in MOS at $CFEE.
 
+4) Convoluted sound output.
+(Custom vsync event handler called at $3000.)
+[ITRP] 3075: SEI
+[ITRP] 3076: PHA
+[ITRP] 3077: LDA #$97
+[ITRP] 3079: LDX #$43
+[ITRP] 307B: LDY #$FF
+[ITRP] 307D: JSR $FFF4
+[ITRP] 3080: LDX #$41
+[ITRP] 3082: PLA
+[ITRP] 3083: TAY
+[ITRP] 3084: LDA #$97
+[ITRP] 3086: JSR $FFF4
+[ITRP] 3089: LDX #$40
+[ITRP] 308B: LDY #$00
+[ITRP] 308D: JSR $FFF4
+[ITRP] 3090: LDY #$08
+[ITRP] 3092: JSR $FFF4
+(These $FFF4 are "write to Sheila", which writes to $FExx in an indirect
+manner which doesn't lend immediately to JIT encoded callback optimization.)
+
 
 - Micropower Chess
 1) Unknown
