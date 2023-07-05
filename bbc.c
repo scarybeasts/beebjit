@@ -122,6 +122,8 @@ struct bbc_struct {
   void* p_video_crtc_write_value_func;
   void* p_video_ula_write_ctrl_func;
   void* p_video_ula_write_palette_func;
+  struct bbc_struct* p_bbc;
+  void* p_bbc_write_romsel_func;
 
   /* Internal system mechanics. */
   struct os_thread_struct* p_thread_cpu;
@@ -821,6 +823,12 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
   }
 }
 
+static void
+bbc_write_romsel(struct bbc_struct* p_bbc, uint8_t addr, uint8_t val) {
+  (void) addr;
+  bbc_sideways_select(p_bbc, val);
+}
+
 static int
 bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   int mos_access_shadow;
@@ -1440,6 +1448,10 @@ bbc_get_write_jit_encoding(void* p,
     func_offset = 0xC0;
     syncs_time = 1;
     break;
+  case 0xFE30:
+    param_offset = 0xC8;
+    func_offset = 0xD0;
+    break;
   case 0xFE40:
     param_offset = 0x8;
     func_offset = 0x40;
@@ -1864,6 +1876,9 @@ bbc_create(int mode,
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
   p_bbc->log_timestamp = util_has_option(p_log_flags, "perf:timestamp");
+
+  p_bbc->p_bbc = p_bbc;
+  p_bbc->p_bbc_write_romsel_func = bbc_write_romsel;
 
   bbc_reset_callback_baselines(p_bbc);
 
