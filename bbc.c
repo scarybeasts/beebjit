@@ -1353,6 +1353,10 @@ bbc_get_read_jit_encoding(void* p,
     param_offset = 0x10;
     field_offset = 0x59;
     break;
+  case 0xFE6E:
+    param_offset = 0x10;
+    field_offset = 0x5A;
+    break;
   case 0xFE80:
     if (p_bbc->is_wd_fdc) {
       return 0;
