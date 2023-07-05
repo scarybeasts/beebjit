@@ -223,6 +223,7 @@ struct bbc_struct {
   uint64_t num_hw_reg_hits;
   int log_speed;
   int log_timestamp;
+  int log_hw_reg_hits;
 };
 
 static int
@@ -409,6 +410,14 @@ bbc_read_callback(void* p,
   uint64_t cycles;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
+
+  if (p_bbc->log_hw_reg_hits) {
+    log_do_log(k_log_misc,
+               k_log_info,
+               "register read $%"PRIx16" at PC $%"PRIx16,
+               addr,
+               pc);
+  }
 
   if (p_bbc->is_compat_old_1MHz_cycles) {
     cycles = state_6502_get_cycles(p_bbc->p_state_6502);
@@ -946,6 +955,15 @@ bbc_write_callback(void* p,
   int ret = 0;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
+
+  if (p_bbc->log_hw_reg_hits) {
+    log_do_log(k_log_misc,
+               k_log_info,
+               "register write $%"PRIx16" val $%"PRIx8" at PC $%"PRIx16,
+               addr,
+               val,
+               pc);
+  }
 
   if (p_bbc->is_compat_old_1MHz_cycles) {
     cycles = state_6502_get_cycles(p_bbc->p_state_6502);
@@ -1924,6 +1942,7 @@ bbc_create(int mode,
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
   p_bbc->log_timestamp = util_has_option(p_log_flags, "perf:timestamp");
+  p_bbc->log_hw_reg_hits = util_has_option(p_log_flags, "perf:hw");
 
   p_bbc->p_bbc = p_bbc;
   p_bbc->p_bbc_write_romsel_func = bbc_write_romsel;
