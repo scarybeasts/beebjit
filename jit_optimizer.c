@@ -774,6 +774,7 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
         break;
       case k_opcode_PHP:
       case k_opcode_PLP:
+      case k_opcode_call_scratch_param:
         is_tricky_opcode = 1;
         break;
       default:
