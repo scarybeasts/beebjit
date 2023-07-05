@@ -580,6 +580,43 @@ via_t2_just_fired(struct via_struct* p_via) {
 }
 
 static uint8_t
+via_read_ORB_internal(struct via_struct* p_via, int do_avoid_side_effects) {
+  uint8_t orb;
+  uint8_t ddrb;
+  uint8_t port_val;
+  uint8_t ret;
+
+  /* Independent interrupt not supported yet. */
+  assert((p_via->PCR & 0xA0) != 0x20);
+
+  if (!do_avoid_side_effects) {
+    via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
+  }
+
+  /* A read of VIA port B mixes input and output as indicated by DDRB. */
+  orb = p_via->ORB;
+  ddrb = p_via->DDRB;
+  ret = (orb & ddrb);
+  if (p_via->ACR & 0x02) {
+    port_val = p_via->IRB;
+  } else {
+    port_val = via_calculate_port_b(p_via);
+  }
+  ret |= (port_val & ~ddrb);
+
+  /* EMU NOTE: PB7 toggling is actually a mix-in of a separately maintained
+   * bit, and it's mixed in to both IRB and ORB.
+   * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16081
+   */
+  if (p_via->ACR & 0x80) {
+    ret &= 0x7F;
+    ret |= (p_via->t1_pb7 << 7);
+  }
+
+  return ret;
+}
+
+static uint8_t
 via_read_T1CL(struct via_struct* p_via, int do_avoid_side_effects) {
   uint8_t ret;
   int32_t t1_val;
@@ -652,40 +689,11 @@ static uint8_t
 via_read_internal(struct via_struct* p_via,
                   uint8_t reg,
                   int do_avoid_side_effects) {
-  uint8_t orb;
-  uint8_t ddrb;
-  uint8_t port_val;
   uint8_t ret = 0;
 
   switch (reg) {
   case k_via_ORB:
-    /* Independent interrupt not supported yet. */
-    assert((p_via->PCR & 0xA0) != 0x20);
-
-    if (!do_avoid_side_effects) {
-      via_clear_interrupt(p_via, (k_int_CB1 | k_int_CB2));
-    }
-
-    /* A read of VIA port B mixes input and output as indicated by DDRB. */
-    orb = p_via->ORB;
-    ddrb = p_via->DDRB;
-    ret = (orb & ddrb);
-    if (p_via->ACR & 0x02) {
-      port_val = p_via->IRB;
-    } else {
-      port_val = via_calculate_port_b(p_via);
-    }
-    ret |= (port_val & ~ddrb);
-
-    /* EMU NOTE: PB7 toggling is actually a mix-in of a separately maintained
-     * bit, and it's mixed in to both IRB and ORB.
-     * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16081
-     */
-    if (p_via->ACR & 0x80) {
-      ret &= 0x7F;
-      ret |= (p_via->t1_pb7 << 7);
-    }
-    break;
+    return via_read_ORB_internal(p_via, do_avoid_side_effects);
   case k_via_ORA:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
@@ -743,6 +751,11 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 uint8_t
 via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
   return via_read_internal(p_via, reg, 1);
+}
+
+uint8_t
+via_read_ORB(struct via_struct* p_via) {
+  return via_read_ORB_internal(p_via, 0);
 }
 
 uint8_t

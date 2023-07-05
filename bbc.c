@@ -100,22 +100,24 @@ struct bbc_struct {
   struct timing_struct* p_timing;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
-  void* p_via_read_T1CL_func;
-  void* p_via_read_T1CH_func;      /* 0x20 */
+  void* p_via_read_ORB_func;
+  void* p_via_read_T1CL_func;      /* 0x20 */
+  void* p_via_read_T1CH_func;
   void* p_via_read_T2CL_func;
   void* p_via_read_T2CH_func;
-  void* p_via_read_ORAnh_func;
-  void* p_via_write_ORB_func;      /* 0x40 */
+  void* p_via_read_ORAnh_func;     /* 0x40 */
+  void* p_via_write_ORB_func;
+  void* p_via_write_ORA_func;
   void* p_via_write_DDRA_func;
-  void* p_via_write_T1CL_func;
+  void* p_via_write_T1CL_func;     /* 0x60 */
   void* p_via_write_T1CH_func;
-  void* p_via_write_T2CL_func;     /* 0x60 */
+  void* p_via_write_T2CL_func;
   void* p_via_write_T2CH_func;
-  void* p_via_write_IFR_func;
+  void* p_via_write_IFR_func;      /* 0x80 */
   void* p_via_write_ORAnh_func;
-  struct adc_struct* p_adc;        /* 0x80 */
+  struct adc_struct* p_adc;
   void* p_adc_write_func;
-  struct mc6850_struct* p_serial;
+  struct mc6850_struct* p_serial;  /* 0xA0 */
   struct intel_fdc_struct* p_intel_fdc;
   struct video_struct* p_video;
   void* p_video_crtc_write_address_func;
@@ -1277,31 +1279,36 @@ bbc_get_read_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE08:
-    param_offset = 0x90;
+    param_offset = 0xA0;
     field_offset = 0x18;
     break;
-  case 0xFE44:
+  case 0xFE40:
     is_call = 1;
     param_offset = 0x8;
     func_offset = 0x18;
-    syncs_time = 1;
     break;
-  case 0xFE45:
+  case 0xFE44:
     is_call = 1;
     param_offset = 0x8;
     func_offset = 0x20;
     syncs_time = 1;
     break;
-  case 0xFE48:
+  case 0xFE45:
     is_call = 1;
     param_offset = 0x8;
     func_offset = 0x28;
     syncs_time = 1;
     break;
-  case 0xFE49:
+  case 0xFE48:
     is_call = 1;
     param_offset = 0x8;
     func_offset = 0x30;
+    syncs_time = 1;
+    break;
+  case 0xFE49:
+    is_call = 1;
+    param_offset = 0x8;
+    func_offset = 0x38;
     syncs_time = 1;
     break;
   case 0xFE4D:
@@ -1315,31 +1322,31 @@ bbc_get_read_jit_encoding(void* p,
   case 0xFE4F:
     is_call = 1;
     param_offset = 0x8;
-    func_offset = 0x38;
+    func_offset = 0x40;
     break;
   case 0xFE64:
-    is_call = 1;
-    param_offset = 0x10;
-    func_offset = 0x18;
-    syncs_time = 1;
-    break;
-  case 0xFE65:
     is_call = 1;
     param_offset = 0x10;
     func_offset = 0x20;
     syncs_time = 1;
     break;
-  case 0xFE68:
+  case 0xFE65:
     is_call = 1;
     param_offset = 0x10;
     func_offset = 0x28;
+    syncs_time = 1;
+    break;
+  case 0xFE68:
+    is_call = 1;
+    param_offset = 0x10;
+    func_offset = 0x30;
     syncs_time = 1;
     break;
   case 0xFE69:
   case 0xFE79: /* Castle Quest hits this alias. */
     is_call = 1;
     param_offset = 0x10;
-    func_offset = 0x30;
+    func_offset = 0x38;
     syncs_time = 1;
     break;
   case 0xFE6D:
@@ -1350,19 +1357,19 @@ bbc_get_read_jit_encoding(void* p,
     if (p_bbc->is_wd_fdc) {
       return 0;
     }
-    param_offset = 0x98;
+    param_offset = 0xA8;
     field_offset = 0x68;
     break;
   case 0xFEC0:
-    param_offset = 0x80;
+    param_offset = 0x90;
     field_offset = 0x20;
     break;
   case 0xFEC1:
-    param_offset = 0x80;
+    param_offset = 0x90;
     field_offset = 0x21;
     break;
   case 0xFEC2:
-    param_offset = 0x80;
+    param_offset = 0x90;
     field_offset = 0x22;
     break;
   default:
@@ -1446,103 +1453,103 @@ bbc_get_write_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE00:
-    param_offset = 0xA0;
-    func_offset = 0xA8;
+    param_offset = 0xB0;
+    func_offset = 0xB8;
     break;
   case 0xFE01:
-    param_offset = 0xA0;
-    func_offset = 0xB0;
+    param_offset = 0xB0;
+    func_offset = 0xC0;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE20:
-    param_offset = 0xA0;
-    func_offset = 0xB8;
+    param_offset = 0xB0;
+    func_offset = 0xC8;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE21:
-    param_offset = 0xA0;
-    func_offset = 0xC0;
+    param_offset = 0xB0;
+    func_offset = 0xD0;
     syncs_time = 1;
     break;
   case 0xFE30:
-    param_offset = 0xC8;
-    func_offset = 0xD0;
+    param_offset = 0xD8;
+    func_offset = 0xE0;
     break;
   case 0xFE40:
     param_offset = 0x8;
-    func_offset = 0x40;
+    func_offset = 0x48;
     break;
   case 0xFE43:
     param_offset = 0x8;
-    func_offset = 0x48;
+    func_offset = 0x58;
     break;
   case 0xFE44:
     param_offset = 0x8;
-    func_offset = 0x50;
+    func_offset = 0x60;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE45:
     param_offset = 0x8;
-    func_offset = 0x58;
+    func_offset = 0x68;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE48:
     param_offset = 0x8;
-    func_offset = 0x60;
+    func_offset = 0x70;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE49:
     param_offset = 0x8;
-    func_offset = 0x68;
+    func_offset = 0x78;
     syncs_time = 1;
     returns_time = 1;
     break;
   case 0xFE4D:
     param_offset = 0x8;
-    func_offset = 0x70;
+    func_offset = 0x80;
     syncs_time = 1;
     break;
   case 0xFE4F:
     param_offset = 0x8;
-    func_offset = 0x78;
+    func_offset = 0x88;
     break;
   case 0xFE64:
-    param_offset = 0x10;
-    func_offset = 0x50;
-    syncs_time = 1;
-    returns_time = 1;
-    break;
-  case 0xFE65:
-    param_offset = 0x10;
-    func_offset = 0x58;
-    syncs_time = 1;
-    returns_time = 1;
-    break;
-  case 0xFE68:
     param_offset = 0x10;
     func_offset = 0x60;
     syncs_time = 1;
     returns_time = 1;
     break;
-  case 0xFE69:
+  case 0xFE65:
     param_offset = 0x10;
     func_offset = 0x68;
     syncs_time = 1;
     returns_time = 1;
     break;
-  case 0xFE6D:
+  case 0xFE68:
     param_offset = 0x10;
     func_offset = 0x70;
     syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE69:
+    param_offset = 0x10;
+    func_offset = 0x78;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
+  case 0xFE6D:
+    param_offset = 0x10;
+    func_offset = 0x80;
+    syncs_time = 1;
     break;
   case 0xFEC0:
-    param_offset = 0x80;
-    func_offset = 0x88;
+    param_offset = 0x90;
+    func_offset = 0x98;
     syncs_time = 1;
     returns_time = 1;
     break;
@@ -2092,6 +2099,7 @@ bbc_create(int mode,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
+  p_bbc->p_via_read_ORB_func = via_read_ORB;
   p_bbc->p_via_read_T1CL_func = via_read_T1CL_with_countdown;
   p_bbc->p_via_read_T1CH_func = via_read_T1CH_with_countdown;
   p_bbc->p_via_read_T2CL_func = via_read_T2CL_with_countdown;
