@@ -2649,8 +2649,26 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x71);
   emit_JMP(p_buf, k_abs, 0xE5C0);
 
-  /* End of test. */
+  /* Simple swram test. */
   set_new_index(p_buf, 0x25C0);
+  emit_LDA(p_buf, k_imm, 0x0C);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
+  emit_LDX(p_buf, k_abs, 0x8000);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in swram. */
+  emit_INX(p_buf);
+  emit_STX(p_buf, k_abs, 0x8000);
+  emit_CPX(p_buf, k_abs, 0x8000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x0C);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
+  emit_DEX(p_buf);
+  emit_CPX(p_buf, k_abs, 0x8000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE600);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2600);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

@@ -839,7 +839,6 @@ ASM_SYM(asm_jit_PUSH_16_END):
 .globl ASM_SYM(asm_jit_restore_regs)
 .globl ASM_SYM(asm_jit_restore_regs_END)
 ASM_SYM(asm_jit_restore_regs):
-  add rsp, 8
   pop rax
   pop rcx
   pop r8
@@ -894,7 +893,6 @@ ASM_SYM(asm_jit_save_regs):
   push r8
   push rcx
   push rax
-  sub rsp, 8
 
 ASM_SYM(asm_jit_save_regs_END):
   ret
