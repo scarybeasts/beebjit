@@ -1320,9 +1320,8 @@ bbc_get_read_jit_encoding(void* p,
     field_offset = 0x5A;
     break;
   case 0xFE4F:
-    is_call = 1;
     param_offset = 0x8;
-    func_offset = 0x40;
+    field_offset = 0x75;
     break;
   case 0xFE64:
     is_call = 1;
@@ -1864,7 +1863,7 @@ bbc_CA2_changed_callback(void* p, int level, int output) {
   }
 
   p_user_via = p_bbc->p_user_via;
-  val = via_calculate_port_a(p_user_via);
+  val = via_read_ORAnh(p_user_via);
 
   if (p_bbc->p_printer_file != NULL) {
     /* Replace CR with LF. */

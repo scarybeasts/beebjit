@@ -73,6 +73,8 @@ struct via_struct {
   int CA2;
   int CB1;
   int CB2;
+  uint8_t bus_value_a;
+  uint8_t IRA_cached;
 };
 
 static void
@@ -372,6 +374,9 @@ via_power_on_reset(struct via_struct* p_via) {
   p_via->T1L = 0xFFFF;
   via_set_t2c(p_via, 0xFFFF);
   p_via->T2L = 0xFFFF;
+
+  /* Sets bus_value_a and IRA_cached. */
+  via_update_port_a(p_via);
 }
 
 void
@@ -438,22 +443,6 @@ via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta) {
 }
 
 uint8_t
-via_calculate_port_a(struct via_struct* p_via) {
-  uint8_t ora = p_via->ORA;
-  uint8_t ddra = p_via->DDRA;
-  uint8_t val = (ora & ddra);
-  uint8_t peripheral_a = p_via->peripheral_a;
-  val |= (peripheral_a & ~ddra);
-
-  /* Our peripheral (currently just the keyboard) is always capable of driving
-   * a bus level low, even for pins configured as outputs.
-   */
-  val &= peripheral_a;
-
-  return val;
-}
-
-uint8_t
 via_calculate_port_b(struct via_struct* p_via) {
   uint8_t orb = p_via->ORB;
   uint8_t ddrb = p_via->DDRB;
@@ -465,24 +454,30 @@ via_calculate_port_b(struct via_struct* p_via) {
 
 static void
 sysvia_update_port_a(struct via_struct* p_via) {
+  uint8_t bus_val;
   struct bbc_struct* p_bbc = p_via->p_bbc;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct cmos_struct* p_cmos = bbc_get_cmos(p_bbc);
   int fire = 0;
   uint8_t IC32 = bbc_get_IC32(p_bbc);
   uint8_t peripheral_a = 0xFF;
+  uint8_t ddra = p_via->DDRA;
+
+  bus_val = (p_via->ORA & ddra);
+  bus_val |= ~ddra;
 
   if (p_cmos != NULL) {
     peripheral_a &= cmos_get_bus_value(p_cmos);
+    bus_val &= peripheral_a;
   }
 
   if (!(IC32 & 0x08)) {
-    uint8_t bus_val = via_calculate_port_a(p_via);
     uint8_t keyrow = ((bus_val >> 4) & 7);
     uint8_t keycol = (bus_val & 0xf);
 
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       peripheral_a &= 0x7F;
+      bus_val &= 0x7F;
     }
     if (keyboard_bbc_is_key_column_pressed(p_keyboard, keycol)) {
       fire = 1;
@@ -501,14 +496,12 @@ sysvia_update_port_a(struct via_struct* p_via) {
   via_set_CA2(p_via, fire);
 
   if (!(IC32 & 1)) {
-    uint8_t bus_val = via_calculate_port_a(p_via);
     struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
-    /* Make sure the bus value is uptodate with any keyboard action. */
-    bus_val &= peripheral_a;
     sound_sn_write(p_sound, bus_val);
   }
 
   p_via->peripheral_a = peripheral_a;
+  p_via->bus_value_a = bus_val;
 }
 
 static void
@@ -528,24 +521,41 @@ sysvia_update_port_b(struct via_struct* p_via) {
   }
 
   if (p_cmos != NULL) {
-    cmos_update_external_inputs(p_cmos,
-                                bus_val,
-                                via_calculate_port_a(p_via),
-                                IC32);
+    cmos_update_external_inputs(p_cmos, bus_val, p_via->bus_value_a, IC32);
   }
 
   bbc_set_IC32(p_bbc, IC32);
+}
+
+static void
+via_update_IRA_cached(struct via_struct* p_via) {
+  uint8_t val;
+  /* A read of VIA port A reads the current pins levels, or uses the pin
+   * levels at the last latch, regardless of input vs. output configuration.
+   */
+  if (p_via->ACR & 0x01) {
+    val = p_via->IRA;
+  } else {
+    val = p_via->bus_value_a;
+  }
+  p_via->IRA_cached = val;
 }
 
 void
 via_update_port_a(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
     sysvia_update_port_a(p_via);
-  } else if (p_via->id == k_via_user) {
-    /* Printer port. Ignore. */
   } else {
-    assert(0);
+    /* Printer port. */
+    uint8_t ddra = p_via->DDRA;
+    uint8_t bus_val = (p_via->ORA & ddra);
+
+    assert(p_via->id == k_via_user);
+
+    bus_val |= ~ddra;
+    p_via->bus_value_a = bus_val;
   }
+  via_update_IRA_cached(p_via);
 }
 
 void
@@ -673,16 +683,7 @@ via_read_T2CH(struct via_struct* p_via) {
 
 uint8_t
 via_read_ORAnh(struct via_struct* p_via) {
-  uint8_t ret;
-  /* A read of VIA port A reads the current pins levels, or uses the pin
-   * levels at the last latch, regardless of input vs. output configuration.
-   */
-  if (p_via->ACR & 0x01) {
-    ret = p_via->IRA;
-  } else {
-    ret = via_calculate_port_a(p_via);
-  }
-  return ret;
+  return p_via->IRA_cached;
 }
 
 static uint8_t
@@ -960,6 +961,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_ACR:
     p_via->ACR = val;
+    via_update_IRA_cached(p_via);
     /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
      * modes but after some testing on a real beeb, we don't do anything
      * special here.

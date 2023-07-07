@@ -91,7 +91,6 @@ void via_write_ORAnh_with_countdown(struct via_struct* p_via,
                                     uint8_t val,
                                     uint64_t countdown);
 
-uint8_t via_calculate_port_a(struct via_struct* p_via);
 uint8_t via_calculate_port_b(struct via_struct* p_via);
 void via_update_port_a(struct via_struct* p_via);
 void via_update_port_b(struct via_struct* p_via);
