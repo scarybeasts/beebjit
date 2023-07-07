@@ -39,6 +39,7 @@ void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
 
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 uint8_t via_read_ORB(struct via_struct* p_via);
+uint8_t via_read_ORA(struct via_struct* p_via);
 uint8_t via_read_T1CL_with_countdown(struct via_struct* p_via,
                                      uint8_t reg,
                                      uint64_t countdown);

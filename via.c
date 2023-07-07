@@ -687,6 +687,16 @@ via_read_ORAnh(struct via_struct* p_via) {
 }
 
 static uint8_t
+via_read_ORA_internal(struct via_struct* p_via, int do_avoid_side_effects) {
+  /* Independent interrupt not supported yet. */
+  assert((p_via->PCR & 0x0A) != 0x02);
+  if (!do_avoid_side_effects) {
+    via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
+  }
+  return via_read_ORAnh(p_via);
+}
+
+static uint8_t
 via_read_internal(struct via_struct* p_via,
                   uint8_t reg,
                   int do_avoid_side_effects) {
@@ -696,12 +706,7 @@ via_read_internal(struct via_struct* p_via,
   case k_via_ORB:
     return via_read_ORB_internal(p_via, do_avoid_side_effects);
   case k_via_ORA:
-    /* Independent interrupt not supported yet. */
-    assert((p_via->PCR & 0x0A) != 0x02);
-    if (!do_avoid_side_effects) {
-      via_clear_interrupt(p_via, (k_int_CA1 | k_int_CA2));
-    }
-  /* Fall through. */
+    return via_read_ORA_internal(p_via, do_avoid_side_effects);
   case k_via_ORAnh:
     return via_read_ORAnh(p_via);
   case k_via_DDRB:
@@ -757,6 +762,11 @@ via_read_no_side_effects(struct via_struct* p_via, uint8_t reg) {
 uint8_t
 via_read_ORB(struct via_struct* p_via) {
   return via_read_ORB_internal(p_via, 0);
+}
+
+uint8_t
+via_read_ORA(struct via_struct* p_via) {
+  return via_read_ORA_internal(p_via, 0);
 }
 
 uint8_t
