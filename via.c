@@ -875,6 +875,49 @@ via_write_T2CH(struct via_struct* p_via, uint8_t val) {
 }
 
 static void
+via_write_ACR(struct via_struct* p_via, uint8_t val) {
+  p_via->ACR = val;
+  via_update_IRA_cached(p_via);
+  /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
+   * modes but after some testing on a real beeb, we don't do anything
+   * special here.
+   * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16252
+   * See: tests.ssd:VIA.AC1
+   */
+  /* EMU NOTE: there's an very quirky special case if ACR if written to
+   * one-shot the same cycle there's a T1 expiry. The one-shot is applied
+   * to the just-expired timer. And the inverse is not true: turning on
+   * continuous mode the same cycle as a T1 expiry still results in one-shot.
+   * See: tests.ssd:VIA.AC3
+   * See: tests.ssd:VIA.AC2
+   */
+  if (via_t1_just_fired(p_via) && (!(val & 0x40))) {
+    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
+  }
+
+  if (!p_via->externally_clocked) {
+    uint32_t t2_timer_id = p_via->t2_timer_id;
+    if (val & 0x20) {
+      /* Stop T2 if that bit is set. */
+      if (timing_timer_is_running(p_via->p_timing, t2_timer_id)) {
+        int32_t t2_val = via_get_t2c(p_via);
+        /* The value freezes after ticking one more time. */
+        via_set_t2c(p_via, (t2_val - 1));
+        (void) timing_stop_timer(p_via->p_timing, t2_timer_id);
+      }
+    } else {
+      /* Otherwise start it. */
+      if (!(timing_timer_is_running(p_via->p_timing, t2_timer_id))) {
+        int32_t t2_val = via_get_t2c(p_via);
+        /* The value starts ticking next cycle. */
+        via_set_t2c(p_via, (t2_val + 1));
+        (void) timing_start_timer(p_via->p_timing, t2_timer_id);
+      }
+    }
+  }
+}
+
+static void
 via_write_IFR(struct via_struct* p_via, uint8_t val) {
   uint8_t new_IFR = (p_via->IFR & ~(val & 0x7F));
 
@@ -890,6 +933,16 @@ via_write_IFR(struct via_struct* p_via, uint8_t val) {
     new_IFR |= k_int_TIMER2;
   }
   via_set_IFR(p_via, new_IFR);
+}
+
+static void
+via_write_IER(struct via_struct* p_via, uint8_t val) {
+  if (val & 0x80) {
+    p_via->IER |= val;
+  } else {
+    p_via->IER &= ~val;
+  }
+  via_check_interrupt(p_via);
 }
 
 static void
@@ -912,17 +965,12 @@ via_write_ORA(struct via_struct* p_via, uint8_t val) {
 
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
-  uint32_t t2_timer_id;
-
   switch (reg) {
   case k_via_ORB:
     via_write_ORB(p_via, val);
     return;
   case k_via_ORA:
     via_write_ORA(p_via, val);
-    return;
-  case k_via_ORAnh:
-    via_write_ORAnh(p_via, val);
     return;
   case k_via_DDRB:
     p_via->DDRB = val;
@@ -970,46 +1018,8 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     p_via->SR = val;
     break;
   case k_via_ACR:
-    p_via->ACR = val;
-    via_update_IRA_cached(p_via);
-    /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
-     * modes but after some testing on a real beeb, we don't do anything
-     * special here.
-     * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16252
-     * See: tests.ssd:VIA.AC1
-     */
-    /* EMU NOTE: there's an very quirky special case if ACR if written to
-     * one-shot the same cycle there's a T1 expiry. The one-shot is applied
-     * to the just-expired timer. And the inverse is not true: turning on
-     * continuous mode the same cycle as a T1 expiry still results in one-shot.
-     * See: tests.ssd:VIA.AC3
-     * See: tests.ssd:VIA.AC2
-     */
-    if (via_t1_just_fired(p_via) && (!(val & 0x40))) {
-      timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
-    }
-
-    if (!p_via->externally_clocked) {
-      t2_timer_id = p_via->t2_timer_id;
-      if (val & 0x20) {
-        /* Stop T2 if that bit is set. */
-        if (timing_timer_is_running(p_via->p_timing, t2_timer_id)) {
-          int32_t t2_val = via_get_t2c(p_via);
-          /* The value freezes after ticking one more time. */
-          via_set_t2c(p_via, (t2_val - 1));
-          (void) timing_stop_timer(p_via->p_timing, t2_timer_id);
-        }
-      } else {
-        /* Otherwise start it. */
-        if (!(timing_timer_is_running(p_via->p_timing, t2_timer_id))) {
-          int32_t t2_val = via_get_t2c(p_via);
-          /* The value starts ticking next cycle. */
-          via_set_t2c(p_via, (t2_val + 1));
-          (void) timing_start_timer(p_via->p_timing, t2_timer_id);
-        }
-      }
-    }
-    break;
+    via_write_ACR(p_via, val);
+    return;
   case k_via_PCR:
     p_via->PCR = val;
     if ((val & 0x0E) == 0x0C) {
@@ -1027,13 +1037,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     via_write_IFR(p_via, val);
     return;
   case k_via_IER:
-    if (val & 0x80) {
-      p_via->IER |= val;
-    } else {
-      p_via->IER &= ~val;
-    }
-    via_check_interrupt(p_via);
-    break;
+    via_write_IER(p_via, val);
+    return;
+  case k_via_ORAnh:
+    via_write_ORAnh(p_via, val);
+    return;
   }
 }
 
@@ -1119,6 +1127,19 @@ via_write_T2CH_with_countdown(struct via_struct* p_via,
   return countdown;
 }
 
+uint64_t
+via_write_ACR_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint8_t val,
+                             uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  (void) reg;
+  timing_sync_countdown(p_timing, (countdown + 1));
+  via_write_ACR(p_via, val);
+  countdown = timing_advance_time_delta(p_timing, 1);
+  return countdown;
+}
+
 void
 via_write_IFR_with_countdown(struct via_struct* p_via,
                              uint8_t reg,
@@ -1127,6 +1148,16 @@ via_write_IFR_with_countdown(struct via_struct* p_via,
   (void) reg;
   timing_sync_countdown(p_via->p_timing, (countdown + 1));
   via_write_IFR(p_via, val);
+}
+
+void
+via_write_IER_with_countdown(struct via_struct* p_via,
+                             uint8_t reg,
+                             uint8_t val,
+                             uint64_t countdown) {
+  (void) reg;
+  (void) countdown;
+  via_write_IER(p_via, val);
 }
 
 void
