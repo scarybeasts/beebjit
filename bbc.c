@@ -2315,7 +2315,11 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 void
 bbc_focus_lost_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  keyboard_release_all_physical_keys(p_bbc->p_keyboard);
+  /* Threading: careful, we're on the main thread, so only use the approved
+   * queuing functions, and queue a special key to raise all keys.
+   */
+  keyboard_system_key_pressed(p_bbc->p_keyboard,
+                              k_keyboard_key_SPECIAL_release_all);
 }
 
 void

@@ -40,6 +40,7 @@ enum {
   k_keyboard_key_windows = 155,
   k_keyboard_key_delete = 156,
   k_keyboard_key_home = 157,
+  k_keyboard_key_SPECIAL_release_all = 255,
 };
 
 struct keyboard_struct* keyboard_create(struct timing_struct* p_timing,
@@ -83,12 +84,13 @@ int keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key);
 int keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
                                    uint8_t key);
 
-void keyboard_release_all_physical_keys(struct keyboard_struct* p_keyboard);
 void keyboard_add_remap(struct keyboard_struct* p_keyboard,
                         uint8_t from,
                         uint8_t to);
 
-/* Callbacks from the system code. */
+/* Callbacks from the system code.
+ * Only these two calls may be called from the main thread.
+ */
 void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard,
                                  uint8_t key);
 void keyboard_system_key_released(struct keyboard_struct* p_keyboard,

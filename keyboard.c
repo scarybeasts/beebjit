@@ -1003,9 +1003,13 @@ keyboard_put_key_in_queue(struct keyboard_struct* p_keyboard,
   os_lock_lock(p_keyboard->p_lock);
 
   if (p_keyboard->queue_pos == k_keyboard_queue_size) {
-    log_do_log(k_log_keyboard, k_log_error, "keyboard queue full");
-    os_lock_unlock(p_keyboard->p_lock);
-    return;
+    if (key == k_keyboard_key_SPECIAL_release_all) {
+      p_keyboard->queue_pos--;
+    } else {
+      log_do_log(k_log_keyboard, k_log_error, "keyboard queue full");
+      os_lock_unlock(p_keyboard->p_lock);
+      return;
+    }
   }
   p_keyboard->queue_key[p_keyboard->queue_pos] = key;
   p_keyboard->queue_isdown[p_keyboard->queue_pos] = is_down;
@@ -1100,6 +1104,7 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   uint32_t i;
   uint32_t num_keys;
 
+  int has_release_all = 0;
   volatile uint32_t* p_queue_pos = &p_keyboard->queue_pos;
 
   /* Always check the physical keyboard. Even if we're replaying a replay, we
@@ -1120,6 +1125,10 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
     uint8_t key = p_keyboard->queue_key[i];
     uint8_t is_down = p_keyboard->queue_isdown[i];
 
+    if (key == k_keyboard_key_SPECIAL_release_all) {
+      has_release_all = 1;
+    }
+
     /* Physical keyboard remapping, as per -key-remap command line option. */
     key = p_keyboard->remap[key];
 
@@ -1131,22 +1140,18 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
 
   os_lock_unlock(p_keyboard->p_lock);
 
-  keyboard_apply_physical_keys(p_keyboard, keys, is_downs, num_keys);
-}
+  if (has_release_all) {
+    uint8_t all_keys[256];
+    uint8_t all_is_downs[256];
 
-void
-keyboard_release_all_physical_keys(struct keyboard_struct* p_keyboard) {
-  uint32_t i;
-
-  uint8_t keys[256];
-  uint8_t is_downs[256];
-
-  for (i = 0; i < 256; ++i) {
-    keys[i] = i;
-    is_downs[i] = 0;
+    for (i = 0; i < 256; ++i) {
+      all_keys[i] = i;
+      all_is_downs[i] = 0;
+    }
+    keyboard_apply_physical_keys(p_keyboard, all_keys, all_is_downs, 256);
+  } else {
+    keyboard_apply_physical_keys(p_keyboard, keys, is_downs, num_keys);
   }
-
-  keyboard_apply_physical_keys(p_keyboard, keys, is_downs, 256);
 }
 
 void
