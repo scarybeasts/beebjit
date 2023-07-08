@@ -343,7 +343,6 @@ via_power_on_reset(struct via_struct* p_via) {
   /* Nothing attached to the buses, or nothing actively pulling pins low to
    * start with.
    */
-  p_via->peripheral_a = 0xFF;
   p_via->peripheral_b = 0xFF;
 
   /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
@@ -500,7 +499,6 @@ sysvia_update_port_a(struct via_struct* p_via) {
     sound_sn_write(p_sound, bus_val);
   }
 
-  p_via->peripheral_a = peripheral_a;
   p_via->bus_value_a = bus_val;
 }
 
@@ -1193,7 +1191,7 @@ via_set_CA1(struct via_struct* p_via, int level) {
 
   trigger_level = !!(p_via->PCR & 0x01);
   if (level == trigger_level) {
-    p_via->IRA = p_via->peripheral_a;
+    p_via->IRA = p_via->bus_value_a;
     via_raise_interrupt(p_via, k_int_CA1);
     assert((p_via->PCR & 0x0C) != 0x08);
   }

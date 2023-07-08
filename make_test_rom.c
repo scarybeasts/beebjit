@@ -2667,8 +2667,33 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE600);
 
-  /* End of test. */
+  /* Test VIA input latching. */
   set_new_index(p_buf, 0x2600);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE4B);
+  emit_STA(p_buf, k_abs, 0xFE4C);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE43);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4F);
+  /* CA1 will toggle because the 6845 VSYNC is attached to it. */
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0xFE4D);
+  emit_BIT(p_buf, k_abs, 0xFE4D);
+  emit_BEQ(p_buf, -5);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE4F);
+  /* IRA should have latched at 0x00. */
+  emit_LDA(p_buf, k_abs, 0xFE4F);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B);
+  emit_LDA(p_buf, k_abs, 0xFE4F);
+  emit_REQUIRE_EQ(p_buf, 0x0F);
+  emit_JMP(p_buf, k_abs, 0xE640);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2640);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
