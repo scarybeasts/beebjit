@@ -2692,8 +2692,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0F);
   emit_JMP(p_buf, k_abs, 0xE640);
 
-  /* End of test. */
+  /* Test writing to ROM while sideways RAM is active. */
   set_new_index(p_buf, 0x2640);
+  emit_LDA(p_buf, k_imm, 0x8D);   /* STA $C000 */
+  emit_STA(p_buf, k_abs, 0x5640);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x5641);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0x5642);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5643);
+  emit_JSR(p_buf, 0x5640);        /* Pre-compile it. */
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in swram. */
+  emit_JSR(p_buf, 0x5640);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x70);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_zpg, 0x71);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_idy, 0x70);
+  emit_LDA(p_buf, k_imm, 0x0C);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Put BASIC back. */
+  emit_JMP(p_buf, k_abs, 0xE680);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2680);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
