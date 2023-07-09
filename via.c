@@ -296,8 +296,14 @@ via_create(int id,
   p_via->p_bbc = p_bbc;
   p_via->p_timing = p_timing;
 
-  p_via->t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
-  p_via->t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
+  p_via->t1_timer_id = timing_register_timer(p_timing,
+                                             "via_t1",
+                                             via_t1_fired,
+                                             p_via);
+  p_via->t2_timer_id = timing_register_timer(p_timing,
+                                             "via_t2",
+                                             via_t2_fired,
+                                             p_via);
 
   return p_via;
 }

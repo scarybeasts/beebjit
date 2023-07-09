@@ -1337,6 +1337,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->has_paint_timer_triggered = 0;
 
   p_video->timer_id = timing_register_timer(p_timing,
+                                            "video",
                                             video_timer_fired,
                                             p_video);
 
@@ -1363,6 +1364,7 @@ video_create(uint8_t* p_bbc_mem,
                              "video:paint-start-cycles=");
   if (p_video->paint_start_cycles > 0) {
     p_video->paint_timer_id = timing_register_timer(p_timing,
+                                                    "video_paint",
                                                     video_paint_timer_fired,
                                                     p_video);
     (void) timing_start_timer_with_value(p_timing,

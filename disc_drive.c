@@ -221,6 +221,7 @@ disc_drive_create(uint32_t id,
   }
 
   p_drive->timer_id = timing_register_timer(p_timing,
+                                            "disc_drive",
                                             disc_drive_timer_callback,
                                             p_drive);
 

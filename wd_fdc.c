@@ -404,6 +404,7 @@ wd_fdc_create(struct state_6502* p_state_6502,
   p_fdc->is_1772 = is_1772;
   p_fdc->p_timing = p_timing;
   p_fdc->timer_id = timing_register_timer(p_timing,
+                                          "wd_fdc",
                                           wd_fdc_timer_fired,
                                           p_fdc);
 

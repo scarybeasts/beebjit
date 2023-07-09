@@ -73,6 +73,7 @@ tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   p_tape->p_timing = p_timing;
 
   p_tape->timer_id = timing_register_timer(p_timing,
+                                           "tape",
                                            tape_timer_callback,
                                            p_tape);
 

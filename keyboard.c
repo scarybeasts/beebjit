@@ -683,9 +683,15 @@ keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   p_keyboard->p_active = p_keyboard->p_physical_keyboard;
 
   p_keyboard->replay_timer_id =
-      timing_register_timer(p_timing, keyboard_replay_timer_tick, p_keyboard);
+      timing_register_timer(p_timing,
+                            "keyboard_replay",
+                            keyboard_replay_timer_tick,
+                            p_keyboard);
   p_keyboard->rewind_timer_id =
-      timing_register_timer(p_timing, keyboard_rewind_timer_fired, p_keyboard);
+      timing_register_timer(p_timing,
+                            "keyboard_rewind",
+                            keyboard_rewind_timer_fired,
+                            p_keyboard);
 
   for (i = 0; i < sizeof(p_keyboard->remap); ++i) {
     p_keyboard->remap[i] = i;

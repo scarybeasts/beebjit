@@ -1177,6 +1177,7 @@ bbc_write_callback(void* p,
         if (p_bbc->timer_id_test_nmi == -1) {
           p_bbc->timer_id_test_nmi =
               timing_register_timer(p_bbc->p_timing,
+                                    "bbc_test_nmi",
                                     bbc_test_nmi_timer_callback,
                                     p_bbc);
         }
@@ -2953,6 +2954,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   struct timing_struct* p_timing = p_bbc->p_timing;
 
   p_bbc->timer_id_cycles = timing_register_timer(p_timing,
+                                                 "bbc_cycles",
                                                  bbc_cycles_timer_callback,
                                                  p_bbc);
 
@@ -3122,6 +3124,7 @@ void
 bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
   struct timing_struct* p_timing = p_bbc->p_timing;
   uint32_t id = timing_register_timer(p_bbc->p_timing,
+                                      "bbc_stop_cycles",
                                       bbc_stop_cycles_timer_callback,
                                       p_bbc);
   p_bbc->timer_id_stop_cycles = id;
@@ -3143,6 +3146,7 @@ bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag) {
   if (autoboot_flag && (p_bbc->timer_id_autoboot == -1)) {
     p_bbc->timer_id_autoboot =
         timing_register_timer(p_bbc->p_timing,
+                              "bbc_autoboot",
                               bbc_autoboot_timer_callback,
                               p_bbc);
   }

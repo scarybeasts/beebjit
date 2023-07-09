@@ -2523,10 +2523,12 @@ debug_create(struct bbc_struct* p_bbc,
   }
 
   p_debug->timer_id_debug = timing_register_timer(p_timing,
+                                                  "debug_timer",
                                                   debug_timer_callback,
                                                   p_debug);
   p_debug->timer_id_sub_instruction = timing_register_timer(
       p_timing,
+      "debug_sub_instruction",
       debug_sub_instruction_callback,
       p_debug);
 

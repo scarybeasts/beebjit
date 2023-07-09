@@ -18,6 +18,7 @@ int timing_has_scaled_ticks_passed(struct timing_struct* p_timing,
                                    uint64_t scaled_ticks);
 
 uint32_t timing_register_timer(struct timing_struct* p_timing,
+                               const char* p_name,
                                void* p_callback,
                                void* p_object);
 void timing_free_timer(struct timing_struct* p_timing, uint32_t id);

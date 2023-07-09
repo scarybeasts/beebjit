@@ -69,9 +69,11 @@ timing_test_counting() {
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   uint32_t t2 = timing_register_timer(p_timing,
+                                      "test_t2",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   (void) t2;
@@ -149,12 +151,15 @@ timing_test_basics() {
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   uint32_t t2 = timing_register_timer(p_timing,
+                                      "test_t2",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   uint32_t t3 = timing_register_timer(p_timing,
+                                      "test_t3",
                                       timing_test_timer_fired_basic,
                                       p_timing);
 
@@ -255,12 +260,15 @@ timing_test_multi_expiry() {
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_multi,
                                       p_timing);
   uint32_t t2 = timing_register_timer(p_timing,
+                                      "test_t2",
                                       timing_test_timer_fired_multi,
                                       p_timing);
   uint32_t t3 = timing_register_timer(p_timing,
+                                      "test_t3",
                                       timing_test_timer_fired_multi,
                                       p_timing);
 
@@ -292,9 +300,11 @@ timing_test_scaling() {
   struct timing_struct* p_timing = timing_create(3);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   uint32_t t2 = timing_register_timer(p_timing,
+                                      "test_t2",
                                       timing_test_timer_fired_basic,
                                       p_timing);
 
@@ -368,12 +378,15 @@ timing_test_simultaneous() {
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_order_t1,
                                       p_timing);
   uint32_t t2 = timing_register_timer(p_timing,
+                                      "test_t2",
                                       timing_test_timer_fired_order_t2,
                                       p_timing);
   uint32_t t3 = timing_register_timer(p_timing,
+                                      "test_t3",
                                       timing_test_timer_fired_order_t3,
                                       p_timing);
   (void) timing_start_timer_with_value(p_timing, t1, 50);
@@ -391,6 +404,7 @@ timing_test_reset() {
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
+                                      "test_t1",
                                       timing_test_timer_fired_basic,
                                       p_timing);
   (void) timing_start_timer_with_value(p_timing, t1, 100);

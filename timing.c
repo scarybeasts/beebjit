@@ -9,6 +9,7 @@ enum {
 };
 
 struct timer_struct {
+  const char* p_name;
   void (*p_callback)(void*);
   void* p_object;
   int64_t value;
@@ -124,6 +125,7 @@ timing_has_scaled_ticks_passed(struct timing_struct* p_timing,
 
 uint32_t
 timing_register_timer(struct timing_struct* p_timing,
+                      const char* p_name,
                       void* p_callback,
                       void* p_object) {
   uint32_t i;
@@ -142,6 +144,7 @@ timing_register_timer(struct timing_struct* p_timing,
 
   p_timer = &p_timing->timers[i];
 
+  p_timer->p_name = p_name;
   p_timer->p_callback = p_callback;
   p_timer->p_object = p_object;
   p_timer->value = INT64_MAX;

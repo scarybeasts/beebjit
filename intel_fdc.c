@@ -872,6 +872,7 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_fdc->p_state_6502 = p_state_6502;
   p_fdc->p_timing = p_timing;
   p_fdc->timer_id = timing_register_timer(p_timing,
+                                          "intel_fdc",
                                           intel_fdc_timer_fired,
                                           p_fdc);
 

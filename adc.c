@@ -110,7 +110,10 @@ adc_create(int is_externally_clocked,
   p_adc->p_timing = p_timing;
   p_adc->p_system_via = p_system_via;
 
-  p_adc->timer_id = timing_register_timer(p_timing, adc_timer_callback, p_adc);
+  p_adc->timer_id = timing_register_timer(p_timing,
+                                          "adc",
+                                          adc_timer_callback,
+                                          p_adc);
 
   return p_adc;
 }
