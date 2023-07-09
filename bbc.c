@@ -256,7 +256,8 @@ bbc_read_needs_callback(void* p, uint16_t addr) {
   (void) p_bbc;
   assert(!p_bbc->is_master);
 
-  if ((addr >= 0xFC00) && (addr < 0xFF00)) {
+  if ((addr >= k_bbc_registers_start) &&
+      (addr < (k_bbc_registers_start + k_bbc_registers_len))) {
     return 1;
   }
 
@@ -931,7 +932,7 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
     }
     p_bbc->is_acccon_usr_mos_different = 0;
     p_bbc->write_callback_from = k_bbc_sideways_offset;
-    p_bbc->read_callback_from = 0xFC00;
+    p_bbc->read_callback_from = k_bbc_registers_start;
   }
 
   /* Always force reload of write callback address. */
@@ -1806,9 +1807,9 @@ bbc_reset_callback_baselines(struct bbc_struct* p_bbc) {
   /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
    * for hardware registers, but that's fine.
    */
-  p_bbc->read_callback_from = 0xFC00;
+  p_bbc->read_callback_from = k_bbc_registers_start;
 
-  /* TODO: we can do better (less callbacking). */
+  /* TODO: can we can do better (less callbacking)? */
   if (p_bbc->is_master) {
     p_bbc->write_callback_from = k_bbc_sideways_offset;
   } else {
