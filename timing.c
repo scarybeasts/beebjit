@@ -1,8 +1,10 @@
 #include "timing.h"
 
+#include "log.h"
 #include "util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 
 enum {
   k_timing_num_timers = 24,
@@ -33,6 +35,7 @@ struct timing_struct {
 
   uint32_t num_timers;
   struct timer_struct timers[k_timing_num_timers];
+  int log_expiries;
 };
 
 static inline void
@@ -65,6 +68,11 @@ timing_create(uint32_t scale_factor) {
 void
 timing_destroy(struct timing_struct* p_timing) {
   util_free(p_timing);
+}
+
+void
+timing_set_log_expiries(struct timing_struct* p_timing, int log_expiries) {
+  p_timing->log_expiries = log_expiries;
 }
 
 void
@@ -468,6 +476,14 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
     assert(p_timer->value == 0);
     /* Load the next timer, as calling the callback is likely to trash it. */
     p_timer = p_timer->p_expiry_next;
+    if (p_timing->log_expiries) {
+      log_do_log(k_log_perf,
+                 k_log_info,
+                 "timer %s (%p) expired at %"PRIu64" ticks",
+                 p_old_timer->p_name,
+                 p_old_timer,
+                 p_timing->total_timer_ticks);
+    }
     p_old_timer->p_callback(p_old_timer->p_object);
     assert(!p_old_timer->ticking ||
            !p_old_timer->firing ||

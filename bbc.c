@@ -2115,6 +2115,9 @@ bbc_create(int mode,
   }
 
   p_timing = timing_create(cpu_scale_factor);
+  if (util_has_option(p_log_flags, "perf:timer")) {
+    timing_set_log_expiries(p_timing, 1);
+  }
   p_bbc->p_timing = p_timing;
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);

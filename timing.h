@@ -8,6 +8,7 @@ struct timing_struct;
 
 struct timing_struct* timing_create(uint32_t scale_factor);
 void timing_destroy(struct timing_struct* p_timing);
+void timing_set_log_expiries(struct timing_struct* p_timing, int log_expiries);
 
 void timing_reset_total_timer_ticks(struct timing_struct* p_timing);
 
