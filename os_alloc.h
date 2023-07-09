@@ -6,8 +6,6 @@
 
 struct os_alloc_mapping;
 
-int os_alloc_get_is_64k_mappings(void);
-
 void* os_alloc_get_aligned(size_t alignment, size_t size);
 void os_alloc_free_aligned(void* p);
 

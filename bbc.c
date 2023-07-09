@@ -140,7 +140,6 @@ struct bbc_struct {
   intptr_t handle_channel_write_client;
   uint32_t exit_value;
   intptr_t mem_handle;
-  int is_64k_mappings;
   uint64_t rewind_to_cycles;
   uint32_t log_count_shadow_speed;
   uint32_t log_count_misc_unimplemented;
@@ -2004,7 +2003,6 @@ bbc_create(int mode,
     util_bail("os_alloc_get_memory_handle failed");
   }
 
-  p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
   p_bbc->log_count_shadow_speed = 16;
   p_bbc->log_count_misc_unimplemented = 32;
 
