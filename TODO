@@ -45,9 +45,8 @@ These speeds are for JIT mode. In some cases here, interp mode is faster
 because of some very severe JIT interaction.
 
 (11th gen i7, v0.9.5+)
-- Elite.ssd. Slams hardware registers. 3.3GHz.
-- Uridium.ssd. 725MHz. 830k CRTC/s.
-- Firetrack.ssd. Recompiles(!), CRTC abuse. 500MHz. 400k CRTC/s.
+- Uridium.ssd. 560MHz. 700k CRTC/s. 28k compiles/sec(!)
+- Firetrack.ssd. 530MHz. 500k CRTC/s. 156k hw/sec. Tiny number of recompiles.
 
 
 Ideas
