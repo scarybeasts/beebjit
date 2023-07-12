@@ -233,9 +233,12 @@ ASM_SYM(asm_instruction_PHA_END):
 .globl ASM_SYM(asm_instruction_PLA_END)
 ASM_SYM(asm_instruction_PLA):
 
-  lea REG_SCRATCH3, [REG_6502_S_64 + 1]
-  mov REG_6502_S, REG_SCRATCH3_8
+  movzx REG_6502_A_32, BYTE PTR [REG_6502_S_64 + 1]
+  # Preserves carry flag! Not the overflow flag.
+  inc REG_6502_S
+  jne asm_instruction_PLA_no_wrap
   movzx REG_6502_A_32, BYTE PTR [REG_6502_S_64]
+asm_instruction_PLA_no_wrap:
 
 ASM_SYM(asm_instruction_PLA_END):
   ret

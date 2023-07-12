@@ -2716,8 +2716,20 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE30); /* Put BASIC back. */
   emit_JMP(p_buf, k_abs, 0xE680);
 
-  /* End of test. */
+  /* Test propagation of carry flag across PLA. */
   set_new_index(p_buf, 0x2680);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_PHA(p_buf);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_ADC(p_buf, k_imm, 0x80);
+  emit_PLA(p_buf);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_REQUIRE_EQ(p_buf, 0x80);
+  emit_JMP(p_buf, k_abs, 0xE6C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x26C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

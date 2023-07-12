@@ -1090,6 +1090,10 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         p_save_carry_uop = NULL;
         p_save_overflow_uop = NULL;
         break;
+      case k_opcode_PLA:
+        /* TODO: also Intel x64 specific. */
+        p_save_overflow_uop = NULL;
+        break;
       default:
         break;
       }
