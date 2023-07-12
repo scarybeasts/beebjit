@@ -2977,11 +2977,11 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
     /* Assume 20Mhz speed or so. */
     speed = (20ull * 1000 * 1000);
   } else {
-    /* 500Mhz for now. Something like JIT is much much faster but I think
-     * there's a problem with tight hardware register poll loops (e.g.
-     * vsync wait) being much slower.
+    /* 5Ghz for now. The most tricky test cases (e.g. JIT hammering ROMSEL) are
+     * order of 10x-20x slower. Even for those cases, our wakeup rate of
+     * 500/s is enough to get service every frame or every other frame.
      */
-    speed = (500ull * 1000 * 1000);
+    speed = (5ull * 1000 * 1000 * 1000);
   }
 
   p_bbc->cycles_per_run_fast = (speed / p_bbc->wakeup_rate);
