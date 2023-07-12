@@ -487,6 +487,27 @@ ASM_SYM(asm_jit_CHECK_PENDING_IRQ_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_check_pending_irq_plp_check)
+.globl ASM_SYM(asm_jit_check_pending_irq_plp_check_END)
+.globl ASM_SYM(asm_jit_check_pending_irq_plp_branch)
+.globl ASM_SYM(asm_jit_check_pending_irq_plp_branch_END)
+ASM_SYM(asm_jit_check_pending_irq_plp_check):
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+  test REG_SCRATCH2_32, REG_SCRATCH2_32
+  setne REG_SCRATCH2_8
+  # Check the value pulled from the stack as it's not committed yet.
+  bt REG_SCRATCH1_32, 2
+  # Set to 1 if I flag (disable interrupts) not set.
+  setae REG_SCRATCH3_8
+  and REG_SCRATCH2_8, REG_SCRATCH3_8
+ASM_SYM(asm_jit_check_pending_irq_plp_check_END):
+ASM_SYM(asm_jit_check_pending_irq_plp_branch):
+  jne ASM_SYM(asm_unpatched_branch_target)
+ASM_SYM(asm_jit_check_pending_irq_plp_branch_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_collapse_loop)
 .globl ASM_SYM(asm_jit_collapse_loop_END)
 ASM_SYM(asm_jit_collapse_loop):
@@ -501,6 +522,15 @@ ASM_SYM(asm_jit_collapse_loop):
   movzx REG_6502_A_32, REG_6502_A
 
 ASM_SYM(asm_jit_collapse_loop_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_stack_commit_peek_increment)
+.globl ASM_SYM(asm_jit_stack_commit_peek_increment_END)
+ASM_SYM(asm_jit_stack_commit_peek_increment):
+  mov REG_6502_S_32, REG_6502_PC_32
+
+ASM_SYM(asm_jit_stack_commit_peek_increment_END):
   ret
 
 
@@ -803,6 +833,17 @@ ASM_SYM(asm_jit_MODE_ZPY_8bit_lea_patch):
   movzx REG_ADDR_32, REG_ADDR_8
 
 ASM_SYM(asm_jit_MODE_ZPY_8bit_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_peek_to_scratch)
+.globl ASM_SYM(asm_jit_peek_to_scratch_END)
+ASM_SYM(asm_jit_peek_to_scratch):
+  mov REG_6502_PC_32, REG_6502_S_32
+  inc REG_6502_PC_8
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
+
+ASM_SYM(asm_jit_peek_to_scratch_END):
   ret
 
 

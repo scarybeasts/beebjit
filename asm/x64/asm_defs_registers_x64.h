@@ -14,6 +14,7 @@
 #define REG_6502_S_32      r8d
 #define REG_6502_S_64      r8
 #define REG_6502_PC        r10
+#define REG_6502_PC_8      r10b
 #define REG_6502_PC_16     r10w
 #define REG_6502_PC_32     r10d
 #define REG_6502_OF        r12b

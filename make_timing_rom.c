@@ -1136,8 +1136,28 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xCF80);
 
-  /* Exit sequence. */
+  /* Test PLP that activates interrupts, when there's an IRQ line high. */
   set_new_index(p_buf, 0x0F80);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);   /* No I flag. */
+  emit_PHA(p_buf);
+  emit_LDX(p_buf, k_imm, 0xBB);
+  emit_LDA(p_buf, k_imm, 0xAA);
+  emit_STA(p_buf, k_zpg, 0x12);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xF000);
+  emit_NOP(p_buf);                /* Timer value: 0. */
+  emit_NOP(p_buf);                /* Timer value: -1 (T1_INT), 0. */
+  emit_JMP(p_buf, k_abs, 0xCF94); /* New JIT block. */
+  emit_PLP(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);                /* IRQ here, before this INX. */
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0xBC);
+  emit_JMP(p_buf, k_abs, 0xCFC0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0FC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

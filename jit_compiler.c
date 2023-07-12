@@ -599,7 +599,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_pla: asm_make_uop0(p_uop, k_opcode_PLA); p_uop++; break;
   case k_php: asm_make_uop0(p_uop, k_opcode_PHP); p_uop++; break;
   case k_plp:
-    asm_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
+    asm_make_uop0(p_uop, k_opcode_peek_to_scratch);
+    p_uop++;
+    /* Consider the processor I flag, which we just fetched, and can often
+     * indicated interrupts disabled.
+     */
+    asm_make_uop1(p_uop, k_opcode_check_pending_irq_plp, addr_6502);
+    p_uop++;
+    /* The IRQ check might bail so we need to increment the stack afterwards,
+     * otherwise we will have changed state before bailing!
+     */
+    asm_make_uop0(p_uop, k_opcode_stack_commit_peek_increment);
     p_uop++;
     asm_make_uop0(p_uop, k_opcode_PLP);
     p_uop++;

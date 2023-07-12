@@ -722,17 +722,11 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 static void
-asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
-                               struct util_buffer* p_buf_epilog,
-                               uint16_t addr,
-                               void* p_trampoline) {
+asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, void* p_trampoline) {
   void asm_jit_CHECK_PENDING_IRQ(void);
   void asm_jit_CHECK_PENDING_IRQ_jump_patch(void);
   void asm_jit_CHECK_PENDING_IRQ_END(void);
   size_t offset = util_buffer_get_pos(p_buf);
-
-  (void) p_buf_epilog;
-  (void) addr;
 
   asm_copy(p_buf, asm_jit_CHECK_PENDING_IRQ, asm_jit_CHECK_PENDING_IRQ_END);
   asm_patch_jump(p_buf,
@@ -1675,6 +1669,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_countdown:
   case k_opcode_countdown_no_preserve_nz_flags:
   case k_opcode_check_pending_irq:
+  case k_opcode_check_pending_irq_plp:
     p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
     p_trampoline_addr = (p_trampolines + (value1 * K_JIT_TRAMPOLINE_BYTES));
     break;
@@ -1688,10 +1683,15 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_add_cycles: ASM_U8(countdown_add); break;
   case k_opcode_check_bcd: ASM(check_bcd); break;
   case k_opcode_check_pending_irq:
-    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf,
-                                   p_dest_buf_epilog,
-                                   (uint16_t) value1,
-                                   p_trampoline_addr);
+    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, p_trampoline_addr);
+    break;
+  case k_opcode_check_pending_irq_plp:
+    ASM(check_pending_irq_plp_check);
+    value1 = (intptr_t) p_trampoline_addr;
+    value1 -= (uintptr_t) (util_buffer_get_base_address(p_dest_buf) +
+                           util_buffer_get_pos(p_dest_buf));
+    value1 -= 6;
+    ASM_U32(check_pending_irq_plp_branch);
     break;
   case k_opcode_countdown:
     asm_emit_jit_check_countdown(p_dest_buf,
@@ -1800,6 +1800,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_load_carry_inverted: ASM(load_carry_inv_for_calc); break;
   case k_opcode_load_overflow: ASM(load_overflow); break;
+  case k_opcode_peek_to_scratch: ASM(peek_to_scratch); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
   case k_opcode_PUSH_16:
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
@@ -1819,6 +1820,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(set_param4_from_countdown);
     break;
   case k_opcode_set_value_from_ret: ASM(set_value_from_ret); break;
+  case k_opcode_stack_commit_peek_increment:
+    ASM(stack_commit_peek_increment);
+    break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
@@ -1873,7 +1877,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PHA: asm_emit_instruction_PHA(p_dest_buf); break;
   case k_opcode_PHP: asm_emit_instruction_PHP(p_dest_buf); break;
   case k_opcode_PLA: asm_emit_instruction_PLA(p_dest_buf); break;
-  case k_opcode_PLP: asm_emit_instruction_PLP(p_dest_buf); break;
+  case k_opcode_PLP:
+    void asm_asm_set_intel_flags_from_scratch(void);
+    void asm_asm_set_intel_flags_from_scratch_END(void);
+    asm_copy(p_dest_buf,
+             asm_asm_set_intel_flags_from_scratch,
+             asm_asm_set_intel_flags_from_scratch_END);
+    break;
   case k_opcode_ROL_acc: ASM(ROL_ACC); break;
   case k_opcode_ROL_value:
     ASM(ROL_value);
