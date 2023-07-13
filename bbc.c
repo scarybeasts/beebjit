@@ -1572,6 +1572,12 @@ bbc_get_write_jit_encoding(void* p,
     syncs_time = 1;
     returns_time = 1;
     break;
+  case 0xFE6B:
+    param_offset = 0x10;
+    func_offset = 0x88;
+    syncs_time = 1;
+    returns_time = 1;
+    break;
   case 0xFE6D:
     param_offset = 0x10;
     func_offset = 0x90;
