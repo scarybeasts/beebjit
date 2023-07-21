@@ -65,6 +65,7 @@ struct jit_compiler {
   int option_no_dynamic_operand;
   int option_no_dynamic_opcode;
   int option_no_sub_instruction;
+  int option_no_encoded_callback;
   uint32_t max_6502_opcodes_per_block;
   uint32_t dynamic_trigger;
 
@@ -143,6 +144,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
   p_compiler->option_no_sub_instruction =
       util_has_option(p_options->p_opt_flags, "jit:no-sub-instruction");
+  p_compiler->option_no_encoded_callback =
+      util_has_option(p_options->p_opt_flags, "jit:no-encoded-callback");
 
   if (!asm_inturbo_is_enabled()) {
     p_compiler->option_no_dynamic_opcode = 1;
@@ -459,7 +462,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (uses_callback) {
     use_interp = 1;
   }
-  if (uses_callback && is_addr_known && is_read && !is_write) {
+  if (uses_callback &&
+      is_addr_known &&
+      is_read &&
+      !is_write &&
+      !p_compiler->option_no_encoded_callback) {
     uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
     /* Write the uops on top of the addr_set and value_load. */
     num_callback_uops =
@@ -693,7 +700,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   if (uses_callback &&
       is_addr_known &&
-      ((optype == k_sta) || (optype == k_stx) || (optype == k_sty))) {
+      ((optype == k_sta) || (optype == k_stx) || (optype == k_sty)) &&
+      !p_compiler->option_no_encoded_callback) {
     uint32_t uops_left = (&p_details->uops[k_max_uops_per_opcode] - p_uop);
     num_callback_uops =
         p_memory_access->memory_get_write_jit_encoding(
