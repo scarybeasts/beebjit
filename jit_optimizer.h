@@ -7,7 +7,8 @@ struct jit_opcode_details;
 struct jit_metadata;
 
 void jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
-                                        struct jit_metadata* p_metadata);
+                                        struct jit_metadata* p_metadata,
+                                        int do_collapse_loops);
 
 void jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes);
 

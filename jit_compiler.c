@@ -66,6 +66,7 @@ struct jit_compiler {
   int option_no_dynamic_opcode;
   int option_no_sub_instruction;
   int option_no_encoded_callback;
+  int option_no_collapse_loops;
   uint32_t max_6502_opcodes_per_block;
   uint32_t dynamic_trigger;
 
@@ -146,6 +147,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
       util_has_option(p_options->p_opt_flags, "jit:no-sub-instruction");
   p_compiler->option_no_encoded_callback =
       util_has_option(p_options->p_opt_flags, "jit:no-encoded-callback");
+  p_compiler->option_no_collapse_loops =
+      util_has_option(p_options->p_opt_flags, "jit:no-collapse-loops");
 
   if (!asm_inturbo_is_enabled()) {
     p_compiler->option_no_dynamic_opcode = 1;
@@ -1673,7 +1676,8 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
   /* 3) Run the pre-rewrite optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
     jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0],
-                                       p_compiler->p_metadata);
+                                       p_compiler->p_metadata,
+                                       !p_compiler->option_no_collapse_loops);
   }
 
   /* 4) Walk the opcode list; add countdown checks and calculate cycle counts.

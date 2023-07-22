@@ -1360,7 +1360,8 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
 
 void
 jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
-                                   struct jit_metadata* p_metadata) {
+                                   struct jit_metadata* p_metadata,
+                                   int do_collapse_loops) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
   jit_optimizer_merge_opcodes(p_opcodes);
 
@@ -1382,8 +1383,10 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
   /* Pass 4: loop collapsing. Some simple delay loops can be collapsed into
    * a constant sequence.
    */
-  jit_optimizer_collapse_indefinite_loops(p_opcodes, p_metadata);
-  jit_optimizer_collapse_delay_loops(p_opcodes, p_metadata);
+  if (do_collapse_loops) {
+    jit_optimizer_collapse_indefinite_loops(p_opcodes, p_metadata);
+    jit_optimizer_collapse_delay_loops(p_opcodes, p_metadata);
+  }
 }
 
 void
