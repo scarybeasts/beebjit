@@ -56,6 +56,7 @@ enum {
   k_opcode_load_deref_scratch_quad,
   k_opcode_restore_regs,
   k_opcode_save_regs,
+  k_opcode_store_deref_scratch,
   k_opcode_sync_even_cycle,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */

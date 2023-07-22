@@ -546,7 +546,7 @@ ASM_SYM(asm_jit_deref_context_END):
 .globl ASM_SYM(asm_jit_deref_scratch)
 .globl ASM_SYM(asm_jit_deref_scratch_END)
 ASM_SYM(asm_jit_deref_scratch):
-  mov REG_SCRATCH2, [REG_6502_PC + 0x7fffffff]
+  mov REG_SCRATCH3, [REG_6502_PC + 0x7fffffff]
 
 ASM_SYM(asm_jit_deref_scratch_END):
   ret
@@ -555,7 +555,7 @@ ASM_SYM(asm_jit_deref_scratch_END):
 .globl ASM_SYM(asm_jit_load_deref_scratch)
 .globl ASM_SYM(asm_jit_load_deref_scratch_END)
 ASM_SYM(asm_jit_load_deref_scratch):
-  movzx REG_SCRATCH2, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+  movzx REG_SCRATCH2, BYTE PTR [REG_SCRATCH3 + 0x7fffffff]
 
 ASM_SYM(asm_jit_load_deref_scratch_END):
   ret
@@ -564,7 +564,7 @@ ASM_SYM(asm_jit_load_deref_scratch_END):
 .globl ASM_SYM(asm_jit_load_deref_scratch_quad)
 .globl ASM_SYM(asm_jit_load_deref_scratch_quad_END)
 ASM_SYM(asm_jit_load_deref_scratch_quad):
-  mov REG_SCRATCH2, [REG_SCRATCH2 + 0x7fffffff]
+  mov REG_SCRATCH2, [REG_SCRATCH3 + 0x7fffffff]
 
 ASM_SYM(asm_jit_load_deref_scratch_quad_END):
   ret
@@ -1026,6 +1026,15 @@ ASM_SYM(asm_jit_store_ABS):
   mov [REG_MEM + 0x7fffffff], REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_store_ABS_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_store_deref_scratch)
+.globl ASM_SYM(asm_jit_store_deref_scratch_END)
+ASM_SYM(asm_jit_store_deref_scratch):
+  mov [REG_SCRATCH3 + 0x7fffffff], REG_SCRATCH2_8
+
+ASM_SYM(asm_jit_store_deref_scratch_END):
   ret
 
 

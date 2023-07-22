@@ -1460,6 +1460,8 @@ bbc_get_write_jit_encoding(void* p,
   struct asm_uop* p_uop = p_uops;
   uint32_t func_offset = 0;
   uint32_t param_offset = 0;
+  uint32_t field_offset = 0;
+  int is_call = 1;
   int syncs_time = 0;
   int returns_time = 0;
 
@@ -1469,8 +1471,9 @@ bbc_get_write_jit_encoding(void* p,
 
   switch (addr_6502) {
   case 0xFE00:
+    is_call = 0;
     param_offset = 0xC8;
-    func_offset = 0xD0;
+    field_offset = 0x104;
     break;
   case 0xFE01:
     param_offset = 0xC8;
@@ -1602,19 +1605,34 @@ bbc_get_write_jit_encoding(void* p,
   asm_make_uop1(p_uop, k_opcode_deref_context, 0x40078);
   p_uop++;
 
+  if (!is_call) {
+    /* It's just a write plus timing adjustment, so we can get on with the
+     * write.
+     */
+    asm_make_uop1(p_uop, k_opcode_deref_scratch, param_offset);
+    p_uop++;
+    asm_make_uop1(p_uop, k_opcode_store_deref_scratch, field_offset);
+    p_uop++;
+  }
+
   /* Save registers.
    * Do this before the 1MHz timing adjustment so that the timing adjustment
    * can trash the NZ flags in the host flags if desired.
+   * NOTE: this is overkill for a simple direct field write, which would only
+   * need the NZ flags preserved. This also makes sure A, X, Y, S, etc. are
+   * saved in case we make a C function call.
    */
   asm_make_uop0(p_uop, k_opcode_save_regs);
   p_uop++;
 
-  /* Set up param3.
-   * Do it before the timing fixup because that will trash the value in
-   * the register.
-   */
-  asm_make_uop0(p_uop, k_opcode_set_param3_from_value);
-  p_uop++;
+  if (is_call) {
+    /* Set up param3.
+     * Do it before the timing fixup because that will trash the value in
+     * the register.
+     */
+    asm_make_uop0(p_uop, k_opcode_set_param3_from_value);
+    p_uop++;
+  }
 
   bbc_jit_encoding_handle_timing(p_bbc,
                                  &p_uop,
@@ -1624,23 +1642,28 @@ bbc_get_write_jit_encoding(void* p,
                                  do_accurate_timings,
                                  syncs_time);
 
-  /* Set up param2. */
-  asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
-  p_uop++;
-
-  /* Set up param4. */
-  if (syncs_time) {
-    asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
+  if (is_call) {
+    /* Set up param2. */
+    asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
     p_uop++;
-  }
 
-  /* Call C function. */
-  asm_make_uop2(p_uop, k_opcode_call_scratch_param, param_offset, func_offset);
-  p_uop++;
+    /* Set up param4. */
+    if (syncs_time) {
+      asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
+      p_uop++;
+    }
 
-  if (returns_time) {
-    asm_make_uop0(p_uop, k_opcode_set_countdown_from_ret);
+    /* Call C function. */
+    asm_make_uop2(p_uop,
+                  k_opcode_call_scratch_param,
+                  param_offset,
+                  func_offset);
     p_uop++;
+
+    if (returns_time) {
+      asm_make_uop0(p_uop, k_opcode_set_countdown_from_ret);
+      p_uop++;
+    }
   }
 
   /* Restore registers. */

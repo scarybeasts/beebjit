@@ -1823,6 +1823,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_stack_commit_peek_increment:
     ASM(stack_commit_peek_increment);
     break;
+  case k_opcode_store_deref_scratch: ASM_U32(store_deref_scratch); break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;

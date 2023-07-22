@@ -2728,8 +2728,21 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x80);
   emit_JMP(p_buf, k_abs, 0xE6C0);
 
-  /* End of test. */
+  /* Test that writes to a JIT encoded simple field write work through STY.
+   * Also test that such a write doesn't trash NZ flags.
+   */
   set_new_index(p_buf, 0x26C0);
+  emit_LDY(p_buf, k_imm, 15);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STY(p_buf, k_abs, 0xFE00);
+  emit_STY(p_buf, k_abs, 0xFE01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xFE01);
+  emit_REQUIRE_EQ(p_buf, 0x0F);
+  emit_JMP(p_buf, k_abs, 0xE700);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2700);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

@@ -1929,7 +1929,7 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
    * Of note, the memory address registers are readable, which is not the case
    * for other 6845s.
    */
-  reg = p_video->crtc_address_register;
+  reg = (p_video->crtc_address_register & k_crtc_register_mask);
   switch (reg) {
   case k_crtc_reg_mem_addr_high:
   case k_crtc_reg_mem_addr_low:
@@ -1962,7 +1962,7 @@ video_crtc_write_address(struct video_struct* p_video,
                          uint8_t addr,
                          uint8_t val) {
   (void) addr;
-  p_video->crtc_address_register = (val & k_crtc_register_mask);
+  p_video->crtc_address_register = val;
 }
 
 static void
@@ -1973,7 +1973,7 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
   uint8_t hsync_pulse_width = 0;
   uint8_t vsync_pulse_width = 0;
 
-  reg = p_video->crtc_address_register;
+  reg = (p_video->crtc_address_register & k_crtc_register_mask);
 
   if (reg >= k_video_crtc_num_registers) {
     return;
