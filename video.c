@@ -131,7 +131,7 @@ struct video_struct {
   uint8_t video_ula_control;
   uint8_t ula_palette[16];
   uint32_t screen_wrap_add;
-  uint32_t clock_tick_multiplier;
+  uint32_t clock_tick_shift;
   int is_shadow_displayed;
 
   /* 6845 registers and derivatives. */
@@ -641,8 +641,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
          */
         r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
-          render_hsync(p_render, (p_video->hsync_pulse_width *
-                                  p_video->clock_tick_multiplier));
+          render_hsync(p_render, (p_video->hsync_pulse_width <<
+                                  p_video->clock_tick_shift));
           p_video->in_hsync = 1;
           p_video->hsync_tick_counter = p_video->hsync_pulse_width;
         }
@@ -897,7 +897,7 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   uint32_t r7;
   uint32_t r4;
 
-  uint32_t tick_multiplier = p_video->clock_tick_multiplier;
+  uint32_t tick_shift = p_video->clock_tick_shift;
 
   p_video->timer_fire_mode = k_video_timer_null;
 
@@ -922,7 +922,7 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
     } else {
       p_video->timer_fire_mode = k_video_timer_expect_vsync_lower;
     }
-    return (p_video->vsync_pulse_width * (r0 + 1) * tick_multiplier);
+    return (p_video->vsync_pulse_width * (r0 + 1) << tick_shift);
   }
   if (p_video->has_sane_framing_parameters &&
       video_is_at_vsync_lower(p_video) &&
@@ -930,7 +930,7 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
     uint32_t ret;
     ret = p_video->frame_crtc_ticks;
     ret -= (p_video->vsync_pulse_width * (r0 + 1));
-    ret *= tick_multiplier;
+    ret <<= tick_shift;
     /* Enter fast render skipping mode if appropriate. */
     if (!p_video->is_rendering_active) {
       p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
@@ -944,7 +944,7 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
 
   /* If we're past R0, realign to C0=0. */
   if (horiz_counter > r0) {
-    return ((256 - horiz_counter) * tick_multiplier);
+    return ((256 - horiz_counter) << tick_shift);
   }
 
   /* Tread carefully around vsync so as not to miss it. */
@@ -955,19 +955,19 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
            (p_video->scanline_counter == 0))) {
     /* In interlace mode, stop at half R0. */
     if (p_video->is_interlace && (horiz_counter < p_video->half_r0)) {
-      return ((p_video->half_r0 - horiz_counter) * tick_multiplier);
+      return ((p_video->half_r0 - horiz_counter) << tick_shift);
     }
     /* Stop at C0=0. */
-    return (((r0 + 1) - horiz_counter) * tick_multiplier);
+    return (((r0 + 1) - horiz_counter) << tick_shift);
   }
 
   /* Get to C0=0. */
   if (horiz_counter != 0) {
-    return (((r0 + 1) - horiz_counter) * tick_multiplier);
+    return (((r0 + 1) - horiz_counter) << tick_shift);
   }
 
   /* Get to a normal C9=0. */
-  scanline_ticks = ((r0 + 1) * tick_multiplier);
+  scanline_ticks = ((r0 + 1) << tick_shift);
   if (p_video->is_end_of_main_latched || (p_video->scanline_counter != 0)) {
     return scanline_ticks;
   }
@@ -1070,7 +1070,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   timer_value = (p_video->vsync_pulse_width * (r0 + 1));
-  timer_value *= p_video->clock_tick_multiplier;
+  timer_value <<= p_video->clock_tick_shift;
   (void) timing_set_timer_value(p_video->p_timing,
                                 p_video->timer_id,
                                 timer_value);
@@ -1110,7 +1110,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   timer_value = p_video->frame_crtc_ticks;
   timer_value -= (p_video->vsync_pulse_width * (r0 + 1));
-  timer_value *= p_video->clock_tick_multiplier;
+  timer_value <<= p_video->clock_tick_shift;
   (void) timing_set_timer_value(p_video->p_timing,
                                 p_video->timer_id,
                                 timer_value);
@@ -1457,7 +1457,7 @@ video_ula_power_on_reset(struct video_struct* p_video) {
   p_video->video_ula_control = k_ula_teletext;
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
-  p_video->clock_tick_multiplier = 2;
+  p_video->clock_tick_shift = 1;
   p_video->is_shadow_displayed = 0;
 }
 
@@ -1669,8 +1669,8 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t num_pre_lines = 0;
   uint32_t num_pre_cols = 0;
   struct teletext_struct* p_teletext = p_video->p_teletext;
-  uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width *
-                                p_video->clock_tick_multiplier);
+  uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width <<
+                                p_video->clock_tick_shift);
   int is_teletext = (*p_ula_control & k_ula_teletext);
 
   assert(p_video->externally_clocked);
@@ -1825,10 +1825,7 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
       /* Must be called before updating p_video->video_ula_control. */
       video_advance_crtc_timing(p_video);
     }
-    p_video->clock_tick_multiplier = 1;
-    if (new_clock_speed == 0) {
-      p_video->clock_tick_multiplier = 2;
-    }
+    p_video->clock_tick_shift = !new_clock_speed;
   }
 
   p_video->video_ula_control = val;

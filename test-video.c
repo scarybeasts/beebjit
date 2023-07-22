@@ -780,11 +780,11 @@ video_test_inactive_rendering() {
    * that was doing the advance with the new clock speed, not the old one!
    */
   test_expect_u32(0, g_p_video->is_rendering_active);
-  test_expect_u32(2, g_p_video->clock_tick_multiplier);
+  test_expect_u32(1, g_p_video->clock_tick_shift);
   countdown = timing_advance_time(g_p_timing, (countdown - 10));
   video_ula_write(g_p_video, 0, 0x10);
   test_expect_u32(5, g_p_video->horiz_counter);
-  test_expect_u32(1, g_p_video->clock_tick_multiplier);
+  test_expect_u32(0, g_p_video->clock_tick_shift);
 }
 
 static void
