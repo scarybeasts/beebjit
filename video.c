@@ -1450,13 +1450,38 @@ video_shadow_mode_updated(struct video_struct* p_video,
 }
 
 static void
+video_update_real_color(struct video_struct* p_video,
+                        uint8_t index,
+                        uint8_t val) {
+  static const uint32_t s_colors[] =
+      { 0xffffffff, 0xff00ffff, 0xffff00ff, 0xff0000ff,
+        0xffffff00, 0xff00ff00, 0xffff0000, 0xff000000 };
+
+  /* The actual color displayed depends on the flash bit. */
+  if (val & 0x8) {
+    if (video_get_flash(p_video)) {
+      val ^= 0x7;
+    }
+    val &= 0x7;
+  }
+
+  render_set_palette(p_video->p_render, index, s_colors[val]);
+}
+
+static void
 video_ula_power_on_reset(struct video_struct* p_video) {
+  uint32_t i;
+
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_shift = 1;
   p_video->is_shadow_displayed = 0;
+
+  for (i = 0; i < 16; ++i) {
+    video_update_real_color(p_video, i, 0);
+  }
 }
 
 static void
@@ -1735,34 +1760,6 @@ video_render_full_frame(struct video_struct* p_video) {
 }
 
 static void
-video_update_real_color(struct video_struct* p_video, uint8_t index) {
-  uint32_t color;
-
-  uint8_t rgbf = p_video->ula_palette[index];
-
-  /* The actual color displayed depends on the flash bit. */
-  if ((rgbf & 0x8) && video_get_flash(p_video)) {
-    rgbf ^= 0x7;
-  }
-  /* Alpha. */
-  color = 0xff000000;
-  /* Red. */
-  if (rgbf & 0x1) {
-    color |= 0x00ff0000;
-  }
-  /* Green. */
-  if (rgbf & 0x2) {
-    color |= 0x0000ff00;
-  }
-  /* Blue. */
-  if (rgbf & 0x4) {
-    color |= 0x000000ff;
-  }
-
-  render_set_palette(p_video->p_render, index, color);
-}
-
-static void
 video_framing_changed(struct video_struct* p_video) {
   p_video->is_framing_changed_for_render = 1;
   if (p_video->externally_clocked) {
@@ -1838,8 +1835,9 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
   if (old_flash != new_flash) {
     uint32_t i;
     for (i = 0; i < 16; ++i) {
-      if (p_video->ula_palette[i] & 0x8) {
-        video_update_real_color(p_video, i);
+      uint8_t val = p_video->ula_palette[i];
+      if (val & 0x8) {
+        video_update_real_color(p_video, i, val);
       }
     }
   }
@@ -1858,21 +1856,21 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
 
 static void
 video_ula_write_palette(struct video_struct* p_video, uint8_t val) {
-  uint8_t index;
-  uint8_t rgbf;
+  uint8_t index = (val >> 4);
+
+  val = (val & 0x0F);
+
+  if (p_video->ula_palette[index] == val) {
+    return;
+  }
 
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
 
-  index = (val >> 4);
-  /* The xor is to map incoming color to real physical color. e.g. MOS writes
-   * 7 for black, which xors to 0, which is the number for physical black.
-   */
-  rgbf = ((val & 0x0F) ^ 0x7);
-  p_video->ula_palette[index] = rgbf;
+  p_video->ula_palette[index] = val;
 
-  video_update_real_color(p_video, index);
+  video_update_real_color(p_video, index, val);
 }
 
 void
