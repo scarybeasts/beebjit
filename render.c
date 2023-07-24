@@ -38,7 +38,7 @@ struct render_struct {
   struct teletext_struct* p_teletext;
 
   uint32_t palette[16];
-  int render_table_dirty[k_render_num_modes];
+  uint32_t render_tables_built;
   struct render_table_2MHz render_table_mode0;
   struct render_table_2MHz render_table_mode1;
   struct render_table_2MHz render_table_mode2;
@@ -80,14 +80,6 @@ struct render_struct {
   int do_deinterlace_teletext;
   int do_deinterlace_bitmap;
 };
-
-static void
-render_dirty_all_tables(struct render_struct* p_render) {
-  uint32_t i;
-  for (i = 0; i < k_render_num_modes; ++i) {
-    p_render->render_table_dirty[i] = 1;
-  }
-}
 
 struct render_struct*
 render_create(struct teletext_struct* p_teletext,
@@ -176,7 +168,7 @@ render_create(struct teletext_struct* p_teletext,
 
   p_render->cursor_segment_index = -1;
 
-  render_dirty_all_tables(p_render);
+  p_render->render_tables_built = 0;
 
   for (i = 0; i < 16; ++i) {
     p_render->render_character_1MHz_black.host_pixels[i] = background_color;
@@ -802,7 +794,7 @@ static void
 render_check_2MHz_render_table(struct render_struct* p_render) {
   int mode = p_render->render_mode;
 
-  if (p_render->render_table_dirty[mode]) {
+  if (!(p_render->render_tables_built & (1 << mode))) {
     switch (mode) {
     case k_render_mode0:
       render_generate_mode0_table(p_render);
@@ -817,7 +809,7 @@ render_check_2MHz_render_table(struct render_struct* p_render) {
       assert(0);
       break;
     }
-    p_render->render_table_dirty[mode] = 0;
+    p_render->render_tables_built |= (1 << mode);
   }
 
   switch (mode) {
@@ -840,7 +832,7 @@ static void
 render_check_1MHz_render_table(struct render_struct* p_render) {
   int mode = p_render->render_mode;
 
-  if (p_render->render_table_dirty[mode]) {
+  if (!(p_render->render_tables_built & (1 << mode))) {
     switch (mode) {
     case k_render_mode4:
       render_generate_mode4_table(p_render);
@@ -855,7 +847,7 @@ render_check_1MHz_render_table(struct render_struct* p_render) {
       assert(0);
       break;
     }
-    p_render->render_table_dirty[mode] = 0;
+    p_render->render_tables_built |= (1 << mode);
   }
 
   switch (mode) {
@@ -895,7 +887,7 @@ render_set_mode(struct render_struct* p_render,
     /* Any change other than flipping teletext means we need to rebuild all
      * the pixel render tables.
      */
-    render_dirty_all_tables(p_render);
+    p_render->render_tables_built = 0;
   }
 
   p_render->is_clock_2MHz = clock_speed;
@@ -981,12 +973,8 @@ void
 render_set_palette(struct render_struct* p_render,
                    uint8_t index,
                    uint32_t rgba) {
-  if (p_render->palette[index] == rgba) {
-    return;
-  }
-
   p_render->palette[index] = rgba;
-  render_dirty_all_tables(p_render);
+  p_render->render_tables_built = 0;
 }
 
 void
