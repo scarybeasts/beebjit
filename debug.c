@@ -943,15 +943,22 @@ debug_check_unusual(struct debug_struct* p_debug,
   }
 
   /* Look for zero page wrap or full address space wraps. */
-  if ((opmode != k_rel) && wrapped_8bit) {
-    if (opmode == k_idx) {
-      (void) printf("DEBUG (VERY UNUSUAL): "
-                    "8-bit IDX ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
-                    p_debug->reg_pc,
-                    (uint16_t) (uint8_t) (operand1 + p_debug->reg_x));
-      warned = 1;
+  if (wrapped_8bit) {
+    if (opmode == k_rel) {
+      /* Nothing. */
+    } else if (opmode == k_idy) {
+      /* Nothing. */
+    } else if (opmode == k_idx) {
+      uint16_t unwrapped_addr = (operand1 + p_debug->reg_x);
+      if (unwrapped_addr >= 0x100) {
+        (void) printf("DEBUG (VERY UNUSUAL): 8-bit IDX ADDRESS WRAP at "
+                      "$%.4"PRIX16" to $%.4"PRIX16"\n",
+                      p_debug->reg_pc,
+                      (uint16_t) (uint8_t) unwrapped_addr);
+        warned = 1;
+      }
     } else {
-      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at "
+      (void) printf("DEBUG (UNUSUAL): 8-bit ZPX/Y ADDRESS WRAP at "
                     "$%.4"PRIX16" to $%.4"PRIX16"\n",
                     p_debug->reg_pc,
                     (uint16_t) p_debug->addr_6502);
@@ -967,12 +974,12 @@ debug_check_unusual(struct debug_struct* p_debug,
   }
 
   if (((opmode == k_idy) || (opmode == k_ind)) && (operand1 == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
+    (void) printf("DEBUG (PSYCHOTIC): $FF IDY ADDRESS FETCH at $%.4"PRIX16"\n",
                   p_debug->reg_pc);
     warned = 1;
   } else if ((opmode == k_idx) &&
              (((uint8_t) (operand1 + p_debug->reg_x)) == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
+    (void) printf("DEBUG (PSYCHOTIC): $FF IDX ADDRESS FETCH at $%.4"PRIX16"\n",
                   p_debug->reg_pc);
     warned = 1;
   }
