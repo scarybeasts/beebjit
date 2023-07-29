@@ -190,7 +190,6 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
      * Affects the logic here and also the JIT encoded callback version.
      */
     return p_adc->state.read_hi;
-    break;
   case 2: /* ADC low. */
     return p_adc->state.read_lo;
   case 3:
