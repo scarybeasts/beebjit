@@ -184,6 +184,11 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
   case 0:
     return p_adc->state.read_status;
   case 1:
+    /* TODO: the datasheet at https://www.farnell.com/datasheets/100687.pdf is
+     * certain that reading the high result byte clears the EOC (end of
+     * conversion) status, which is not done here!
+     * Affects the logic here and also the JIT encoded callback version.
+     */
     return p_adc->state.read_hi;
     break;
   case 2: /* ADC low. */
