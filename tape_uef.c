@@ -22,6 +22,7 @@ enum {
   k_tape_uef_chunk_phase_change = 0x0115,
   k_tape_uef_chunk_gap_float = 0x0116,
   k_tape_uef_chunk_data_encoding_format_change = 0x0117,
+  k_tape_uef_chunk_position_marker = 0x0120,
 };
 
 static uint16_t
@@ -130,10 +131,21 @@ tape_uef_load(struct tape_struct* p_tape,
         }
       }
       break;
+    case k_tape_uef_chunk_position_marker:
+      /* Very uncommon! Found in EaglesWing-Smash7_B.zip from STH archive. */
+      if (log_uef) {
+        p_in_buf[chunk_len - 1] = '\0';
+        log_do_log(k_log_tape, k_log_info, "position marker: %s", p_in_buf);
+      }
+      break;
     case k_tape_uef_chunk_target_machine:
       /* Uncommon. Found in Fortress-PIASRR_B.zip from the STH archive. */
       if (chunk_len != 1) {
-        util_bail("UEF file bad target machine chunk");
+        /* EaglesWing-Smash7_B.zip from STH archive has length 2. */
+        log_do_log(k_log_tape,
+                   k_log_warning,
+                   "illegal target machine length: %"PRIu32,
+                   chunk_len);
       }
       if (log_uef) {
         log_do_log(k_log_tape, k_log_info, "target machine: %d", p_in_buf[0]);
