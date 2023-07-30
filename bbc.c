@@ -119,7 +119,7 @@ struct bbc_struct {
   void* p_via_write_IER_func;
   void* p_via_write_ORAnh_func;    /* 0xA0 */
   struct adc_struct* p_adc;
-  void* p_adc_write_func;
+  void* p_adc_write_control_func;
   struct mc6850_struct* p_serial;
   struct intel_fdc_struct* p_intel_fdc;
   struct video_struct* p_video;
@@ -1415,10 +1415,6 @@ bbc_get_read_jit_encoding(void* p,
                                  syncs_time);
 
   if (is_call) {
-    /* Set up param2. */
-    asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
-    p_uop++;
-
     /* Set up param4. */
     if (syncs_time) {
       asm_make_uop0(p_uop, k_opcode_set_param3_from_countdown);
@@ -1643,10 +1639,6 @@ bbc_get_write_jit_encoding(void* p,
                                  syncs_time);
 
   if (is_call) {
-    /* Set up param2. */
-    asm_make_uop1(p_uop, k_opcode_set_param2, (addr_6502 & 0xF));
-    p_uop++;
-
     /* Set up param4. */
     if (syncs_time) {
       asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
@@ -2194,7 +2186,7 @@ bbc_create(int mode,
   p_bbc->p_adc = adc_create(externally_clocked_adc,
                             p_timing,
                             p_bbc->p_system_via);
-  p_bbc->p_adc_write_func = adc_write_with_countdown;
+  p_bbc->p_adc_write_control_func = adc_write_control_with_countdown;
 
   p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
                                       p_bbc->p_adc,
