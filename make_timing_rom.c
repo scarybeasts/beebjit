@@ -1156,8 +1156,33 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xBC);
   emit_JMP(p_buf, k_abs, 0xCFC0);
 
-  /* Exit sequence. */
+  /* Test a write to VIA IER that activates an interrupt. */
   set_new_index(p_buf, 0x0FC0);
+  emit_SEI(p_buf);
+  emit_PHA(p_buf);
+  emit_LDX(p_buf, k_imm, 0x33);
+  emit_LDA(p_buf, k_imm, 0xAA);
+  emit_STA(p_buf, k_zpg, 0x12);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xF000);
+  emit_NOP(p_buf);                /* Timer value: 0. */
+  emit_NOP(p_buf);                /* Timer value: -1 (T1_INT), 0. */
+  emit_JMP(p_buf, k_abs, 0xCFD2); /* New JIT block. */
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_CLI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  /* TODO: enable when fixed!
+   * emit_REQUIRE_EQ(p_buf, 0x34);
+   */
+  emit_JMP(p_buf, k_abs, 0xD000);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x1000);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
