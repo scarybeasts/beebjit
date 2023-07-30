@@ -1261,7 +1261,7 @@ bbc_jit_encoding_handle_timing(struct bbc_struct* p_bbc,
   *p_p_uop = p_uop;
 }
 
-uint32_t
+static uint32_t
 bbc_get_read_jit_encoding(void* p,
                           struct asm_uop* p_uops,
                           int* p_ends_block,
@@ -1448,7 +1448,7 @@ bbc_get_read_jit_encoding(void* p,
   return (p_uop - p_uops);
 }
 
-uint32_t
+static uint32_t
 bbc_get_write_jit_encoding(void* p,
                            struct asm_uop* p_uops,
                            int* p_ends_block,
