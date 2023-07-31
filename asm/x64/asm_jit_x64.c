@@ -1811,7 +1811,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_overflow: ASM(save_overflow); break;
   case k_opcode_save_regs: ASM(save_regs); break;
   case k_opcode_set_countdown_from_ret: ASM(set_countdown_from_ret); break;
-  case k_opcode_set_param2: ASM_U32(set_param2); break;
+  case k_opcode_set_param2_from_ID_F: ASM(set_param2_from_ID_F); break;
   case k_opcode_set_param3_from_value: ASM(set_param3_from_value); break;
   case k_opcode_set_param3_from_countdown:
     ASM(set_param3_from_countdown);

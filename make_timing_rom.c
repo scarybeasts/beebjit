@@ -1176,9 +1176,7 @@ main(int argc, const char* argv[]) {
   emit_INX(p_buf);
   emit_INX(p_buf);
   emit_LDA(p_buf, k_zpg, 0x12);
-  /* TODO: enable when fixed!
-   * emit_REQUIRE_EQ(p_buf, 0x34);
-   */
+  emit_REQUIRE_EQ(p_buf, 0x34);
   emit_JMP(p_buf, k_abs, 0xD000);
 
   /* Exit sequence. */

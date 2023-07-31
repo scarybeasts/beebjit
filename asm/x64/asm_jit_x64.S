@@ -975,12 +975,12 @@ ASM_SYM(asm_jit_set_countdown_from_ret_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_set_param2)
-.globl ASM_SYM(asm_jit_set_param2_END)
-ASM_SYM(asm_jit_set_param2):
-  mov REG_PARAM2_32, 0xffffffff
+.globl ASM_SYM(asm_jit_set_param2_from_ID_F)
+.globl ASM_SYM(asm_jit_set_param2_from_ID_F_END)
+ASM_SYM(asm_jit_set_param2_from_ID_F):
+  mov REG_PARAM2_32, REG_6502_ID_F_32
 
-ASM_SYM(asm_jit_set_param2_END):
+ASM_SYM(asm_jit_set_param2_from_ID_F_END):
   ret
 
 

@@ -7,12 +7,23 @@
 #include <assert.h>
 #include <string.h>
 
+static void
+state_6502_timer_fired(void* p) {
+  struct state_6502* p_state_6502 = (struct state_6502*) p;
+  (void) timing_stop_timer(p_state_6502->p_timing, p_state_6502->timer_id);
+}
+
 struct state_6502*
 state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
   struct state_6502* p_state_6502 = util_mallocz(sizeof(struct state_6502));
 
   p_state_6502->p_timing = p_timing;
   p_state_6502->p_mem_read = p_mem_read;
+
+  p_state_6502->timer_id = timing_register_timer(p_timing,
+                                                 "6502_irq",
+                                                 state_6502_timer_fired,
+                                                 p_state_6502);
 
   return p_state_6502;
 }
@@ -182,6 +193,11 @@ state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq) {
   return !!(p_state_6502->abi_state.irq_fire & irq);
 }
 
+int
+state_6502_check_any_irq_firing(struct state_6502* p_state_6502) {
+  return !!p_state_6502->abi_state.irq_fire;
+}
+
 void
 state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
   int fire = !!(p_state_6502->abi_state.irq_fire & irq);
@@ -202,4 +218,13 @@ state_6502_has_irq_high(struct state_6502* p_state_6502) {
 int
 state_6502_has_nmi_high(struct state_6502* p_state_6502) {
   return !!(p_state_6502->state.irq_high & k_state_6502_irq_nmi);
+}
+
+void
+state_6502_fire_irq_timer(struct state_6502* p_state_6502) {
+  assert(!timing_timer_is_running(p_state_6502->p_timing,
+                                  p_state_6502->timer_id));
+  (void) timing_start_timer_with_value(p_state_6502->p_timing,
+                                       p_state_6502->timer_id,
+                                       0);
 }

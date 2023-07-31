@@ -43,7 +43,7 @@ enum {
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
   k_opcode_set_countdown_from_ret,
-  k_opcode_set_param2,
+  k_opcode_set_param2_from_ID_F,
   k_opcode_set_param3_from_countdown,
   k_opcode_set_param3_from_value,
   k_opcode_set_param4_from_countdown,

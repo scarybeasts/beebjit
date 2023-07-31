@@ -41,64 +41,64 @@ uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 uint8_t via_read_ORB(struct via_struct* p_via);
 uint8_t via_read_ORA(struct via_struct* p_via);
 uint8_t via_read_T1CL_with_countdown(struct via_struct* p_via,
-                                     uint8_t reg,
+                                     uint8_t not_set,
                                      uint64_t countdown);
 uint8_t via_read_T1CH_with_countdown(struct via_struct* p_via,
-                                     uint8_t reg,
+                                     uint8_t not_set,
                                      uint64_t countdown);
 uint8_t via_read_T2CL_with_countdown(struct via_struct* p_via,
-                                     uint8_t reg,
+                                     uint8_t not_set,
                                      uint64_t countdown);
 uint8_t via_read_T2CH_with_countdown(struct via_struct* p_via,
-                                     uint8_t reg,
+                                     uint8_t not_set,
                                      uint64_t countdown);
 uint8_t via_read_ORAnh(struct via_struct* p_via);
 
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
-void via_write_ORB_with_countdown(struct via_struct* p_via,
-                                  uint8_t reg,
-                                  uint8_t val,
-                                  uint64_t countdown);
-void via_write_ORA_with_countdown(struct via_struct* p_via,
-                                  uint8_t reg,
-                                  uint8_t val,
-                                  uint64_t countdown);
-void via_write_DDRA_with_countdown(struct via_struct* p_via,
-                                   uint8_t reg,
-                                   uint8_t val,
-                                   uint64_t countdown);
+uint64_t via_write_ORB_with_countdown(struct via_struct* p_via,
+                                      uint8_t flags_ID,
+                                      uint8_t val,
+                                      uint64_t countdown);
+uint64_t via_write_ORA_with_countdown(struct via_struct* p_via,
+                                      uint8_t flags_ID,
+                                      uint8_t val,
+                                      uint64_t countdown);
+uint64_t via_write_DDRA_with_countdown(struct via_struct* p_via,
+                                       uint8_t flags_ID,
+                                       uint8_t val,
+                                       uint64_t countdown);
 uint64_t via_write_T1CL_with_countdown(struct via_struct* p_via,
-                                       uint8_t reg,
+                                       uint8_t not_set,
                                        uint8_t val,
                                        uint64_t countdown);
 uint64_t via_write_T1CH_with_countdown(struct via_struct* p_via,
-                                       uint8_t reg,
+                                       uint8_t not_set,
                                        uint8_t val,
                                        uint64_t countdown);
 uint64_t via_write_T2CL_with_countdown(struct via_struct* p_via,
-                                       uint8_t reg,
+                                       uint8_t not_set,
                                        uint8_t val,
                                        uint64_t countdown);
 uint64_t via_write_T2CH_with_countdown(struct via_struct* p_via,
-                                       uint8_t reg,
+                                       uint8_t not_set,
                                        uint8_t val,
                                        uint64_t countdown);
 uint64_t via_write_ACR_with_countdown(struct via_struct* p_via,
-                                      uint8_t reg,
+                                      uint8_t not_set,
                                       uint8_t val,
                                       uint64_t countdown);
 void via_write_IFR_with_countdown(struct via_struct* p_via,
-                                  uint8_t reg,
+                                  uint8_t not_set,
                                   uint8_t val,
                                   uint64_t countdown);
-void via_write_IER_with_countdown(struct via_struct* p_via,
-                                  uint8_t reg,
-                                  uint8_t val,
-                                  uint64_t countdown);
-void via_write_ORAnh_with_countdown(struct via_struct* p_via,
-                                    uint8_t reg,
-                                    uint8_t val,
-                                    uint64_t countdown);
+uint64_t via_write_IER_with_countdown(struct via_struct* p_via,
+                                      uint8_t flags_ID,
+                                      uint8_t val,
+                                      uint64_t countdown);
+uint64_t via_write_ORAnh_with_countdown(struct via_struct* p_via,
+                                        uint8_t flags_ID,
+                                        uint8_t val,
+                                        uint64_t countdown);
 
 uint8_t via_calculate_port_b(struct via_struct* p_via);
 void via_update_port_a(struct via_struct* p_via);

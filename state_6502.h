@@ -40,6 +40,7 @@ struct state_6502 {
 
   /* Fields not in the asm ABI. */
   struct timing_struct* p_timing;
+  uint32_t timer_id;
   uint8_t* p_mem_read;
   struct {
     uint32_t irq_high;
@@ -78,15 +79,20 @@ void state_6502_set_a(struct state_6502* p_state_6502, uint8_t val);
 void state_6502_set_x(struct state_6502* p_state_6502, uint8_t val);
 void state_6502_set_y(struct state_6502* p_state_6502, uint8_t val);
 
+/* In these calls "IRQ" refers to any "IRQ" or "NMI". */
 int state_6502_get_irq_level(struct state_6502* p_state_6502, int irq);
 void state_6502_set_irq_level(struct state_6502* p_state_6502,
                               int irq,
                               int level);
 int state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq);
+int state_6502_check_any_irq_firing(struct state_6502* p_state_6502);
+
 void state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502,
                                          int irq);
 
 int state_6502_has_irq_high(struct state_6502* p_state_6502);
 int state_6502_has_nmi_high(struct state_6502* p_state_6502);
+
+void state_6502_fire_irq_timer(struct state_6502* p_state_6502);
 
 #endif /* BEEBJIT_STATE_6502_H */

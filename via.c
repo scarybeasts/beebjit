@@ -1049,43 +1049,67 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   }
 }
 
-void
+static uint64_t
+via_check_new_irq(struct via_struct* p_via,
+                  uint8_t flags_ID,
+                  uint64_t countdown) {
+  if (!(flags_ID & 0x4)) {
+    struct state_6502* p_state_6502 = bbc_get_6502(p_via->p_bbc);
+
+    if (state_6502_check_any_irq_firing(p_state_6502)) {
+      struct timing_struct* p_timing = p_via->p_timing;
+      timing_sync_countdown(p_timing, countdown);
+      state_6502_fire_irq_timer(p_state_6502);
+      assert(timing_get_countdown(p_timing) == 0);
+      countdown = 0;
+    }
+  }
+
+  return countdown;
+}
+
+uint64_t
 via_write_ORB_with_countdown(struct via_struct* p_via,
-                             uint8_t reg,
+                             uint8_t flags_ID,
                              uint8_t val,
                              uint64_t countdown) {
-  (void) reg;
-  (void) countdown;
   via_write_ORB(p_via, val);
+  /* Writing ORB can cause peripherals to change the ORA bus value, which
+   * in turn can cause an IRQ condition.
+   */
+  countdown = via_check_new_irq(p_via, flags_ID, countdown);
+  return countdown;
 }
 
-void
+uint64_t
 via_write_ORA_with_countdown(struct via_struct* p_via,
-                             uint8_t reg,
+                             uint8_t flags_ID,
                              uint8_t val,
                              uint64_t countdown) {
-  (void) reg;
-  (void) countdown;
   via_write_ORA(p_via, val);
+  /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
+  countdown = via_check_new_irq(p_via, flags_ID, countdown);
+  return countdown;
 }
 
-void
+uint64_t
 via_write_DDRA_with_countdown(struct via_struct* p_via,
-                              uint8_t reg,
+                              uint8_t flags_ID,
                               uint8_t val,
                               uint64_t countdown) {
-  (void) reg;
-  (void) countdown;
   via_write_DDRA(p_via, val);
+  /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
+  countdown = via_check_new_irq(p_via, flags_ID, countdown);
+  return countdown;
 }
 
 uint64_t
 via_write_T1CL_with_countdown(struct via_struct* p_via,
-                              uint8_t reg,
+                              uint8_t not_set,
                               uint8_t val,
                               uint64_t countdown) {
   struct timing_struct* p_timing = p_via->p_timing;
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_timing, (countdown + 1));
   via_write_T1CL(p_via, val);
   countdown = timing_advance_time_delta(p_timing, 1);
@@ -1094,11 +1118,11 @@ via_write_T1CL_with_countdown(struct via_struct* p_via,
 
 uint64_t
 via_write_T1CH_with_countdown(struct via_struct* p_via,
-                              uint8_t reg,
+                              uint8_t not_set,
                               uint8_t val,
                               uint64_t countdown) {
   struct timing_struct* p_timing = p_via->p_timing;
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_timing, (countdown + 1));
   via_write_T1CH(p_via, val);
   countdown = timing_advance_time_delta(p_timing, 1);
@@ -1107,11 +1131,11 @@ via_write_T1CH_with_countdown(struct via_struct* p_via,
 
 uint64_t
 via_write_T2CL_with_countdown(struct via_struct* p_via,
-                              uint8_t reg,
+                              uint8_t not_set,
                               uint8_t val,
                               uint64_t countdown) {
   struct timing_struct* p_timing = p_via->p_timing;
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_timing, (countdown + 1));
   via_write_T2CL(p_via, val);
   countdown = timing_advance_time_delta(p_timing, 1);
@@ -1120,11 +1144,11 @@ via_write_T2CL_with_countdown(struct via_struct* p_via,
 
 uint64_t
 via_write_T2CH_with_countdown(struct via_struct* p_via,
-                              uint8_t reg,
+                              uint8_t not_set,
                               uint8_t val,
                               uint64_t countdown) {
   struct timing_struct* p_timing = p_via->p_timing;
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_timing, (countdown + 1));
   via_write_T2CH(p_via, val);
   countdown = timing_advance_time_delta(p_timing, 1);
@@ -1133,11 +1157,11 @@ via_write_T2CH_with_countdown(struct via_struct* p_via,
 
 uint64_t
 via_write_ACR_with_countdown(struct via_struct* p_via,
-                             uint8_t reg,
+                             uint8_t not_set,
                              uint8_t val,
                              uint64_t countdown) {
   struct timing_struct* p_timing = p_via->p_timing;
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_timing, (countdown + 1));
   via_write_ACR(p_via, val);
   countdown = timing_advance_time_delta(p_timing, 1);
@@ -1146,32 +1170,34 @@ via_write_ACR_with_countdown(struct via_struct* p_via,
 
 void
 via_write_IFR_with_countdown(struct via_struct* p_via,
-                             uint8_t reg,
+                             uint8_t not_set,
                              uint8_t val,
                              uint64_t countdown) {
-  (void) reg;
+  (void) not_set;
   timing_sync_countdown(p_via->p_timing, (countdown + 1));
   via_write_IFR(p_via, val);
 }
 
-void
+uint64_t
 via_write_IER_with_countdown(struct via_struct* p_via,
-                             uint8_t reg,
+                             uint8_t flags_ID,
                              uint8_t val,
                              uint64_t countdown) {
-  (void) reg;
-  (void) countdown;
   via_write_IER(p_via, val);
+  /* Writing IER can unmask a new IRQ. */
+  countdown = via_check_new_irq(p_via, flags_ID, countdown);
+  return countdown;
 }
 
-void
+uint64_t
 via_write_ORAnh_with_countdown(struct via_struct* p_via,
-                               uint8_t reg,
+                               uint8_t flags_ID,
                                uint8_t val,
                                uint64_t countdown) {
-  (void) reg;
-  (void) countdown;
   via_write_ORAnh(p_via, val);
+  /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
+  countdown = via_check_new_irq(p_via, flags_ID, countdown);
+  return countdown;
 }
 
 

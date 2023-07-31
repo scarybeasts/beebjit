@@ -1460,6 +1460,7 @@ bbc_get_write_jit_encoding(void* p,
   int is_call = 1;
   int syncs_time = 0;
   int returns_time = 0;
+  int needs_irq_check = 0;
 
   (void) num_uops;
 
@@ -1495,14 +1496,17 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE40:
     param_offset = 0x8;
     func_offset = 0x50;
+    needs_irq_check = 1;
     break;
   case 0xFE41:
     param_offset = 0x8;
     func_offset = 0x58;
+    needs_irq_check = 1;
     break;
   case 0xFE43:
     param_offset = 0x8;
     func_offset = 0x60;
+    needs_irq_check = 1;
     break;
   case 0xFE44:
     param_offset = 0x8;
@@ -1542,10 +1546,12 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE4E:
     param_offset = 0x8;
     func_offset = 0x98;
+    needs_irq_check = 1;
     break;
   case 0xFE4F:
     param_offset = 0x8;
     func_offset = 0xA0;
+    needs_irq_check = 1;
     break;
   case 0xFE64:
     param_offset = 0x10;
@@ -1585,16 +1591,26 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE6E:
     param_offset = 0x10;
     func_offset = 0x98;
+    needs_irq_check = 1;
     break;
   case 0xFEC0:
     param_offset = 0xA8;
     func_offset = 0xB0;
     syncs_time = 1;
     returns_time = 1;
+    /* TODO: the ADC likely needs the IRQ check as well. In the case if
+     * the system VIA is "misconfigured" to trigger IRQ on CB1 high, starting
+     * a new conversion will trigger the IRQ.
+     */
     break;
   default:
     /* Bail. */
     return 0;
+  }
+
+  if (needs_irq_check) {
+    syncs_time = 1;
+    returns_time = 1;
   }
 
   /* TODO: fetch these unseemly constants in a more graceful manner! */
@@ -1639,6 +1655,12 @@ bbc_get_write_jit_encoding(void* p,
                                  syncs_time);
 
   if (is_call) {
+    /* Set up param2. */
+    if (needs_irq_check) {
+      asm_make_uop0(p_uop, k_opcode_set_param2_from_ID_F);
+      p_uop++;
+    }
+
     /* Set up param4. */
     if (syncs_time) {
       asm_make_uop0(p_uop, k_opcode_set_param4_from_countdown);
