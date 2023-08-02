@@ -2741,8 +2741,31 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0F);
   emit_JMP(p_buf, k_abs, 0xE700);
 
-  /* End of test. */
+  /* Test the binary extent of a "large" but short opcode. */
   set_new_index(p_buf, 0x2700);
+  emit_LDA(p_buf, k_imm, 0x08);    /* PHP */
+  emit_STA(p_buf, k_abs, 0x5700);
+  emit_LDA(p_buf, k_imm, 0x28);    /* PLP */
+  emit_STA(p_buf, k_abs, 0x5701);
+  emit_LDA(p_buf, k_imm, 0xA9);    /* LDA #9 */
+  emit_STA(p_buf, k_abs, 0x5702);
+  emit_LDA(p_buf, k_imm, 0x09);
+  emit_STA(p_buf, k_abs, 0x5703);
+  emit_LDA(p_buf, k_imm, 0x60);    /* RTS */
+  emit_STA(p_buf, k_abs, 0x5704);
+  emit_JSR(p_buf, 0x5702);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_PHA(p_buf);
+  emit_JSR(p_buf, 0x5700);
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_JSR(p_buf, 0x5702);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  emit_JSR(p_buf, 0x5700);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  emit_JMP(p_buf, k_abs, 0xE740);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2740);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

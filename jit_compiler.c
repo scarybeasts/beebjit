@@ -1499,6 +1499,9 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       }
     }
 
+    /* Check the asm output fit in the appropriate amount of JIT space. */
+    assert((p_details->addr_6502 + p_details->num_bytes_6502) > addr_6502);
+
     if (opcode_len_asm > 0) {
       /* If there's any output, need at least the length of the
        * self-modified invalidation sequence.
