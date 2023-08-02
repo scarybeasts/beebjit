@@ -1143,19 +1143,19 @@ jit_test_compile_binary(void) {
    * ldrb  w4, [x27, #113]
    * orr   x22, x22, x4, lsl #8
    * add   x21, x22, x2
-   * add   x4, x21, #0x400
+   * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x300198068
    * ldrb  w20, [x27, x21]
    * eor   x0, x0, x20
    * add   x21, x22, x2
-   * add   x4, x21, #0x400
+   * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x30019805c
    * strb  w0, [x28, x21]
    */
   p_expect = "\x76\xc3\x41\x39" "\x64\xc7\x41\x39" "\xd6\x22\x04\xaa"
-             "\xd5\x02\x02\x8b" "\xa4\x02\x10\x91" "\x64\x02\x80\x37"
+             "\xd5\x02\x02\x8b" "\xa4\x12\x40\x91" "\x64\x02\x80\x37"
              "\x74\x6b\x75\x38" "\x00\x00\x14\xca" "\xd5\x02\x02\x8b"
-             "\xa4\x02\x10\x91" "\x64\x01\x80\x37" "\x80\x6b\x35\x38";
+             "\xa4\x12\x40\x91" "\x64\x01\x80\x37" "\x80\x6b\x35\x38";
   expect_len = 48;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -1201,20 +1201,20 @@ jit_test_compile_binary(void) {
    * ldrb  w4, [x27, #76]
    * orr   x22, x22, x4, lsl #8
    * add   x21, x22, #0x4
-   * add   x4, x21, #0x400
+   * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x3001a0068
    * ldrb  w0, [x27, x21]
    * strb  w0, [x28, #65]
    * add   x21, x22, #0x3
-   * add   x4, x21, #0x400
+   * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x3001a005c
    * ldrb  w0, [x27, x21]
    * strb  w0, [x28, #64]
    */
   p_expect = "\x76\x2f\x41\x39" "\x64\x33\x41\x39" "\xd6\x22\x04\xaa"
-             "\xd5\x12\x00\x91" "\xa4\x02\x10\x91" "\x64\x02\x80\x37"
+             "\xd5\x12\x00\x91" "\xa4\x12\x40\x91" "\x64\x02\x80\x37"
              "\x60\x6b\x75\x38" "\x80\x07\x01\x39" "\xd5\x0e\x00\x91"
-             "\xa4\x02\x10\x91" "\x64\x01\x80\x37" "\x60\x6b\x75\x38"
+             "\xa4\x12\x40\x91" "\x64\x01\x80\x37" "\x60\x6b\x75\x38"
              "\x80\x03\x01\x39";
   expect_len = 52;
 #endif
@@ -1255,13 +1255,13 @@ jit_test_compile_binary(void) {
    * ldrb  w4, [x27, x4]
    * orr   x21, x21, x4, lsl #8
    * add   x21, x21, x1
-   * add   x4, x21, #0x400
+   * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x3001a8068
    * ldrb  w0, [x27, x21]
    */
   p_expect = "\x35\xa0\x86\xd2" "\x75\x6b\x75\x38" "\x44\xa0\x86\xd2"
              "\x64\x6b\x64\x38" "\xb5\x22\x04\xaa" "\xb5\x02\x01\x8b"
-             "\xa4\x02\x10\x91" "\x24\x02\x80\x37" "\x60\x6b\x75\x38";
+             "\xa4\x12\x40\x91" "\x24\x02\x80\x37" "\x60\x6b\x75\x38";
   expect_len = 36;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);

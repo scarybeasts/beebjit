@@ -196,8 +196,8 @@ ASM_SYM(asm_jit_addr_base_load_addr_base_END):
 .globl ASM_SYM(asm_jit_addr_check_tbnz)
 .globl ASM_SYM(asm_jit_addr_check_tbnz_END)
 ASM_SYM(asm_jit_addr_check_add):
-  # Trigger on >= 0xFC00.
-  add REG_JIT_SCRATCH, REG_JIT_ADDR, #0x400
+  # Trigger on >= 0xC000.
+  add REG_JIT_SCRATCH, REG_JIT_ADDR, #0x4000
 
 ASM_SYM(asm_jit_addr_check_add_END):
   ret
