@@ -284,13 +284,13 @@ ASM_SYM(asm_jit_addr_trunc_8bit_END):
 .globl ASM_SYM(asm_jit_call_scratch_param_call_function)
 .globl ASM_SYM(asm_jit_call_scratch_param_call_function_END)
 ASM_SYM(asm_jit_call_scratch_param_load_param1):
-  ldr REG_PARAM1, [REG_JIT_SCRATCH, 0x7FF8]
+  ldr REG_PARAM1, [REG_SCRATCH1, 0x7FF8]
 ASM_SYM(asm_jit_call_scratch_param_load_param1_END):
 ASM_SYM(asm_jit_call_scratch_param_load_function):
-  ldr REG_SCRATCH1, [REG_JIT_SCRATCH, 0x7FF8]
+  ldr REG_JIT_SCRATCH, [REG_SCRATCH1, 0x7FF8]
 ASM_SYM(asm_jit_call_scratch_param_load_function_END):
 ASM_SYM(asm_jit_call_scratch_param_call_function):
-  blr REG_SCRATCH1
+  blr REG_JIT_SCRATCH
 ASM_SYM(asm_jit_call_scratch_param_call_function_END):
   ret
 
@@ -434,19 +434,19 @@ ASM_SYM(asm_jit_call_debug_END):
 .globl ASM_SYM(asm_jit_deref_context_ldr)
 .globl ASM_SYM(asm_jit_deref_context_ldr_END)
 ASM_SYM(asm_jit_deref_context_movz):
-  movz REG_JIT_SCRATCH, #0xFFFF, lsl #16
+  movz REG_SCRATCH1, #0xFFFF, lsl #16
 
 ASM_SYM(asm_jit_deref_context_movz_END):
   ret
 
 ASM_SYM(asm_jit_deref_context_movk):
-  movk REG_JIT_SCRATCH, #0xFFFF
+  movk REG_SCRATCH1, #0xFFFF
 
 ASM_SYM(asm_jit_deref_context_movk_END):
   ret
 
 ASM_SYM(asm_jit_deref_context_ldr):
-  ldr REG_JIT_SCRATCH, [REG_CONTEXT, REG_JIT_SCRATCH]
+  ldr REG_SCRATCH1, [REG_CONTEXT, REG_SCRATCH1]
 
 ASM_SYM(asm_jit_deref_context_ldr_END):
   ret
@@ -455,7 +455,7 @@ ASM_SYM(asm_jit_deref_context_ldr_END):
 .globl ASM_SYM(asm_jit_deref_scratch)
 .globl ASM_SYM(asm_jit_deref_scratch_END)
 ASM_SYM(asm_jit_deref_scratch):
-  ldr REG_VALUE, [REG_JIT_SCRATCH, 0x7FF8]
+  ldr REG_JIT_SCRATCH, [REG_SCRATCH1, 0x7FF8]
 
 ASM_SYM(asm_jit_deref_scratch_END):
   ret
@@ -464,7 +464,7 @@ ASM_SYM(asm_jit_deref_scratch_END):
 .globl ASM_SYM(asm_jit_load_deref_scratch)
 .globl ASM_SYM(asm_jit_load_deref_scratch_END)
 ASM_SYM(asm_jit_load_deref_scratch):
-  ldrb REG_VALUE_32, [REG_VALUE, 0xFFF]
+  ldrb REG_VALUE_32, [REG_JIT_SCRATCH, 0xFFF]
 
 ASM_SYM(asm_jit_load_deref_scratch_END):
   ret
@@ -473,7 +473,7 @@ ASM_SYM(asm_jit_load_deref_scratch_END):
 .globl ASM_SYM(asm_jit_load_deref_scratch_quad)
 .globl ASM_SYM(asm_jit_load_deref_scratch_quad_END)
 ASM_SYM(asm_jit_load_deref_scratch_quad):
-  ldr REG_VALUE, [REG_VALUE, 0x7FF8]
+  ldr REG_VALUE, [REG_JIT_SCRATCH, 0x7FF8]
 
 ASM_SYM(asm_jit_load_deref_scratch_quad_END):
   ret
@@ -558,11 +558,11 @@ ASM_SYM(asm_jit_push_END):
 .globl ASM_SYM(asm_jit_restore_regs)
 .globl ASM_SYM(asm_jit_restore_regs_END)
 ASM_SYM(asm_jit_restore_regs):
-  ldp x7, REG_SCRATCH1, [sp, #48]
+  ldp x7, REG_JIT_SCRATCH, [sp, #48]
   ldp x5, x6, [sp, #32]
   ldp x2, x3, [sp, #16]
   ldp x0, x1, [sp, #0]
-  msr nzcv, REG_SCRATCH1
+  msr nzcv, REG_JIT_SCRATCH
   add sp, sp, 64
 
 ASM_SYM(asm_jit_restore_regs_END):
@@ -590,12 +590,12 @@ ASM_SYM(asm_jit_save_overflow_END):
 .globl ASM_SYM(asm_jit_save_regs)
 .globl ASM_SYM(asm_jit_save_regs_END)
 ASM_SYM(asm_jit_save_regs):
-  mrs REG_SCRATCH1, nzcv
+  mrs REG_JIT_SCRATCH, nzcv
   sub sp, sp, 64
   stp x0, x1, [sp, #0]
   stp x2, x3, [sp, #16]
   stp x5, x6, [sp, #32]
-  stp x7, REG_SCRATCH1, [sp, #48]
+  stp x7, REG_JIT_SCRATCH, [sp, #48]
 
 ASM_SYM(asm_jit_save_regs_END):
   ret
@@ -637,12 +637,12 @@ ASM_SYM(asm_jit_set_countdown_from_ret_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_set_param2)
-.globl ASM_SYM(asm_jit_set_param2_END)
-ASM_SYM(asm_jit_set_param2):
-  movz REG_PARAM2, 0xFFFF
+.globl ASM_SYM(asm_jit_set_param2_from_ID_F)
+.globl ASM_SYM(asm_jit_set_param2_from_ID_F_END)
+ASM_SYM(asm_jit_set_param2_from_ID_F):
+  mov REG_PARAM2, REG_6502_ID_F
 
-ASM_SYM(asm_jit_set_param2_END):
+ASM_SYM(asm_jit_set_param2_from_ID_F_END):
   ret
 
 
@@ -679,6 +679,15 @@ ASM_SYM(asm_jit_set_value_from_ret):
   mov REG_VALUE, REG_RETURN
 
 ASM_SYM(asm_jit_set_value_from_ret_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_store_deref_scratch)
+.globl ASM_SYM(asm_jit_store_deref_scratch_END)
+ASM_SYM(asm_jit_store_deref_scratch):
+  strb REG_VALUE_32, [REG_JIT_SCRATCH, 0xFFF]
+
+ASM_SYM(asm_jit_store_deref_scratch_END):
   ret
 
 

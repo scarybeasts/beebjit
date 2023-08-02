@@ -847,6 +847,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_ABY_add);
     break;
   case k_opcode_check_pending_irq:
+  /* TODO: apply the same optimization here as x64. */
+  case k_opcode_check_pending_irq_plp:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
     ASM(check_pending_irq_load);
     value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
@@ -892,6 +894,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_load_carry: break;
   case k_opcode_load_overflow: break;
+  case k_opcode_peek_to_scratch: break;
   case k_opcode_PULL_16: ASM(pull_16bit); break;
   case k_opcode_PUSH_16:
     tmp = value1;
@@ -907,7 +910,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_regs: ASM(save_regs); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
   case k_opcode_set_countdown_from_ret: ASM(set_countdown_from_ret); break;
-  case k_opcode_set_param2: ASM_IMM16(set_param2); break;
+  case k_opcode_set_param2_from_ID_F: ASM(set_param2_from_ID_F); break;
+  /* TODO: apply the same optimization here as x64. */
   case k_opcode_set_param3_from_countdown:
     ASM(set_param3_from_countdown);
     break;
@@ -916,6 +920,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(set_param4_from_countdown);
     break;
   case k_opcode_set_value_from_ret: ASM(set_value_from_ret); break;
+  case k_opcode_stack_commit_peek_increment: break;
+  case k_opcode_store_deref_scratch: ASM_IMM12(store_deref_scratch); break;
   case k_opcode_sync_even_cycle: ASM(sync_even_cycle); break;
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
