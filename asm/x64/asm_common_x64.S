@@ -513,6 +513,10 @@ ASM_SYM(asm_pull_word_to_scratch_END):
 .globl ASM_SYM(asm_debug)
 .globl ASM_SYM(asm_debug_END)
 ASM_SYM(asm_debug):
+  # Some optimizations cache values across opcodes in REG_ADDR or host flags.
+  # So they must be saved.
+  pushfq
+  push REG_ADDR
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
 
@@ -536,6 +540,9 @@ ASM_SYM(asm_debug):
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   # TODO: handle different 6502 PC!
+
+  pop REG_ADDR
+  popf
 
   ret
 

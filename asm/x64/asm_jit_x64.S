@@ -269,15 +269,8 @@ ASM_SYM(asm_jit_countdown_sub_scratch_END):
 ASM_SYM(asm_jit_call_debug):
   mov REG_6502_PC_32, 0x7fffffff
 ASM_SYM(asm_jit_call_debug_pc_patch):
-  # Some optimizations cache values across opcodes in REG_ADDR or host flags.
-  # So they must be saved.
-  pushfq
-  push REG_ADDR
   call ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_jit_call_debug_call_patch):
-  pop REG_ADDR
-  popf
-
 ASM_SYM(asm_jit_call_debug_END):
   ret
 
