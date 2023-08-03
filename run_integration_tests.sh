@@ -10,6 +10,9 @@ echo 'Running test.rom, JIT, fast, debug.'
 echo 'Running test.rom, JIT, fast, accurate.'
 ./beebjit -os test.rom -swram f -test-map -expect 434241 \
     -mode jit -fast -accurate
+echo 'Running test.rom, JIT, fast, accurate, debug.'
+./beebjit -os test.rom -swram f -test-map -expect 434241 \
+    -mode jit -fast -accurate -debug -run
 echo 'Running test.rom, interpreter, fast.'
 ./beebjit -os test.rom -swram f -test-map -expect 434241 -mode interp -fast
 echo 'Running test.rom, interpreter, fast, debug, print.'

@@ -2764,8 +2764,21 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x09);
   emit_JMP(p_buf, k_abs, 0xE740);
 
-  /* End of test. */
+  /* Test some more opcodes at the start of a block that tend to expand to
+   * large binary.
+   */
   set_new_index(p_buf, 0x2740);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_PHA(p_buf);
+  emit_JMP(p_buf, k_abs, 0xE746);
+  emit_PLP(p_buf);
+  emit_JMP(p_buf, k_abs, 0xE74A);
+  emit_BRK(p_buf);
+  emit_NOP(p_buf);
+  emit_JMP(p_buf, k_abs, 0xE780);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2780);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
