@@ -337,19 +337,21 @@ ASM_SYM(asm_jit_inturbo_call):
 ASM_SYM(asm_jit_inturbo_call_END):
 ASM_SYM(asm_jit_inturbo_do_jit_jump):
   lahf
-  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
-  shl REG_6502_PC_32, K_JIT_BYTES_SHIFT
+  lea REG_SCRATCH1_32, [REG_6502_PC - \
+                        K_BBC_MEM_READ_FULL_ADDR + \
+                        (K_JIT_ADDR >> K_JIT_BYTES_SHIFT)]
+  shl REG_SCRATCH1_32, K_JIT_BYTES_SHIFT
   sahf
-  lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
-  jmp REG_6502_PC
+  jmp REG_SCRATCH1
 ASM_SYM(asm_jit_inturbo_do_jit_jump_END):
 ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx):
-  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
-  rorx REG_6502_PC_32, REG_6502_PC_32, (32 - K_JIT_BYTES_SHIFT)
-  lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
+  lea REG_SCRATCH1, [REG_6502_PC - \
+                     K_BBC_MEM_READ_FULL_ADDR + \
+                     (K_JIT_ADDR >> K_JIT_BYTES_SHIFT)]
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
 
-  jmp REG_6502_PC
+  jmp REG_SCRATCH1
 ASM_SYM(asm_jit_inturbo_do_jit_jump_rorx_END):
 
   ret
