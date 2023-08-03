@@ -1139,7 +1139,7 @@ main(int argc, const char* argv[]) {
   /* Test PLP that activates interrupts, when there's an IRQ line high. */
   set_new_index(p_buf, 0x0F80);
   emit_SEI(p_buf);
-  emit_LDA(p_buf, k_imm, 0x00);   /* No I flag. */
+  emit_LDA(p_buf, k_imm, 0x03);   /* No I flag; C and Z set. */
   emit_PHA(p_buf);
   emit_LDX(p_buf, k_imm, 0xBB);
   emit_LDA(p_buf, k_imm, 0xAA);

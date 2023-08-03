@@ -492,9 +492,9 @@ ASM_SYM(asm_jit_check_pending_irq_plp_check):
   test REG_SCRATCH2_32, REG_SCRATCH2_32
   setne REG_SCRATCH2_8
   # Check the value pulled from the stack as it's not committed yet.
-  bt REG_SCRATCH1_32, 2
+  test REG_SCRATCH1_32, 4
   # Set to 1 if I flag (disable interrupts) not set.
-  setae REG_SCRATCH3_8
+  sete REG_SCRATCH3_8
   and REG_SCRATCH2_8, REG_SCRATCH3_8
 ASM_SYM(asm_jit_check_pending_irq_plp_check_END):
 ASM_SYM(asm_jit_check_pending_irq_plp_branch):
