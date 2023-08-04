@@ -501,7 +501,7 @@ timing_sync_countdown(struct timing_struct* p_timing,
 
   countdown = p_timing->countdown;
 
-  assert(countdown_target > 0);
+  assert(countdown_target >= 0);
   assert((uint64_t) countdown_target <= countdown);
 
   delta = (countdown - countdown_target);
