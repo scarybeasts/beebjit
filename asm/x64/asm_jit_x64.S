@@ -497,6 +497,7 @@ ASM_SYM(asm_jit_check_pending_irq_plp_check):
   sete REG_SCRATCH3_8
   and REG_SCRATCH2_8, REG_SCRATCH3_8
 ASM_SYM(asm_jit_check_pending_irq_plp_check_END):
+  ret
 ASM_SYM(asm_jit_check_pending_irq_plp_branch):
   jne ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_jit_check_pending_irq_plp_branch_END):
@@ -869,6 +870,14 @@ ASM_SYM(asm_jit_PUSH_16_word_patch):
   lea REG_6502_S_32, [REG_6502_S_64 - 2]
 
 ASM_SYM(asm_jit_PUSH_16_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_raw_call)
+.globl ASM_SYM(asm_jit_raw_call_END)
+ASM_SYM(asm_jit_raw_call):
+  call ASM_SYM(asm_unpatched_branch_target)
+ASM_SYM(asm_jit_raw_call_END):
   ret
 
 

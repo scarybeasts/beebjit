@@ -1686,13 +1686,21 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, p_trampoline_addr);
     break;
   case k_opcode_check_pending_irq_plp:
-    ASM(check_pending_irq_plp_check);
+  {
+    void asm_jit_check_pending_irq_plp_check(void);
+    value1 = (intptr_t) asm_jit_check_pending_irq_plp_check;
+    value1 -= (uintptr_t) util_buffer_get_base_address(p_dest_buf);
+    value1 -= 5;
+    /* Raw call because the binary is big and won't fit in 64-byte blocks. */
+    ASM_U32(raw_call);
+
     value1 = (intptr_t) p_trampoline_addr;
     value1 -= (uintptr_t) (util_buffer_get_base_address(p_dest_buf) +
                            util_buffer_get_pos(p_dest_buf));
     value1 -= 6;
     ASM_U32(check_pending_irq_plp_branch);
     break;
+  }
   case k_opcode_countdown:
     asm_emit_jit_check_countdown(p_dest_buf,
                                  p_dest_buf_epilog,
@@ -1876,14 +1884,24 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_ORA: ASM(ORA); break;
   case k_opcode_PHA: asm_emit_instruction_PHA(p_dest_buf); break;
-  case k_opcode_PHP: asm_emit_instruction_PHP(p_dest_buf); break;
+  case k_opcode_PHP:
+    value1 = (intptr_t) asm_asm_emit_intel_flags_to_scratch;
+    value1 -= (uintptr_t) util_buffer_get_base_address(p_dest_buf);
+    value1 -= 5;
+    /* Raw call because the binary is big and won't fit in 64-byte blocks. */
+    ASM_U32(raw_call);
+    asm_copy(p_dest_buf,
+             asm_set_brk_flag_in_scratch,
+             asm_set_brk_flag_in_scratch_END);
+    asm_copy(p_dest_buf, asm_push_from_scratch, asm_push_from_scratch_END);
+    break;
   case k_opcode_PLA: asm_emit_instruction_PLA(p_dest_buf); break;
   case k_opcode_PLP:
-    void asm_asm_set_intel_flags_from_scratch(void);
-    void asm_asm_set_intel_flags_from_scratch_END(void);
-    asm_copy(p_dest_buf,
-             asm_asm_set_intel_flags_from_scratch,
-             asm_asm_set_intel_flags_from_scratch_END);
+    value1 = (intptr_t) asm_asm_set_intel_flags_from_scratch;
+    value1 -= (uintptr_t) util_buffer_get_base_address(p_dest_buf);
+    value1 -= 5;
+    /* Raw call because the binary is big and won't fit in 64-byte blocks. */
+    ASM_U32(raw_call);
     break;
   case k_opcode_ROL_acc: ASM(ROL_ACC); break;
   case k_opcode_ROL_value:
