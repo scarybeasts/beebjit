@@ -7,6 +7,18 @@
 #define ASM_SYM(x) x
 #endif
 
+#if defined(__x86_64__)
+/* NOTE: this affects performance significantly.
+ * Smaller is generally faster, which I believe is an L1 icache effect.
+ * We can get to 6 on x64, which is 64 byte blocks, aligning nicely
+ * with he L1 icache cacheline size. Currently unclear if that would be faster
+ * than the current 7.
+ */
+#define K_JIT_BYTES_SHIFT                  7
+#else
+#define K_JIT_BYTES_SHIFT                  7
+#endif
+
 #if __APPLE__
 #if defined(__x86_64__)
 /* Apple macOS on x64. System mappings spill upwards from the 0x00400000 binary

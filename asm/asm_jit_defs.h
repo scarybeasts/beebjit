@@ -3,12 +3,6 @@
 
 #include "asm_platform.h"
 
-/* NOTE: this affects performance significantly.
- * Smaller is generally faster, which I believe is an L1 icache effect.
- * Going smaller than 7 is currently not feasible due to some opcodes not
- * fitting in 64 bytes.
- */
-#define K_JIT_BYTES_SHIFT                  7
 #define K_JIT_BYTES_PER_BYTE               (1 << K_JIT_BYTES_SHIFT)
 #define K_JIT_SIZE                         (65536 * K_JIT_BYTES_PER_BYTE)
 /* NOTE: K_JIT_ADDR varies betweeen platforms, and is in asm_platform.h */
