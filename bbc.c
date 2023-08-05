@@ -147,6 +147,7 @@ struct bbc_struct {
 
   /* Machine configuration. */
   int is_master;
+  int has_sideways_ram;
   int is_sideways_ram_bank[k_bbc_num_roms];
   int is_extended_rom_addressing;
   int is_wd_fdc;
@@ -271,7 +272,16 @@ bbc_write_needs_callback(void* p, uint16_t addr) {
   (void) p_bbc;
   assert(!p_bbc->is_master);
 
-  return (addr >= k_bbc_os_rom_offset);
+  if (p_bbc->has_sideways_ram) {
+    return (addr >= k_bbc_os_rom_offset);
+  }
+
+  if ((addr >= k_bbc_registers_start) &&
+      (addr < (k_bbc_registers_start + k_bbc_registers_len))) {
+    return 1;
+  }
+
+  return 0;
 }
 
 static inline int
@@ -1857,7 +1867,11 @@ bbc_reset_callback_baselines(struct bbc_struct* p_bbc) {
   if (p_bbc->is_master) {
     p_bbc->write_callback_from = k_bbc_sideways_offset;
   } else {
-    p_bbc->write_callback_from = k_bbc_os_rom_offset;
+    if (p_bbc->has_sideways_ram) {
+      p_bbc->write_callback_from = k_bbc_os_rom_offset;
+    } else {
+      p_bbc->write_callback_from = k_bbc_registers_start;
+    }
   }
 }
 
@@ -1953,6 +1967,7 @@ bbc_CA2_changed_callback(void* p, int level, int output) {
 struct bbc_struct*
 bbc_create(int mode,
            int is_master,
+           int has_sideways_ram,
            uint8_t* p_os_rom,
            int wd_1770_type,
            int debug_flag,
@@ -1994,6 +2009,7 @@ bbc_create(int mode,
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->is_master = is_master;
+  p_bbc->has_sideways_ram = has_sideways_ram;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->is_extended_rom_addressing = is_master;
   p_bbc->debug_flag = debug_flag;
@@ -2407,6 +2423,7 @@ bbc_save_rom(struct bbc_struct* p_bbc,
 void
 bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
   assert(index < k_bbc_num_roms);
+  assert(p_bbc->has_sideways_ram);
   p_bbc->is_sideways_ram_bank[index] = 1;
   if (index < 0xC) {
     p_bbc->is_extended_rom_addressing = 1;

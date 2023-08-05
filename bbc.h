@@ -41,6 +41,7 @@ struct bbc_struct;
 
 struct bbc_struct* bbc_create(int mode,
                               int is_master,
+                              int has_sideways_ram,
                               uint8_t* p_os_rom,
                               int wd_1770_type,
                               int debug_flag,

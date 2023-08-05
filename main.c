@@ -125,6 +125,7 @@ beebjit_main(void) {
   int opus_flag = 0;
   int dfs12_flag = 0;
   int is_master_flag = 0;
+  int has_sideways_ram = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
   int32_t pc = -1;
@@ -260,6 +261,7 @@ beebjit_main(void) {
         util_bail("RAM bank number out of range");
       }
       sideways_ram[bank] = 1;
+      has_sideways_ram = 1;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-cycles")) {
       cycles = util_parse_u64(val1, 0);
@@ -406,6 +408,10 @@ beebjit_main(void) {
     }
   }
 
+  if (is_master_flag) {
+    has_sideways_ram = 1;
+  }
+
   if (util_has_option(p_log_flags, "os:addrs")) {
     log_do_log(k_log_misc,
                k_log_info,
@@ -456,6 +462,7 @@ beebjit_main(void) {
 
   p_bbc = bbc_create(mode,
                      is_master_flag,
+                     has_sideways_ram,
                      os_rom,
                      wd_1770_type,
                      debug_flag,
