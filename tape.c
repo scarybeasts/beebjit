@@ -30,6 +30,7 @@ struct tape_struct {
   int8_t* p_tape_buffers[k_tape_max_tapes + 1];
   uint32_t num_tape_values[k_tape_max_tapes + 1];
 
+  int is_tape_running;
   uint32_t tapes_added;
   uint32_t tape_index;
   uint64_t tape_buffer_pos;
@@ -42,24 +43,28 @@ struct tape_struct {
 
 static void
 tape_timer_callback(struct tape_struct* p_tape) {
-  int32_t tape_value;
-
   uint32_t tape_index = p_tape->tape_index;
   uint64_t tape_buffer_pos = p_tape->tape_buffer_pos;
   uint32_t num_tape_values = p_tape->num_tape_values[tape_index];
   int8_t* p_tape_buffer = p_tape->p_tape_buffers[tape_index];
+
+  assert(p_tape->is_tape_running);
+
+  if (p_tape->tape_buffer_pos >= num_tape_values) {
+    /* Stops the timer and indicates silence to the ULA. We don't need the
+     * timer to continually indicate silence.
+     */
+    tape_stop(p_tape);
+    p_tape->is_tape_running = 1;
+    return;
+  }
  
   (void) timing_set_timer_value(p_tape->p_timing,
                                 p_tape->timer_id,
                                 p_tape->tick_rate);
 
-  if (p_tape->tape_buffer_pos < num_tape_values) {
-    tape_value = p_tape_buffer[tape_buffer_pos];
-  } else {
-    tape_value = k_tape_bit_silence;
-  }
-
   if (p_tape->p_serial_ula) {
+    int32_t tape_value = p_tape_buffer[tape_buffer_pos];
     serial_ula_receive_tape_bit(p_tape->p_serial_ula, tape_value);
   }
 
@@ -98,7 +103,8 @@ void
 tape_destroy(struct tape_struct* p_tape) {
   uint32_t i;
 
-  assert(!tape_is_playing(p_tape));
+  assert(!p_tape->is_tape_running);
+  assert(!timing_timer_is_running(p_tape->p_timing, p_tape->timer_id));
   for (i = 0; i < p_tape->tapes_added; ++i) {
     util_free(p_tape->p_tape_file_names[i]);
     util_free(p_tape->p_tape_buffers[i]);
@@ -114,7 +120,8 @@ tape_set_serial_ula(struct tape_struct* p_tape,
 
 void
 tape_power_on_reset(struct tape_struct* p_tape) {
-  assert(!tape_is_playing(p_tape));
+  assert(!p_tape->is_tape_running);
+  assert(!timing_timer_is_running(p_tape->p_timing, p_tape->timer_id));
   tape_rewind(p_tape);
 }
 
@@ -167,13 +174,10 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   p_tape->p_build_buf = NULL;
 }
 
-int
-tape_is_playing(struct tape_struct* p_tape) {
-  return timing_timer_is_running(p_tape->p_timing, p_tape->timer_id);
-}
-
 void
 tape_play(struct tape_struct* p_tape) {
+  assert(!p_tape->is_tape_running);
+  p_tape->is_tape_running = 1;
   (void) timing_start_timer_with_value(p_tape->p_timing,
                                        p_tape->timer_id,
                                        p_tape->tick_rate);
@@ -181,7 +185,12 @@ tape_play(struct tape_struct* p_tape) {
 
 void
 tape_stop(struct tape_struct* p_tape) {
-  (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
+  assert(p_tape->is_tape_running);
+  p_tape->is_tape_running = 0;
+  /* The timer won't be running if we ran out of tape data. */
+  if (timing_timer_is_running(p_tape->p_timing, p_tape->timer_id)) {
+    (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
+  }
   if (p_tape->p_serial_ula) {
     serial_ula_receive_tape_bit(p_tape->p_serial_ula, k_tape_bit_silence);
   }
@@ -215,6 +224,13 @@ tape_cycle_tape(struct tape_struct* p_tape) {
 
 void
 tape_rewind(struct tape_struct* p_tape) {
+  if (p_tape->is_tape_running) {
+    if (!timing_timer_is_running(p_tape->p_timing, p_tape->timer_id)) {
+      /* Tape is running but we stopped the timer due to lack of data. */
+      p_tape->is_tape_running = 0;
+      tape_play(p_tape);
+    }
+  }
   p_tape->tape_buffer_pos = 0;
 }
 

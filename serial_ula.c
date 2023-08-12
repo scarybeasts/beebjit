@@ -78,8 +78,8 @@ serial_ula_destroy(struct serial_ula_struct* p_serial_ula) {
 
   tape_set_serial_ula(p_tape, NULL);
 
-  if (tape_is_playing(p_tape)) {
-    tape_stop(p_tape);
+  if (p_serial_ula->is_motor_on) {
+    tape_stop(p_serial_ula->p_tape);
   }
 
   util_free(p_serial_ula);

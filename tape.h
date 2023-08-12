@@ -31,8 +31,6 @@ void tape_power_on_reset(struct tape_struct* p_tape);
 void tape_add_tape(struct tape_struct* p_tape, const char* p_filename);
 void tape_cycle_tape(struct tape_struct* p_tape);
 
-int tape_is_playing(struct tape_struct* p_tape);
-
 void tape_play(struct tape_struct* p_tape);
 void tape_stop(struct tape_struct* p_tape);
 void tape_rewind(struct tape_struct* p_tape);
