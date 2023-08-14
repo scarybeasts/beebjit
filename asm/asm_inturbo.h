@@ -134,8 +134,6 @@ void asm_inturbo_jump_opcode_END();
 
 void asm_inturbo_JMP_scratch_plus_1_interp();
 void asm_inturbo_JMP_scratch_plus_1_interp_END();
-void asm_inturbo_load_pc_from_pc();
-void asm_inturbo_load_pc_from_pc_END();
 void asm_inturbo_call_interp();
 void asm_inturbo_call_interp_and_ret();
 void asm_inturbo_call_interp_countdown();

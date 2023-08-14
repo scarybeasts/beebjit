@@ -1429,10 +1429,15 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       }
       break;
     case 0x20: /* JSR */
-      addr = *(uint16_t*) &p_mem_read[pc + 1];
+      /* JSR has an interesting order of address fetching vs. stack writes,
+       * which means it can actuall self-modify.
+       * See: https://www.stardot.org.uk/forums/viewtopic.php?t=27208
+       */
+      addr = p_mem_read[pc + 1];
       addr_temp = (pc + 2);
       p_stack[s--] = (addr_temp >> 8);
       p_stack[s--] = (addr_temp & 0xFF);
+      addr |= (p_mem_read[pc + 2] << 8);
       pc = addr;
       cycles_this_instruction = 6;
       break;

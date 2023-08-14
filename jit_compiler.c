@@ -150,10 +150,7 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   p_compiler->option_no_collapse_loops =
       util_has_option(p_options->p_opt_flags, "jit:no-collapse-loops");
 
-  if (!asm_inturbo_is_enabled()) {
-    p_compiler->option_no_dynamic_opcode = 1;
-    p_compiler->option_no_sub_instruction = 1;
-  }
+  assert(asm_inturbo_is_enabled());
 
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
@@ -232,6 +229,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct asm_uop* p_uop = &p_details->uops[0];
   struct asm_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
+  int use_inturbo = 0;
   int uses_callback = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
@@ -587,6 +585,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
     p_uop++;
+    if ((addr_6502 >= 0xFE) && (addr_6502 <= 0x1FD)) {
+      /* A JSR hosted in the stack page can self-modify. */
+      use_inturbo = 1;
+    }
     break;
   case k_lda: asm_make_uop0(p_uop, k_opcode_LDA); p_uop++; break;
   case k_ldx: asm_make_uop0(p_uop, k_opcode_LDX); p_uop++; break;
@@ -746,6 +748,18 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop1(p_uop, k_opcode_interp, addr_6502);
     p_uop++;
     p_details->ends_block = 1;
+
+    p_details->num_uops = (p_uop - &p_details->uops[0]);
+    assert(p_details->num_uops <= k_max_uops_per_opcode);
+    return;
+  }
+  if (use_inturbo) {
+    p_uop = p_first_post_debug_uop;
+
+    asm_make_uop1(p_uop, k_opcode_inturbo, addr_6502);
+    p_uop++;
+    p_details->ends_block = 1;
+    p_details->max_cycles = 0;
 
     p_details->num_uops = (p_uop - &p_details->uops[0]);
     assert(p_details->num_uops <= k_max_uops_per_opcode);

@@ -462,17 +462,15 @@ ASM_SYM(asm_push_from_scratch_END):
 .globl ASM_SYM(asm_push_word_from_scratch_END)
 ASM_SYM(asm_push_word_from_scratch):
 
-  mov REG_SCRATCH2_32, REG_SCRATCH1_32
-  lahf
-  shr REG_SCRATCH2_32, 8
-  sahf
-  mov [REG_6502_S_64], REG_SCRATCH2_8
-  lea REG_SCRATCH3, [REG_6502_S_64 - 1]
-  mov REG_6502_S, REG_SCRATCH3_8
-
+  xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
   mov [REG_6502_S_64], REG_SCRATCH1_8
-  lea REG_SCRATCH3, [REG_6502_S_64 - 1]
-  mov REG_6502_S, REG_SCRATCH3_8
+  lea REG_SCRATCH2, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH2_8
+
+  xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
+  mov [REG_6502_S_64], REG_SCRATCH1_8
+  lea REG_SCRATCH2, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH2_8
 
 ASM_SYM(asm_push_word_from_scratch_END):
   ret

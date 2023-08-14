@@ -2777,8 +2777,29 @@ main(int argc, const char* argv[]) {
   emit_NOP(p_buf);
   emit_JMP(p_buf, k_abs, 0xE780);
 
-  /* End of test. */
+  /* Test a self-modifying JSR. */
   set_new_index(p_buf, 0x2780);
+  emit_LDX(p_buf, k_imm, 0x21);
+  emit_TXS(p_buf);
+  emit_LDA(p_buf, k_imm, 0x20);   /* JSR $4340 */
+  emit_STA(p_buf, k_abs, 0x011F);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_abs, 0x0120);
+  emit_LDA(p_buf, k_imm, 0x43);
+  emit_STA(p_buf, k_abs, 0x0121);
+  emit_LDA(p_buf, k_imm, 0x02);   /* KIL @ 0x4340, $0123 */
+  emit_STA(p_buf, k_abs, 0x4340);
+  emit_STA(p_buf, k_abs, 0x0123);
+  emit_LDA(p_buf, k_imm, 0x4C);   /* JMP $E7C0 @ $0140 */
+  emit_STA(p_buf, k_abs, 0x0140);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0x0141);
+  emit_LDA(p_buf, k_imm, 0xE7);
+  emit_STA(p_buf, k_abs, 0x0142);
+  emit_JMP(p_buf, k_abs, 0x011F);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x27C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

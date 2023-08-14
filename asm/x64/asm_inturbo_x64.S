@@ -28,17 +28,6 @@ ASM_SYM(asm_inturbo_JMP_scratch_plus_1_interp_END):
   ret
 
 
-.globl ASM_SYM(asm_inturbo_load_pc_from_pc)
-.globl ASM_SYM(asm_inturbo_load_pc_from_pc_END)
-ASM_SYM(asm_inturbo_load_pc_from_pc):
-
-  movzx REG_6502_PC_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
-
-ASM_SYM(asm_inturbo_load_pc_from_pc_END):
-  ret
-
-
 .globl ASM_SYM(asm_inturbo_check_special_address)
 .globl ASM_SYM(asm_inturbo_check_special_address_END)
 .globl ASM_SYM(asm_inturbo_check_special_address_lea_patch)
@@ -140,6 +129,24 @@ ASM_SYM(asm_inturbo_advance_pc):
 ASM_SYM(asm_inturbo_advance_pc_lea_patch):
 
 ASM_SYM(asm_inturbo_advance_pc_END):
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_jsr_load_pc_lo)
+.globl ASM_SYM(asm_inturbo_jsr_load_pc_lo_END)
+ASM_SYM(asm_inturbo_jsr_load_pc_lo):
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 1]
+ASM_SYM(asm_inturbo_jsr_load_pc_lo_END):
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_jsr_load_pc_hi)
+.globl ASM_SYM(asm_inturbo_jsr_load_pc_hi_END)
+ASM_SYM(asm_inturbo_jsr_load_pc_hi):
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 2]
+  xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
+  lea REG_6502_PC_32, [REG_SCRATCH3 + REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
+ASM_SYM(asm_inturbo_jsr_load_pc_hi_END):
   ret
 
 

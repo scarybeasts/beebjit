@@ -603,11 +603,16 @@ asm_emit_instruction_JMP_scratch_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_JSR_scratch_interp(struct util_buffer* p_buf) {
+  void asm_inturbo_jsr_load_pc_lo(void);
+  void asm_inturbo_jsr_load_pc_lo_END(void);
+  void asm_inturbo_jsr_load_pc_hi(void);
+  void asm_inturbo_jsr_load_pc_hi_END(void);
+  asm_copy(p_buf, asm_inturbo_jsr_load_pc_lo, asm_inturbo_jsr_load_pc_lo_END);
   asm_copy(p_buf,
            asm_inturbo_pc_plus_2_to_scratch,
            asm_inturbo_pc_plus_2_to_scratch_END);
   asm_emit_push_word_from_scratch(p_buf);
-  asm_copy(p_buf, asm_inturbo_load_pc_from_pc, asm_inturbo_load_pc_from_pc_END);
+  asm_copy(p_buf, asm_inturbo_jsr_load_pc_hi, asm_inturbo_jsr_load_pc_hi_END);
 }
 
 void
