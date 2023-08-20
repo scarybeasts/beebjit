@@ -126,6 +126,7 @@ struct video_struct {
   uint64_t paint_start_cycles;
   uint64_t paint_cycles;
   uint32_t paint_timer_id;
+  int via_ca1_irq_level;
 
   /* Video ULA state and derivatives. */
   uint8_t video_ula_control;
@@ -1193,6 +1194,15 @@ video_CB2_changed_callback(void* p, int level, int output) {
 }
 
 static void
+video_PCR_changed_callback(void* p, uint8_t pcr) {
+  struct video_struct* p_video = (struct video_struct*) p;
+
+  video_advance_crtc_timing(p_video);
+
+  p_video->via_ca1_irq_level = (pcr & 0x01);
+}
+
+static void
 video_recalculate_framing_sanity(struct video_struct* p_video) {
   uint32_t sane_r9;
   int32_t frame_crtc_ticks = -1;
@@ -1382,6 +1392,9 @@ video_create(uint8_t* p_bbc_mem,
   if (p_system_via) {
     via_set_CB2_changed_callback(p_system_via,
                                  video_CB2_changed_callback,
+                                 p_video);
+    via_set_PCR_changed_callback(p_system_via,
+                                 video_PCR_changed_callback,
                                  p_video);
   }
 
@@ -1595,6 +1608,8 @@ video_power_on_reset(struct video_struct* p_video) {
   p_video->is_rendering_active = 0;
   p_video->frame_skip_counter = 0;
   p_video->prev_system_ticks = 0;
+  /* Unknown until the PCR change callback is called. */
+  p_video->via_ca1_irq_level = -1;
 
   /* Deliberately don't reset the counters. */
 

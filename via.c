@@ -52,6 +52,8 @@ struct via_struct {
   void* p_CA2_changed_object;
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
+  void (*p_PCR_changed_callback)(void* p, uint8_t val);
+  void* p_PCR_changed_object;
 
   uint8_t IRA;
   uint8_t IRB;
@@ -400,6 +402,15 @@ via_set_CB2_changed_callback(struct via_struct* p_via,
                              void* p_CB2_changed_object) {
   p_via->p_CB2_changed_callback = p_CB2_changed_callback;
   p_via->p_CB2_changed_object = p_CB2_changed_object;
+}
+
+void
+via_set_PCR_changed_callback(struct via_struct* p_via,
+                             void (*p_PCR_changed_callback)
+                                 (void* p, uint8_t val),
+                             void* p_PCR_changed_object) {
+  p_via->p_PCR_changed_callback = p_PCR_changed_callback;
+  p_via->p_PCR_changed_object = p_PCR_changed_object;
 }
 
 static void
@@ -1035,6 +1046,10 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
       via_set_CB2(p_via, 0);
     } else if ((val & 0xE0) == 0xE0) {
       via_set_CB2(p_via, 1);
+    }
+
+    if (p_via->p_PCR_changed_callback) {
+      p_via->p_PCR_changed_callback(p_via->p_PCR_changed_object, val);
     }
     break;
   case k_via_IFR:

@@ -1332,15 +1332,15 @@ bbc_get_read_jit_encoding(void* p,
     break;
   case 0xFE4D:
     param_offset = 0x8;
-    field_offset = 0x59;
+    field_offset = 0x69;
     break;
   case 0xFE4E:
     param_offset = 0x8;
-    field_offset = 0x5A;
+    field_offset = 0x6A;
     break;
   case 0xFE4F:
     param_offset = 0x8;
-    field_offset = 0x75;
+    field_offset = 0x85;
     break;
   case 0xFE64:
     is_call = 1;
@@ -1369,15 +1369,15 @@ bbc_get_read_jit_encoding(void* p,
     break;
   case 0xFE6B:
     param_offset = 0x10;
-    field_offset = 0x57;
+    field_offset = 0x67;
     break;
   case 0xFE6D:
     param_offset = 0x10;
-    field_offset = 0x59;
+    field_offset = 0x69;
     break;
   case 0xFE6E:
     param_offset = 0x10;
-    field_offset = 0x5A;
+    field_offset = 0x6A;
     break;
   case 0xFE80:
     if (p_bbc->is_wd_fdc) {
@@ -1480,7 +1480,7 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE00:
     is_call = 0;
     param_offset = 0xC8;
-    field_offset = 0x104;
+    field_offset = 0x108;
     break;
   case 0xFE01:
     param_offset = 0xC8;
