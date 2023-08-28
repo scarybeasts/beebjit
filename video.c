@@ -929,7 +929,7 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
       video_is_at_vsync_raise(p_video) &&
       video_is_full_vsync_state_match(p_video, 1)) {
     /* Enter fast render skipping mode if appropriate. */
-    if (!p_video->is_rendering_active && !can_use_full_frame_skip) {
+    if (!p_video->is_rendering_active) {
       p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
     } else {
       p_video->timer_fire_mode = k_video_timer_expect_vsync_lower;
@@ -1141,8 +1141,17 @@ video_timer_fired(void* p) {
       crtc_ticks = video_jump_to_vsync_start(p_video);
       p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
     } else if (timer_fire_mode == k_video_timer_jump_to_vsync_lower) {
+      int can_use_full_frame_skip = 0;
+      if ((p_video->via_ca1_irq_level == 0) && !p_video->is_interlace) {
+        //can_use_full_frame_skip = 1;
+      }
       crtc_ticks = video_jump_to_vsync_end(p_video);
-      p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
+      if (can_use_full_frame_skip) {
+        p_video->timer_fire_mode = k_video_timer_jump_full_frame;
+        crtc_ticks = p_video->frame_crtc_ticks;
+      } else {
+        p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
+      }
     } else {
       assert(p_video->timer_fire_mode == k_video_timer_jump_full_frame);
       assert(p_video->horiz_counter == 0);
@@ -1152,8 +1161,9 @@ video_timer_fired(void* p) {
       p_video->is_odd_frame = (p_video->crtc_frames & 1);
       p_video->crtc_frames++;
       p_video->num_vsyncs++;
-      assert(p_video->p_system_via != NULL);
-      via_set_CA1(p_video->p_system_via, 1);
+      if (p_video->p_system_via != NULL) {
+        via_set_CA1(p_video->p_system_via, 1);
+      }
       /* Force video_update_VSYNC() to do a high->low transition. */
       p_video->in_vsync = 1;
       crtc_ticks = p_video->frame_crtc_ticks;

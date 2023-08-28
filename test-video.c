@@ -59,6 +59,7 @@ video_test_init() {
                            &g_p_options);
   render_create_internal_buffer(g_p_render);
   video_power_on_reset(g_p_video);
+  g_p_video->via_ca1_irq_level = 0;
   g_p_video->is_rendering_active = 1;
   g_test_fast_flag = 0;
 }
@@ -1200,6 +1201,7 @@ video_test_inactive_non_interlace() {
   test_expect_u32(0, g_p_video->num_vsyncs);
   test_expect_u32(7, g_p_video->num_crtc_advances);
   test_expect_u32(0, g_p_video->crtc_frames);
+  test_expect_u32(k_video_timer_null, g_p_video->timer_fire_mode);
 
   (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_to_vsync);
   test_expect_u32(0, g_p_video->horiz_counter);
@@ -1214,10 +1216,13 @@ video_test_inactive_non_interlace() {
   test_expect_u32(1, g_p_video->num_vsyncs);
   test_expect_u32(1, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
+  test_expect_u32(k_video_timer_jump_to_vsync_lower,
+                  g_p_video->timer_fire_mode);
 
   (void) timing_advance_time_delta(g_p_timing,
                                    (k_ticks_mode7_per_scanline * 2));
   test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(2, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->is_odd_vsync);
   test_expect_u32(1, g_p_video->is_even_vsync);
@@ -1228,22 +1233,32 @@ video_test_inactive_non_interlace() {
   test_expect_u32(1, g_p_video->num_vsyncs);
   test_expect_u32(1, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
+  test_expect_u32(k_video_timer_jump_to_vsync_raise,
+                  g_p_video->timer_fire_mode);
 
-  (void) timing_advance_time_delta(
-      g_p_timing,
-      (k_ticks_mode4ni_per_frame - (k_ticks_mode7_per_scanline * 2)));
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_per_frame);
   test_expect_u32(0, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->scanline_counter);
-  test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(1, g_p_video->is_odd_vsync);
-  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
   test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
-  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(2, g_p_video->num_vsyncs);
   test_expect_u32(2, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
+  test_expect_u32(k_video_timer_jump_to_vsync_raise,
+                  g_p_video->timer_fire_mode);
+
+  (void) timing_advance_time_delta(g_p_timing, 32);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(k_video_timer_expect_vsync_raise,
+                  g_p_video->timer_fire_mode);
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode4ni_per_frame - 32));
+  video_advance_crtc_timing(g_p_video);
 }
 
 void video_test_scale_factor() {
