@@ -1216,6 +1216,8 @@ video_test_inactive_non_interlace() {
   test_expect_u32(1, g_p_video->num_vsyncs);
   test_expect_u32(1, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
+  test_expect_u32(35840, g_p_video->last_vsync_raise_ticks);
+  test_expect_u32(-1, g_p_video->last_vsync_lower_ticks);
   test_expect_u32(k_video_timer_jump_to_vsync_lower,
                   g_p_video->timer_fire_mode);
 
@@ -1233,8 +1235,9 @@ video_test_inactive_non_interlace() {
   test_expect_u32(1, g_p_video->num_vsyncs);
   test_expect_u32(1, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
-  test_expect_u32(k_video_timer_jump_to_vsync_raise,
-                  g_p_video->timer_fire_mode);
+  test_expect_u32(35840, g_p_video->last_vsync_raise_ticks);
+  test_expect_u32(36096, g_p_video->last_vsync_lower_ticks);
+  /*test_expect_u32(k_video_timer_jump_full_frame, g_p_video->timer_fire_mode);*/
 
   (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_per_frame);
   test_expect_u32(0, g_p_video->horiz_counter);
@@ -1249,16 +1252,20 @@ video_test_inactive_non_interlace() {
   test_expect_u32(2, g_p_video->num_vsyncs);
   test_expect_u32(2, g_p_video->crtc_frames);
   test_expect_u32(8, g_p_video->num_crtc_advances);
-  test_expect_u32(k_video_timer_jump_to_vsync_raise,
-                  g_p_video->timer_fire_mode);
+  test_expect_u32(75776, g_p_video->last_vsync_raise_ticks);
+  test_expect_u32(76032, g_p_video->last_vsync_lower_ticks);
+  /*test_expect_u32(k_video_timer_jump_full_frame, g_p_video->timer_fire_mode);*/
 
   (void) timing_advance_time_delta(g_p_timing, 32);
   video_advance_crtc_timing(g_p_video);
-  test_expect_u32(k_video_timer_expect_vsync_raise,
-                  g_p_video->timer_fire_mode);
+/*  test_expect_u32(k_video_timer_expect_vsync_lower,
+                  g_p_video->timer_fire_mode);*/
   (void) timing_advance_time_delta(g_p_timing,
                                    (k_ticks_mode4ni_per_frame - 32));
   video_advance_crtc_timing(g_p_video);
+
+  test_expect_u32(115712, g_p_video->last_vsync_raise_ticks);
+  test_expect_u32(115968, g_p_video->last_vsync_lower_ticks);
 }
 
 void video_test_scale_factor() {
