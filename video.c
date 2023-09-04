@@ -362,6 +362,7 @@ video_check_go_inactive(struct video_struct* p_video) {
 static void
 video_check_go_active(struct video_struct* p_video) {
   struct render_struct* p_render;
+  uint32_t i;
 
   assert(!p_video->externally_clocked);
 
@@ -382,7 +383,7 @@ video_check_go_active(struct video_struct* p_video) {
     return;
   }
 
-  if (video_is_at_vsync_raise(p_video)) {
+  if (video_is_at_vsync_lower(p_video)) {
     /* Proceed. */
   } else if (timing_has_scaled_ticks_passed(
                  p_video->p_timing,
@@ -413,6 +414,12 @@ video_check_go_active(struct video_struct* p_video) {
    * again, otherwise the flyback callback would attempt to paint.
    */
   render_vsync(p_render);
+  /* We now go active at the VSYNC lower point, but flyback is at the VSYNC
+   * raise point. So we need to lower the video beam accordingly.
+   */
+  for (i = 0; i < p_video->vsync_pulse_width; ++i) {
+    render_hsync(p_render, 0);
+  }
 
   p_video->is_rendering_active = 1;
   p_video->is_wall_time_vsync_hit = 0;

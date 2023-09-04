@@ -685,6 +685,7 @@ video_test_inactive_rendering() {
   test_expect_u32(0, g_p_video->crtc_frames);
   test_expect_u32(0, render_get_vert_pos(g_p_render));
 
+  /* Rendering will go inactive at VSYNC raise / flyback. */
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_even));
   test_expect_u32(32, g_p_video->horiz_counter);
@@ -702,6 +703,7 @@ video_test_inactive_rendering() {
   num_crtc_advances = g_p_video->num_crtc_advances;
   test_expect_u32((k_ticks_mode7_per_scanline * 2), video_test_get_timer());
 
+  /* Full frame of inactive rendering, leaving us at VSYNC raise. */
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(0, g_p_video->horiz_counter);
@@ -721,6 +723,10 @@ video_test_inactive_rendering() {
 
   g_p_video->is_wall_time_vsync_hit = 1;
 
+  /* Rendering will go active in a couple of scanlines, at VSYNC lower.
+   * We'll then advance to the VSYNC raise, whereon rendering withh go
+   * inactive again.
+   */
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(32, g_p_video->horiz_counter);
@@ -729,9 +735,9 @@ video_test_inactive_rendering() {
   test_expect_u32(-1, render_get_vert_pos(g_p_render));
   test_expect_u32(3, g_p_video->num_vsyncs);
   test_expect_u32(3, g_p_video->crtc_frames);
-  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
 
-  test_expect_u32(1, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
 
   /* Bounce back to inactive rendering. */
@@ -741,7 +747,6 @@ video_test_inactive_rendering() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(1, g_p_video->is_odd_frame);
   test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(0, render_get_vert_pos(g_p_render));
   test_expect_u32(0, g_p_video->is_rendering_active);
   num_crtc_advances = g_p_video->num_crtc_advances;
 
