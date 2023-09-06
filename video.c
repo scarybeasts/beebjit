@@ -1140,7 +1140,7 @@ video_timer_fired(void* p) {
     } else if (timer_fire_mode == k_video_timer_jump_to_vsync_lower) {
       int can_use_full_frame_skip = 0;
       if ((p_video->via_ca1_irq_level == 0) && !p_video->is_interlace) {
-        can_use_full_frame_skip = 0;
+        can_use_full_frame_skip = 1;
       }
       crtc_ticks = video_jump_to_vsync_end(p_video);
       if (can_use_full_frame_skip) {
