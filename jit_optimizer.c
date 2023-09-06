@@ -426,6 +426,7 @@ jit_optimizer_collapse_indefinite_loops(struct jit_opcode_details* p_opcodes,
   uint32_t branch_fixup_cycles;
   int32_t find_uop;
   int32_t replace_uop;
+  uintptr_t jit_addr;
   int is_collapsible = 1;
   int hit_branch = 0;
   int32_t branch_optype = -1;
@@ -554,7 +555,10 @@ jit_optimizer_collapse_indefinite_loops(struct jit_opcode_details* p_opcodes,
   p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
   asm_make_uop1(p_uop, k_opcode_collapse_loop, loop_cycles);
   p_uop = jit_opcode_insert_uop(p_opcode, (index + 2));
-  asm_make_uop1(p_uop, k_opcode_interp, start_addr_6502);
+  jit_addr = (uintptr_t) jit_metadata_get_host_block_address(p_metadata,
+                                                             start_addr_6502);
+  asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
+
   if (branch_fixup_cycles > 0) {
     p_uop = jit_opcode_insert_uop(p_opcode, index);
     asm_make_uop1(p_uop, k_opcode_add_cycles, branch_fixup_cycles);
