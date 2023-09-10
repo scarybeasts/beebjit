@@ -897,6 +897,12 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     if (p_breakpoint->p_command_list != NULL) {
       (void) printf(" commands '%s'", p_breakpoint->p_command_list_str);
     }
+    if (!p_breakpoint->do_stop) {
+      (void) printf(" nostop");
+    }
+    if (!p_breakpoint->do_print) {
+      (void) printf(" noprint");
+    }
     if (!p_breakpoint->is_enabled) {
       (void) printf(" disabled");
     }
