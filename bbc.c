@@ -500,8 +500,10 @@ bbc_read_callback(void* p,
   case (k_addr_master_floppy + 4):
     if (p_bbc->is_master) {
       if (addr & 0x4) {
-        /* TODO: work out if this is readable on Master or not. */
-        util_bail("FDC CR read");
+        /* TODO: testing in Aug 2023 on Tom's Master revealed that reading this
+         * actually exposes the last byte read by the 6845!
+         */
+        ret = 0;
         break;
       }
       ret = wd_fdc_read(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7));
