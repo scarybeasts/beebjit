@@ -1138,14 +1138,10 @@ video_timer_fired(void* p) {
       p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
       video_update_VSYNC(p_video, ticks);
     } else if (timer_fire_mode == k_video_timer_jump_to_vsync_lower) {
-      int can_use_full_frame_skip = 0;
-      if ((p_video->via_ca1_irq_level == 0) && !p_video->is_interlace) {
-        can_use_full_frame_skip = 1;
-      }
       crtc_ticks = video_jump_to_vsync_end(p_video);
-      if (can_use_full_frame_skip) {
-        p_video->timer_fire_mode = k_video_timer_jump_full_frame;
+      if (p_video->via_ca1_irq_level == 0) {
         crtc_ticks = p_video->frame_crtc_ticks;
+        p_video->timer_fire_mode = k_video_timer_jump_full_frame;
       } else {
         p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
       }
@@ -1153,27 +1149,23 @@ video_timer_fired(void* p) {
     } else {
       uint32_t vsync_ticks;
       assert(p_video->timer_fire_mode == k_video_timer_jump_full_frame);
-      assert(p_video->horiz_counter == 0);
-      assert(!p_video->in_vsync);
 
-      p_video->is_odd_frame = (p_video->crtc_frames & 1);
-      p_video->crtc_frames++;
-
-      /* Actions we skipped from VSYNC raise. */
-      p_video->num_vsyncs++;
-      if (p_video->p_system_via != NULL) {
-        via_set_CA1(p_video->p_system_via, 1);
-      }
-
-      /* Force video_update_VSYNC() to do a high->low transition. */
-      p_video->in_vsync = 1;
-      crtc_ticks = p_video->frame_crtc_ticks;
+      (void) video_jump_to_vsync_start(p_video);
       video_update_VSYNC(p_video, ticks);
+      (void) video_jump_to_vsync_end(p_video);
+      assert(p_video->in_vsync == 1);
+      video_update_VSYNC(p_video, ticks);
+      assert(p_video->in_vsync == 0);
 
+      /* We're jumping full frames, vsync end -> vsync end. So we have to fix
+       * up the ticks at which vsync start will have occurred.
+       */
       vsync_ticks = (p_video->crtc_registers[k_crtc_reg_horiz_total] + 1);
       vsync_ticks *= p_video->vsync_pulse_width;
       vsync_ticks <<= p_video->clock_tick_shift;
       p_video->last_vsync_raise_ticks = (ticks - vsync_ticks);
+
+      crtc_ticks = p_video->frame_crtc_ticks;
     }
 
     p_video->prev_system_ticks = ticks;

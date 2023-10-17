@@ -703,51 +703,62 @@ video_test_inactive_rendering() {
   num_crtc_advances = g_p_video->num_crtc_advances;
   test_expect_u32((k_ticks_mode7_per_scanline * 2), video_test_get_timer());
 
-  /* Full frame of inactive rendering, leaving us at VSYNC raise. */
+  /* Get to VSYNC lower. */
+  countdown =
+      timing_advance_time(g_p_timing,
+                          (countdown - (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(4, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+
+  /* Full frame of inactive rendering, leaving us at VSYNC lower. */
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
   test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(4, g_p_video->scanline_counter);
   test_expect_u32(1, g_p_video->is_odd_frame);
-  test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(1, g_p_video->is_odd_vsync);
-  test_expect_u32(0, g_p_video->is_even_vsync);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_odd_vsync);
+  test_expect_u32(1, g_p_video->is_even_vsync);
   test_expect_u32(1, g_p_video->had_odd_vsync_this_row);
-  test_expect_u32(0, g_p_video->had_even_vsync_this_row);
+  test_expect_u32(1, g_p_video->had_even_vsync_this_row);
   test_expect_u32(-1, render_get_vert_pos(g_p_render));
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(2, g_p_video->num_vsyncs);
   test_expect_u32(2, g_p_video->crtc_frames);
   test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
-  test_expect_u32((k_ticks_mode7_per_scanline * 2), video_test_get_timer());
+  test_expect_u32(k_ticks_mode7_per_frame, video_test_get_timer());
 
   g_p_video->is_wall_time_vsync_hit = 1;
 
-  /* Rendering will go active in a couple of scanlines, at VSYNC lower.
-   * We'll then advance to the VSYNC raise, whereon rendering withh go
-   * inactive again.
-   */
+  /* Rendering will go active in a frame, at next VSYNC lower. */
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
-  test_expect_u32(32, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->is_odd_frame);
-  test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(-1, render_get_vert_pos(g_p_render));
-  test_expect_u32(3, g_p_video->num_vsyncs);
-  test_expect_u32(3, g_p_video->crtc_frames);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(4, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+
+  test_expect_u32(1, g_p_video->is_rendering_active);
+  test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
+  test_expect_u32(3, render_get_vert_pos(g_p_render));
+  test_expect_u32(k_ticks_mode7_per_frame, video_test_get_timer());
+
+  /* A frame later, rendering should be inactive again. */
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_per_frame));
+  test_expect_u32(1, g_p_video->is_odd_frame);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(4, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(4, g_p_video->num_vsyncs);
+  test_expect_u32(4, g_p_video->crtc_frames);
   test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
 
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
 
-  /* Bounce back to inactive rendering. */
-  countdown = timing_advance_time(g_p_timing,
-                                  (countdown - k_ticks_mode7_per_frame));
-  test_expect_u32(0, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->scanline_counter);
-  test_expect_u32(1, g_p_video->is_odd_frame);
-  test_expect_u32(1, g_p_video->in_vsync);
-  test_expect_u32(0, g_p_video->is_rendering_active);
   num_crtc_advances = g_p_video->num_crtc_advances;
 
   /* Make sure non-timing-changing ULA / CRTC writes work as expected. */
@@ -761,9 +772,7 @@ video_test_inactive_rendering() {
   video_crtc_write(g_p_video, 1, 0x0B);
 
   test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
-  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 40),
-                  video_test_get_timer());
-  test_expect_u32(k_video_timer_jump_to_vsync_lower,
+  test_expect_u32(k_video_timer_jump_to_vsync_raise,
                   g_p_video->timer_fire_mode);
 
   /* Make a change that messes with framing and timing. */
