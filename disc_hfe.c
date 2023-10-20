@@ -251,7 +251,10 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   }
   if ((p_file_buf[11] != 2) && (p_file_buf[11] != 0)) {
     if (p_file_buf[11] == 0xFF) {
-      log_do_log(k_log_disc, k_log_warning, "unknown encoding, trying anyway");
+      log_do_log(k_log_disc,
+                 k_log_warning,
+                 "unknown encoding %d, trying anyway",
+                 p_file_buf[11]);
     } else {
       util_bail("hfe encoding not ISOIBM_(M)FM_ENCODING: %d",
                 (int) p_file_buf[11]);
@@ -273,6 +276,13 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
     expand_multiplier = 2;
     log_do_log(k_log_disc, k_log_info, "HFE: expanding 40 to 80");
   }
+
+  log_do_log(k_log_disc,
+             k_log_info,
+             "HFE: v%d loading %d sides, %d tracks",
+             p_metadata[k_hfe_format_metadata_offset_version],
+             num_sides,
+             hfe_tracks);
 
   lut_offset = (p_file_buf[18] + (p_file_buf[19] << 8));
   lut_offset *= 512;
