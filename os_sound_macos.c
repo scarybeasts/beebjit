@@ -70,9 +70,34 @@ audio_callback(void* p, AudioQueueRef queue, AudioQueueBufferRef buffer) {
 }
 
 uint32_t
+os_sound_get_default_sample_rate(void) {
+  return 48000;
+}
+
+uint32_t
 os_sound_get_default_buffer_size(void) {
   /* Match the other platforms. */
   return 2048;
+}
+
+uint32_t
+os_sound_get_default_num_periods(void) {
+  /* This is reduced from 4, on account of some apparent macOS regression that
+   * causes audio dropouts. This has persisted for multiple macOS versions on
+   * my MacBook Air, including the current macOS 14.
+   * It seems to be related to macOS stream resampling. The default system
+   * sample rate (in "Audio MIDI Setup") is 44100. When fed a stream of
+   * rate 48000, the dropouts would manifest (with buffer 2048, 4 periods).
+   * The issue is fixed by changing the system sample rate to 48000, but that
+   * is unsatisfactory as we want beebjit to run well in default configurations.
+   * The issue is also fixed by changing the beebjit rate down to 44100, but
+   * that is also unsatisfactory as the lower rate cannot play dizzy.ssd without
+   * some ringing distortion.
+   * The solution that appears to solve for everything is to use 2 sound
+   * periods. In my testing, my MacBook Air keeps up when playing games without
+   * any dropouts.
+   */
+  return 2;
 }
 
 struct os_sound_struct*

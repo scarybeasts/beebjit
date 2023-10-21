@@ -12,12 +12,24 @@
  */
 enum {
   k_os_sound_max_period = 16,
+  k_os_sound_default_sample_rate = 48000,
   k_os_sound_default_buffer_size = 2048,
+  k_os_sound_default_num_periods = 4,
 };
+
+uint32_t
+os_sound_get_default_sample_rate(void) {
+  return k_os_sound_default_sample_rate;
+}
 
 uint32_t
 os_sound_get_default_buffer_size(void) {
   return k_os_sound_default_buffer_size;
+}
+
+uint32_t
+os_sound_get_default_num_periods(void) {
+  return k_os_sound_default_num_periods;
 }
 
 struct os_sound_struct {

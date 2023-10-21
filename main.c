@@ -30,8 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const uint32_t k_sound_default_rate = 48000;
-static const uint32_t k_sound_default_num_periods = 4;
 enum {
   k_max_discs_per_drive = 4,
   k_max_tapes = 4,
@@ -651,9 +649,9 @@ beebjit_main(void) {
   if (!headless_flag && !util_has_option(p_opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
-    uint32_t sound_sample_rate = k_sound_default_rate;
+    uint32_t sound_sample_rate = os_sound_get_default_sample_rate();
     uint32_t sound_buffer_size = os_sound_get_default_buffer_size();
-    uint32_t num_periods = k_sound_default_num_periods;
+    uint32_t num_periods = os_sound_get_default_num_periods();
     (void) util_get_u32_option(&sound_sample_rate, p_opt_flags, "sound:rate=");
     (void) util_get_u32_option(&sound_buffer_size,
                                p_opt_flags,

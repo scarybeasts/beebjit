@@ -3,7 +3,19 @@
 #include "util.h"
 
 uint32_t
+os_sound_get_default_sample_rate(void) {
+  util_bail("headless");
+  return 0;
+}
+
+uint32_t
 os_sound_get_default_buffer_size(void) {
+  util_bail("headless");
+  return 0;
+}
+
+uint32_t
+os_sound_get_default_num_periods(void) {
   util_bail("headless");
   return 0;
 }

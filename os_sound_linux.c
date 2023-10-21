@@ -16,7 +16,9 @@ static const char* k_os_sound_default_device = "default";
  * laptop mostly. 2048 is still much better than e.g. jsbeeb, b-em, but has
  * some headroom for even slower devices.
  */
+static uint32_t k_os_sound_default_sample_rate = 48000;
 static uint32_t k_os_sound_default_buffer_size = 2048;
+static uint32_t k_os_sound_default_num_periods = 4;
 
 struct os_sound_struct {
   char* p_device_name;
@@ -29,8 +31,18 @@ struct os_sound_struct {
 };
 
 uint32_t
+os_sound_get_default_sample_rate(void) {
+  return k_os_sound_default_sample_rate;
+}
+
+uint32_t
 os_sound_get_default_buffer_size(void) {
   return k_os_sound_default_buffer_size;
+}
+
+uint32_t
+os_sound_get_default_num_periods(void) {
+  return k_os_sound_default_num_periods;
 }
 
 struct os_sound_struct*
