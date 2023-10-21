@@ -216,6 +216,8 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   uint8_t* p_metadata;
 
   struct util_file* p_file = disc_get_file(p_disc);
+  int is_skip_upper_side = disc_is_skip_upper_side(p_disc);
+  int is_skip_odd_tracks = disc_is_skip_odd_tracks(p_disc);
   uint32_t num_sides = 1;
   int is_v3 = 0;
   uint32_t expand_multiplier = 1;
@@ -244,7 +246,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
     is_v3 = 1;
     p_metadata[k_hfe_format_metadata_offset_version] = 3;
   } else {
-    util_bail("hfe file incorrect header");
+    util_bail("HFE file incorrect header");
   }
   if (p_file_buf[8] != '\0') {
     util_bail("hfe file revision not 0");
@@ -253,10 +255,10 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
     if (p_file_buf[11] == 0xFF) {
       log_do_log(k_log_disc,
                  k_log_warning,
-                 "unknown encoding %d, trying anyway",
+                 "unknown HFE encoding %d, trying anyway",
                  p_file_buf[11]);
     } else {
-      util_bail("hfe encoding not ISOIBM_(M)FM_ENCODING: %d",
+      util_bail("HFE encoding not ISOIBM_(M)FM_ENCODING: %d",
                 (int) p_file_buf[11]);
     }
   }
@@ -299,6 +301,15 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
     uint8_t* p_track_data;
     uint32_t i_byte;
     uint32_t i_side;
+    uint32_t actual_track = i_track;
+
+    if (is_skip_odd_tracks) {
+      if (i_track & 1) {
+        continue;
+      }
+      actual_track /= 2;
+    }
+    actual_track *= expand_multiplier;
 
     disc_hfe_get_track_offset_and_length(p_disc,
                                          &hfe_track_offset,
@@ -326,9 +337,11 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
       uint32_t shift_counter = 0;
       uint32_t pulses = 0;
 
-      p_pulses = disc_get_raw_pulses_buffer(p_disc,
-                                            i_side,
-                                            (i_track * expand_multiplier));
+      if (is_skip_upper_side && (i_side == 1)) {
+        continue;
+      }
+
+      p_pulses = disc_get_raw_pulses_buffer(p_disc, i_side, actual_track);
 
       for (i_byte = 0; i_byte < buf_len; ++i_byte) {
         uint32_t i;
@@ -420,10 +433,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
           shift_counter = 0;
         }
       }
-      disc_set_track_length(p_disc,
-                            i_side,
-                            (i_track * expand_multiplier),
-                            bytes_written);
+      disc_set_track_length(p_disc, i_side, actual_track, bytes_written);
     }
   }
 

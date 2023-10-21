@@ -31,6 +31,9 @@ void disc_destroy(struct disc_struct* p_disc);
 
 int disc_is_double_sided(struct disc_struct* p_disc);
 uint32_t disc_get_num_tracks_used(struct disc_struct* p_disc);
+int disc_is_skip_upper_side(struct disc_struct* p_disc);
+int disc_is_skip_odd_tracks(struct disc_struct* p_disc);
+uint32_t disc_get_required_rev(struct disc_struct* p_disc);
 
 const char* disc_get_file_name(struct disc_struct* p_disc);
 struct util_file* disc_get_file(struct disc_struct* p_disc);

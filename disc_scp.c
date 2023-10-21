@@ -26,6 +26,9 @@ disc_scp_load(struct disc_struct* p_disc) {
   int is_one_side_only = 0;
 
   struct util_file* p_file = disc_get_file(p_disc);
+  int is_skip_upper_side = disc_is_skip_upper_side(p_disc);
+  int is_skip_odd_tracks = disc_is_skip_odd_tracks(p_disc);
+  uint32_t rev = disc_get_required_rev(p_disc);
 
   assert(p_file != NULL);
 
@@ -118,6 +121,17 @@ disc_scp_load(struct disc_struct* p_disc) {
     if (actual_track >= k_ibm_disc_tracks_per_disc) {
       util_bail("SCP excessive tracks");
     }
+
+    if (is_skip_upper_side && (side == 1)) {
+      continue;
+    }
+    if (is_skip_odd_tracks) {
+      if (actual_track & 1) {
+        continue;
+      }
+      actual_track /= 2;
+    }
+
     util_file_seek(p_file, track_offset);
     len = util_file_read(p_file, &chunk[0], 4);
     if (len != 4) {
@@ -133,6 +147,10 @@ disc_scp_load(struct disc_struct* p_disc) {
     for (i_revs = 0; i_revs < num_revs; ++i_revs) {
       uint32_t i_data;
       uint32_t num_pulses;
+
+      if (i_revs != rev) {
+        continue;
+      }
 
       util_file_seek(p_file, (track_offset + 4 + (i_revs * 12)));
       len = util_file_read(p_file, &chunk[0], 12);

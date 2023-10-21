@@ -464,6 +464,22 @@ disc_get_num_tracks_used(struct disc_struct* p_disc) {
   return p_disc->tracks_used;
 }
 
+int
+disc_is_skip_upper_side(struct disc_struct* p_disc) {
+  return p_disc->is_skip_upper_side;
+}
+
+
+int
+disc_is_skip_odd_tracks(struct disc_struct* p_disc) {
+  return p_disc->is_skip_odd_tracks;
+}
+
+uint32_t
+disc_get_required_rev(struct disc_struct* p_disc) {
+  return p_disc->rev;
+}
+
 void
 disc_write_pulses(struct disc_struct* p_disc,
                   int is_side_upper,
@@ -773,18 +789,7 @@ disc_build_track_from_pulses(struct disc_struct* p_disc,
   uint32_t i_pulses;
   int did_truncation_warning;
 
-  if (p_disc->rev != rev) {
-    return;
-  }
-  if (p_disc->is_skip_upper_side && is_side_upper) {
-    return;
-  }
-  if (p_disc->is_skip_odd_tracks) {
-    if (track & 1) {
-      return;
-    }
-    track /= 2;
-  }
+  (void) rev;
 
   disc_build_track(p_disc, is_side_upper, track);
 
