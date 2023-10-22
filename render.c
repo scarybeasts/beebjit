@@ -62,6 +62,8 @@ struct render_struct {
   render_func_t p_selected_render_func;
   int is_clock_2MHz;
   int chars_per_line;
+  int is_teletext;
+  int needs_render_mode_recalc;
   int32_t horiz_beam_pos;
   int32_t vert_beam_pos;
   int32_t horiz_beam_window_start_pos;
@@ -165,6 +167,9 @@ render_create(struct teletext_struct* p_teletext,
 
   p_render->render_mode = k_render_mode0;
   p_render->is_clock_2MHz = 1;
+  p_render->chars_per_line= 3;
+  p_render->is_teletext = 0;
+  p_render->needs_render_mode_recalc = 1;
 
   p_render->cursor_segment_index = -1;
 
@@ -892,81 +897,9 @@ render_set_mode(struct render_struct* p_render,
 
   p_render->is_clock_2MHz = clock_speed;
   p_render->chars_per_line = chars_per_line;
+  p_render->is_teletext = is_teletext;
 
-  if (is_teletext) {
-    /* For teletext rendeing, we use the same function for data or blank,
-     * because the teletext display chain does its own display enable handling.
-     */
-    if (p_render->do_deinterlace_teletext) {
-      p_render->p_render_func = render_function_teletext_deinterlaced;
-      p_render->p_render_blank_func = NULL;
-    } else {
-      p_render->p_render_func = render_function_teletext_interlaced;
-      p_render->p_render_blank_func = NULL;
-    }
-    p_render->render_mode = k_render_mode7;
-  } else {
-    if (clock_speed == 1) {
-      /* 2MHz. */
-      if (p_render->do_deinterlace_bitmap) {
-        p_render->p_render_func = render_function_2MHz_data_deinterlaced;
-        p_render->p_render_blank_func = render_function_2MHz_blank_deinterlaced;
-      } else {
-        p_render->p_render_func = render_function_2MHz_data_interlaced;
-        p_render->p_render_blank_func = render_function_2MHz_blank_interlaced;
-      }
-      switch (chars_per_line) {
-      case 1:
-        p_render->render_mode = k_render_mode2;
-        break;
-      case 2:
-        p_render->render_mode = k_render_mode1;
-        break;
-      case 3:
-        p_render->render_mode = k_render_mode0;
-        break;
-      default:
-        p_render->render_mode = k_render_mode0;
-        break;
-      }
-    } else {
-      /* 1MHz. */
-      if (p_render->do_deinterlace_bitmap) {
-        p_render->p_render_func = render_function_1MHz_data_deinterlaced;
-        p_render->p_render_blank_func = render_function_1MHz_blank_deinterlaced;
-      } else {
-        p_render->p_render_func = render_function_1MHz_data_interlaced;
-        p_render->p_render_blank_func = render_function_1MHz_blank_interlaced;
-      }
-      switch (chars_per_line) {
-      case 0:
-        p_render->render_mode = k_render_mode8;
-        break;
-      case 1:
-        p_render->render_mode = k_render_mode5;
-        break;
-      case 2:
-        p_render->render_mode = k_render_mode4;
-        break;
-      default:
-        /* EMU NOTE: not clear what to render here. Probably anything will do
-         * for now because it's not a defined mode.
-         * This condition can occur in practice, for example half-way through
-         * mode switches.
-         * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
-         */
-        p_render->render_mode = k_render_mode4;
-        break;
-      }
-    }
-  }
-
-  render_select_render_func(p_render);
-
-  /* Changing 1MHz <-> 2MHz changes the size of the pixel blocks we write, and
-   * therefore the bounds.
-   */
-  render_reset_render_pos(p_render);
+  p_render->needs_render_mode_recalc = 1;
 }
 
 void
@@ -1002,8 +935,91 @@ render_set_RA(struct render_struct* p_render, uint32_t row_address) {
   render_select_render_func(p_render);
 }
 
+static void
+render_check_mode_recalc(struct render_struct* p_render) {
+  if (!p_render->needs_render_mode_recalc) {
+    return;
+  }
+
+  if (p_render->is_teletext) {
+    /* For teletext rendeing, we use the same function for data or blank,
+     * because the teletext display chain does its own display enable handling.
+     */
+    if (p_render->do_deinterlace_teletext) {
+      p_render->p_render_func = render_function_teletext_deinterlaced;
+      p_render->p_render_blank_func = NULL;
+    } else {
+      p_render->p_render_func = render_function_teletext_interlaced;
+      p_render->p_render_blank_func = NULL;
+    }
+    p_render->render_mode = k_render_mode7;
+  } else {
+    if (p_render->is_clock_2MHz == 1) {
+      /* 2MHz. */
+      if (p_render->do_deinterlace_bitmap) {
+        p_render->p_render_func = render_function_2MHz_data_deinterlaced;
+        p_render->p_render_blank_func = render_function_2MHz_blank_deinterlaced;
+      } else {
+        p_render->p_render_func = render_function_2MHz_data_interlaced;
+        p_render->p_render_blank_func = render_function_2MHz_blank_interlaced;
+      }
+      switch (p_render->chars_per_line) {
+      case 1:
+        p_render->render_mode = k_render_mode2;
+        break;
+      case 2:
+        p_render->render_mode = k_render_mode1;
+        break;
+      case 3:
+        p_render->render_mode = k_render_mode0;
+        break;
+      default:
+        p_render->render_mode = k_render_mode0;
+        break;
+      }
+    } else {
+      /* 1MHz. */
+      if (p_render->do_deinterlace_bitmap) {
+        p_render->p_render_func = render_function_1MHz_data_deinterlaced;
+        p_render->p_render_blank_func = render_function_1MHz_blank_deinterlaced;
+      } else {
+        p_render->p_render_func = render_function_1MHz_data_interlaced;
+        p_render->p_render_blank_func = render_function_1MHz_blank_interlaced;
+      }
+      switch (p_render->chars_per_line) {
+      case 0:
+        p_render->render_mode = k_render_mode8;
+        break;
+      case 1:
+        p_render->render_mode = k_render_mode5;
+        break;
+      case 2:
+        p_render->render_mode = k_render_mode4;
+        break;
+      default:
+        /* EMU NOTE: not clear what to render here. Probably anything will do
+         * for now because it's not a defined mode.
+         * This condition can occur in practice, for example half-way through
+         * mode switches.
+         * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
+         */
+        p_render->render_mode = k_render_mode4;
+        break;
+      }
+    }
+  }
+
+  render_select_render_func(p_render);
+
+  /* Changing 1MHz <-> 2MHz changes the size of the pixel blocks we write, and
+   * therefore the bounds.
+   */
+  render_reset_render_pos(p_render);
+}
+
 void
 render_prepare(struct render_struct* p_render) {
+  render_check_mode_recalc(p_render);
   if (p_render->render_mode == k_render_mode7) {
     /* Nothing to do. */
   } else if (p_render->is_clock_2MHz) {
