@@ -69,11 +69,11 @@ os_sound_create(char* p_device_name,
   return p_driver;
 }
 
-void
-os_sound_destroy(struct os_sound_struct* p_driver) {
+static void
+os_sound_destroy_handles(struct os_sound_struct* p_driver) {
   MMRESULT ret;
-  HWAVEOUT handle_wav = p_driver->handle_wav;
   uint32_t i;
+  HWAVEOUT handle_wav = p_driver->handle_wav;
 
   ret = waveOutReset(handle_wav);
   if (ret != MMSYSERR_NOERROR) {
@@ -98,7 +98,13 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
   if (ret != MMSYSERR_NOERROR) {
     util_bail("waveOutClose failed");
   }
+}
 
+void
+os_sound_destroy(struct os_sound_struct* p_driver) {
+  if (p_driver->handle_wav != NULL) {
+    os_sound_destroy_handles(p_driver);
+  }
   util_free(p_driver);
 }
 
