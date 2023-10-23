@@ -1733,7 +1733,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_call_scratch_param:
     ASM_U32(call_scratch_param_load_param1);
     value1 = value2;
+    ASM(call_scratch_param_stack_sub);
     ASM_U32(call_scratch_param_call);
+    ASM(call_scratch_param_stack_add);
     break;
   case k_opcode_carry_invert: ASM(carry_invert); break;
   case k_opcode_check_page_crossing_n:
