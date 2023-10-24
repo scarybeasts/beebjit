@@ -1162,6 +1162,7 @@ bbc_write_callback(void* p,
       switch (addr) {
       case k_addr_tube:
         /* &FEE0: caush crash. */
+        log_do_log(k_log_misc, k_log_error, "CRASHING on crash register");
         *((volatile uint8_t*) 0xdead) = '\x41';
         break;
       case (k_addr_tube + 1):
