@@ -479,9 +479,9 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
     if (p_timing->log_expiries) {
       log_do_log(k_log_perf,
                  k_log_info,
-                 "timer %s (%p) expired at %"PRIu64" ticks",
+                 "timer %s (0x%"PRIx64") expired at %"PRIu64" ticks",
                  p_old_timer->p_name,
-                 p_old_timer,
+                 (uintptr_t) p_old_timer,
                  p_timing->total_timer_ticks);
     }
     p_old_timer->p_callback(p_old_timer->p_object);

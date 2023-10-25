@@ -413,10 +413,10 @@ beebjit_main(void) {
   if (util_has_option(p_log_flags, "os:addrs")) {
     log_do_log(k_log_misc,
                k_log_info,
-               "binary %p stack %p heap %p",
-               beebjit_main,
-               &i_args,
-               p_opt_flags);
+               "binary 0x%"PRIx64" stack 0x%"PRIx64" heap 0x%"PRIx64,
+               (uintptr_t) beebjit_main,
+               (uintptr_t) &i_args,
+               (uintptr_t) p_opt_flags);
   }
 
   (void) memset(os_rom, '\0', k_bbc_rom_size);

@@ -618,10 +618,10 @@ jit_compile(struct jit_struct* p_jit,
     }
     log_do_log(k_log_jit,
                k_log_info,
-               "compile @$%.4X-$%.4X [host %p], %s at ticks %"PRIu64,
+               "compile @$%.4X-$%.4X [host 0x%"PRIx64"], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
-               p_host_pc,
+               (uintptr_t) p_host_pc,
                p_text,
                timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));
   }
@@ -778,10 +778,10 @@ jit_handle_fault(uintptr_t* p_host_pc,
      */
     log_do_log(k_log_jit,
                k_log_info,
-               "JIT faulting at 6502 $%.4X pc %p fault addr %p",
+               "JIT faulting at 6502 $%.4X pc 0x%"PRIx64" fault addr 0x%"PRIx64,
                addr_6502,
-               p_fault_pc,
-               p_fault_addr);
+               (uint64_t) p_fault_pc,
+               (uint64_t) p_fault_addr);
   }
 
   if ((p_jit->counter_num_faults % 10000) == 0) {
