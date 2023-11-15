@@ -36,6 +36,8 @@ uint32_t render_get_width(struct render_struct* p_render);
 uint32_t render_get_height(struct render_struct* p_render);
 uint32_t render_get_buffer_size(struct render_struct* p_render);
 
+int render_is_clock_2MHz(struct render_struct* p_render);
+
 uint32_t render_get_horiz_pos(struct render_struct* p_render);
 uint32_t render_get_vert_pos(struct render_struct* p_render);
 

@@ -236,6 +236,11 @@ render_get_buffer_size(struct render_struct* p_render) {
   return (p_render->width * p_render->height * 4);
 }
 
+int
+render_is_clock_2MHz(struct render_struct* p_render) {
+  return p_render->is_clock_2MHz;
+}
+
 uint32_t
 render_get_horiz_pos(struct render_struct* p_render) {
   return p_render->horiz_beam_pos;

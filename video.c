@@ -194,7 +194,8 @@ video_read_data_byte(struct video_struct* p_video,
                      uint64_t ticks,
                      uint32_t address_counter,
                      uint8_t scanline_counter,
-                     uint32_t screen_wrap_add) {
+                     uint32_t screen_wrap_add,
+                     int is_render_2MHz) {
   uint32_t address;
 
   /* If MA13 set => MODE7 style addressing. */
@@ -209,7 +210,7 @@ video_read_data_byte(struct video_struct* p_video,
      * CRTC clock, a quirk of the memory refresh system is revealed. The
      * memory fetch address bit MA6 is xor'ed with the 1MHz clock.
      */
-    if (ticks & 1) {
+    if (is_render_2MHz == 1 && !(ticks & 1)) {
       address ^= 64;
     }
   } else {
@@ -706,7 +707,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                   ticks,
                                   address_counter,
                                   p_video->scanline_counter,
-                                  p_video->screen_wrap_add);
+                                  p_video->screen_wrap_add,
+                                  render_is_clock_2MHz(p_render));
       render_render(p_render, data, address_counter, ticks);
     }
 
@@ -1788,7 +1790,8 @@ video_render_full_frame(struct video_struct* p_video) {
                                     0,
                                     crtc_line_address,
                                     i_lines,
-                                    screen_wrap_add);
+                                    screen_wrap_add,
+                                    render_is_clock_2MHz(p_render));
         render_render(p_render, data, crtc_line_address, 0);
         crtc_line_address++;
       }
