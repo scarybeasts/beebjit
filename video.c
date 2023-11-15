@@ -209,8 +209,12 @@ video_read_data_byte(struct video_struct* p_video,
     /* In the corner-case combination of MODE7 style addressing, plus a 2MHz
      * CRTC clock, a quirk of the memory refresh system is revealed. The
      * memory fetch address bit MA6 is xor'ed with the 1MHz clock.
+     * Testing on a BBC Master reveals that this xor of bit 6 should happen on
+     * 'even' ticks which is why the '(ticks & 1)' check is inverted.
+     * This could possibly be simplified (no need for the is_render_2MHz check)
+     * but would require substantial refactoring of the code that deals with crtc ticks.
      */
-    if (is_render_2MHz == 1 && !(ticks & 1)) {
+    if ((is_render_2MHz == 1) && !(ticks & 1)) {
       address ^= 64;
     }
   } else {
