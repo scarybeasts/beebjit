@@ -194,7 +194,8 @@ video_read_data_byte(struct video_struct* p_video,
                      uint64_t ticks,
                      uint32_t address_counter,
                      uint8_t scanline_counter,
-                     uint32_t screen_wrap_add) {
+                     uint32_t screen_wrap_add,
+                     int is_teletext) {
   uint32_t address;
 
   /* If MA13 set => MODE7 style addressing. */
@@ -208,8 +209,11 @@ video_read_data_byte(struct video_struct* p_video,
     /* In the corner-case combination of MODE7 style addressing, plus a 2MHz
      * CRTC clock, a quirk of the memory refresh system is revealed. The
      * memory fetch address bit MA6 is xor'ed with the 1MHz clock.
+     * Testing LinearTTX.ssd on a BBC Master indicates the xor of bit 6
+     * should happen on 'even' ticks, which is why the '(ticks & 1)'
+     * check is inverted.
      */
-    if (ticks & 1) {
+    if (!is_teletext && !(ticks & 1)) {
       address ^= 64;
     }
   } else {
@@ -636,6 +640,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->is_rendering_active) {
       uint16_t address_counter = p_video->address_counter;
+      int is_teletext = (p_video->video_ula_control & k_ula_teletext);
 
       if (r1_hit || r0_hit) {
         p_video->display_enable_bits &= ~k_video_display_enable_horiz;
@@ -706,7 +711,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                   ticks,
                                   address_counter,
                                   p_video->scanline_counter,
-                                  p_video->screen_wrap_add);
+                                  p_video->screen_wrap_add,
+                                  is_teletext);
       render_render(p_render, data, address_counter, ticks);
     }
 
@@ -1788,7 +1794,8 @@ video_render_full_frame(struct video_struct* p_video) {
                                     0,
                                     crtc_line_address,
                                     i_lines,
-                                    screen_wrap_add);
+                                    screen_wrap_add,
+                                    is_teletext);
         render_render(p_render, data, crtc_line_address, 0);
         crtc_line_address++;
       }
