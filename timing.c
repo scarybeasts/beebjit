@@ -481,7 +481,7 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
                  k_log_info,
                  "timer %s (0x%"PRIx64") expired at %"PRIu64" ticks",
                  p_old_timer->p_name,
-                 (uintptr_t) p_old_timer,
+                 (uint64_t) p_old_timer,
                  p_timing->total_timer_ticks);
     }
     p_old_timer->p_callback(p_old_timer->p_object);

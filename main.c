@@ -414,9 +414,9 @@ beebjit_main(void) {
     log_do_log(k_log_misc,
                k_log_info,
                "binary 0x%"PRIx64" stack 0x%"PRIx64" heap 0x%"PRIx64,
-               (uintptr_t) beebjit_main,
-               (uintptr_t) &i_args,
-               (uintptr_t) p_opt_flags);
+               (uint64_t) beebjit_main,
+               (uint64_t) &i_args,
+               (uint64_t) p_opt_flags);
   }
 
   (void) memset(os_rom, '\0', k_bbc_rom_size);

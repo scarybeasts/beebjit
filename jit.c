@@ -621,7 +621,7 @@ jit_compile(struct jit_struct* p_jit,
                "compile @$%.4X-$%.4X [host 0x%"PRIx64"], %s at ticks %"PRIu64,
                addr_6502,
                addr_6502_end,
-               (uintptr_t) p_host_pc,
+               (uint64_t) p_host_pc,
                p_text,
                timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));
   }
