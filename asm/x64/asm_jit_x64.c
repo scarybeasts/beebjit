@@ -1232,19 +1232,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_nz_flags_uop->is_merged = 1;
     p_nz_flags_uop->is_eliminated = 1;
     break;
-  case k_opcode_ROL_value:
-  case k_opcode_ROR_value:
-    assert(p_mode_uop != NULL);
-    if (p_mode_uop->uopcode != k_opcode_addr_set) {
-      /* The non-simple ROL / ROR read-modify-writes do built in flag saving. */
-      assert(p_save_carry_uop != NULL);
-      assert(p_nz_flags_uop != NULL);
-      p_save_carry_uop->is_eliminated = 1;
-      p_save_carry_uop->is_merged = 1;
-      p_nz_flags_uop->is_eliminated = 1;
-      p_nz_flags_uop->is_merged = 1;
-    }
-    break;
   default:
     break;
   }
@@ -1590,6 +1577,25 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     break;
   default:
     assert(0);
+    break;
+  }
+
+  uopcode = p_main_uop->uopcode;
+  switch (uopcode) {
+  case k_opcode_ROL_value:
+  case k_opcode_ROR_value:
+    assert(p_mode_uop != NULL);
+    assert(p_save_carry_uop != NULL);
+    assert(p_nz_flags_uop != NULL);
+    if (p_main_uop->backend_tag == 0) {
+      /* The ROL / ROR read-modify-writes do built in flag saving. */
+      p_save_carry_uop->is_eliminated = 1;
+      p_save_carry_uop->is_merged = 1;
+      p_nz_flags_uop->is_eliminated = 1;
+      p_nz_flags_uop->is_merged = 1;
+    }
+    break;
+  default:
     break;
   }
 

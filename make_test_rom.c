@@ -2798,8 +2798,21 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x0142);
   emit_JMP(p_buf, k_abs, 0x011F);
 
-  /* End of test. */
+  /* Test ROR abs in swram. */
   set_new_index(p_buf, 0x27C0);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in swram. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0x8888);
+  emit_CLC(p_buf);
+  emit_ROR(p_buf, k_abs, 0x8888);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x0C);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
+  emit_JMP(p_buf, k_abs, 0xE800);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2800);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
