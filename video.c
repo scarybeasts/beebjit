@@ -209,8 +209,9 @@ video_read_data_byte(struct video_struct* p_video,
     /* In the corner-case combination of MODE7 style addressing, plus a 2MHz
      * CRTC clock, a quirk of the memory refresh system is revealed. The
      * memory fetch address bit MA6 is xor'ed with the 1MHz clock.
-     * Testing LinearTTX.ssd on a BBC Master reveals that this xor of bit 6 should
-     * happen on 'even' ticks which is why the '(ticks & 1)' check is inverted.
+     * Testing LinearTTX.ssd on a BBC Master indicates the xor of bit 6
+     * should happen on 'even' ticks, which is why the '(ticks & 1)'
+     * check is inverted.
      */
     if (!is_teletext && !(ticks & 1)) {
       address ^= 64;
@@ -639,6 +640,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->is_rendering_active) {
       uint16_t address_counter = p_video->address_counter;
+      int is_teletext = (p_video->video_ula_control & k_ula_teletext);
 
       if (r1_hit || r0_hit) {
         p_video->display_enable_bits &= ~k_video_display_enable_horiz;
@@ -704,8 +706,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           }
         }
       }
-
-      int is_teletext = (p_video->video_ula_control & k_ula_teletext);
 
       data = video_read_data_byte(p_video,
                                   ticks,
