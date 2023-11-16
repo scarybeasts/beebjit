@@ -413,6 +413,26 @@ ASM_SYM(asm_inturbo_fetch_from_scratch_END):
   ret
 
 
+.globl ASM_SYM(asm_inturbo_JSR_load_pc_lo)
+.globl ASM_SYM(asm_inturbo_JSR_load_pc_lo_END)
+ASM_SYM(asm_inturbo_JSR_load_pc_lo):
+  ldrb REG_INTURBO_SCRATCH3_32, [REG_6502_PC, #1]
+
+ASM_SYM(asm_inturbo_JSR_load_pc_lo_END):
+  ret
+
+
+.globl ASM_SYM(asm_inturbo_JSR_load_pc_hi)
+.globl ASM_SYM(asm_inturbo_JSR_load_pc_hi_END)
+ASM_SYM(asm_inturbo_JSR_load_pc_hi):
+  ldrb REG_SCRATCH1_32, [REG_6502_PC, #2]
+  lsl REG_SCRATCH1, REG_SCRATCH1, #8
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_INTURBO_SCRATCH3
+
+ASM_SYM(asm_inturbo_JSR_load_pc_hi_END):
+  ret
+
+
 .globl ASM_SYM(asm_inturbo_push_pc)
 .globl ASM_SYM(asm_inturbo_push_pc_END)
 ASM_SYM(asm_inturbo_push_pc):
