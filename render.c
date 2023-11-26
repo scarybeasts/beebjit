@@ -37,6 +37,7 @@ struct render_struct {
 
   struct teletext_struct* p_teletext;
 
+  uint8_t logical_to_physical_color[16];
   uint32_t palette[16];
   uint32_t render_tables_built;
   struct render_table_2MHz render_table_mode0;
@@ -63,6 +64,7 @@ struct render_struct {
   int is_clock_2MHz;
   int chars_per_line;
   int is_teletext;
+  int is_flash;
   int needs_render_mode_recalc;
   int32_t horiz_beam_pos;
   int32_t vert_beam_pos;
@@ -201,6 +203,28 @@ render_destroy(struct render_struct* p_render) {
     util_free(p_render->p_buffer);
   }
   util_free(p_render);
+}
+
+void
+render_power_on_reset(struct render_struct* p_render) {
+  uint32_t i;
+
+  for (i = 0; i < 16; ++i) {
+    render_set_physical_color(p_render, i, 0);
+  }
+
+  /* Default displayed colors. */
+  p_render->palette[0] = 0xff000000;
+  p_render->palette[1] = 0xffff0000;
+  p_render->palette[2] = 0xff00ff00;
+  p_render->palette[3] = 0xffffff00;
+  p_render->palette[4] = 0xff0000ff;
+  p_render->palette[5] = 0xffff00ff;
+  p_render->palette[6] = 0xff00ffff;
+  p_render->palette[7] = 0xffffffff;
+  for (i = 8; i < 16; ++i) {
+    p_render->palette[i] = 0;
+  }
 }
 
 void
@@ -707,6 +731,30 @@ render_function_2MHz_blank_interlaced(struct render_struct* p_render,
   }
 }
 
+static uint32_t
+render_get_display_color(struct render_struct* p_render, uint8_t bits) {
+  uint32_t pixel;
+  uint8_t physical_color = p_render->logical_to_physical_color[bits];
+  physical_color ^= 0x7;
+  pixel = p_render->palette[physical_color];
+  if (physical_color & 0x8) {
+    if (pixel == 0) {
+      /* Only flash the color if we don't have a NuLA palette override. This
+       * is approximately how NuLA works. Note that it is possible to have
+       * flashing with NuLA colors, but that requires a write to the NuLA
+       * control register which is not implemented.
+       */
+      physical_color &= 0x7;
+      if (p_render->is_flash) {
+        physical_color ^= 0x7;
+      }
+      pixel = p_render->palette[physical_color];
+    }
+  }
+
+  return pixel;
+}
+
 static void
 render_generate_1MHz_table(struct render_struct* p_render,
                            struct render_table_1MHz* p_table,
@@ -727,7 +775,7 @@ render_generate_1MHz_table(struct render_struct* p_render,
                          ((shift_register & 0x08) >> 2) |
                          ((shift_register & 0x20) >> 3) |
                          ((shift_register & 0x80) >> 4));
-        pixel_value = p_render->palette[palette_index];
+        pixel_value = render_get_display_color(p_render, palette_index);
         shift_register <<= 1;
         shift_register |= 1;
       }
@@ -756,7 +804,7 @@ render_generate_2MHz_table(struct render_struct* p_render,
                          ((shift_register & 0x08) >> 2) |
                          ((shift_register & 0x20) >> 3) |
                          ((shift_register & 0x80) >> 4));
-        pixel_value = p_render->palette[palette_index];
+        pixel_value = render_get_display_color(p_render, palette_index);
         shift_register <<= 1;
         shift_register |= 1;
       }
@@ -900,6 +948,33 @@ render_set_mode(struct render_struct* p_render,
   p_render->is_teletext = is_teletext;
 
   p_render->needs_render_mode_recalc = 1;
+}
+
+void
+render_set_flash(struct render_struct* p_render, int is_flash) {
+  uint32_t i;
+
+  if (p_render->is_flash == is_flash) {
+    return;
+  }
+
+  for (i = 0; i < 16; ++i) {
+    uint8_t color = p_render->logical_to_physical_color[i];
+    if (color & 0x8) {
+      p_render->render_tables_built = 0;
+      break;
+    }
+  }
+
+  p_render->is_flash = is_flash;
+}
+
+void
+render_set_physical_color(struct render_struct* p_render,
+                          uint8_t logical_color,
+                          uint8_t physical_color) {
+  p_render->logical_to_physical_color[logical_color] = physical_color;
+  p_render->render_tables_built = 0;
 }
 
 void

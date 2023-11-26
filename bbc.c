@@ -152,6 +152,7 @@ struct bbc_struct {
   int is_extended_rom_addressing;
   int is_wd_fdc;
   int is_wd_1772;
+  int is_nula;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -1035,7 +1036,7 @@ bbc_write_callback(void* p,
   case (k_addr_video_ula + 0):
     {
       struct video_struct* p_video = bbc_get_video(p_bbc);
-      video_ula_write(p_video, (addr & 0x1), val);
+      video_ula_write(p_video, (addr & 0x3), val);
       (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
@@ -1045,14 +1046,14 @@ bbc_write_callback(void* p,
       wd_fdc_write(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7), val);
     } else {
       struct video_struct* p_video = bbc_get_video(p_bbc);
-      video_ula_write(p_video, (addr & 0x1), val);
+      video_ula_write(p_video, (addr & 0x3), val);
       (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
   case (k_addr_video_ula + 12):
     if (!p_bbc->is_master) {
       struct video_struct* p_video = bbc_get_video(p_bbc);
-      video_ula_write(p_video, (addr & 0x1), val);
+      video_ula_write(p_video, (addr & 0x3), val);
       (void) timing_advance_time_delta(p_timing, 1);
     }
     break;
@@ -1483,7 +1484,7 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE00:
     is_call = 0;
     param_offset = 0xC8;
-    field_offset = 0x108;
+    field_offset = 0x110;
     break;
   case 0xFE01:
     param_offset = 0xC8;
@@ -2385,6 +2386,11 @@ bbc_focus_lost_callback(void* p) {
    */
   keyboard_system_key_pressed(p_bbc->p_keyboard,
                               k_keyboard_key_SPECIAL_release_all);
+}
+
+void
+bbc_set_nula(struct bbc_struct* p_bbc, int is_nula) {
+  video_set_nula(p_bbc->p_video, is_nula);
 }
 
 void

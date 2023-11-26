@@ -135,8 +135,11 @@ struct video_struct {
   uint32_t screen_wrap_add;
   uint32_t clock_tick_shift;
   int is_shadow_displayed;
+  int is_nula;
+  int32_t nula_pending_palette;
 
   /* 6845 registers and derivatives. */
+  /* The one field referenced by JIT. */
   uint8_t crtc_address_register;
   uint8_t crtc_registers[k_video_crtc_num_registers];
   int is_interlace;
@@ -1455,6 +1458,11 @@ video_destroy(struct video_struct* p_video) {
 }
 
 void
+video_set_nula(struct video_struct* p_video, int is_nula) {
+  p_video->is_nula = is_nula;
+}
+
+void
 video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   uint32_t screen_wrap_add;
 
@@ -1504,38 +1512,14 @@ video_shadow_mode_updated(struct video_struct* p_video,
 }
 
 static void
-video_update_real_color(struct video_struct* p_video,
-                        uint8_t index,
-                        uint8_t val) {
-  static const uint32_t s_colors[] =
-      { 0xffffffff, 0xff00ffff, 0xffff00ff, 0xff0000ff,
-        0xffffff00, 0xff00ff00, 0xffff0000, 0xff000000 };
-
-  /* The actual color displayed depends on the flash bit. */
-  if (val & 0x8) {
-    if (video_get_flash(p_video)) {
-      val ^= 0x7;
-    }
-    val &= 0x7;
-  }
-
-  render_set_palette(p_video->p_render, index, s_colors[val]);
-}
-
-static void
 video_ula_power_on_reset(struct video_struct* p_video) {
-  uint32_t i;
-
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_shift = 1;
   p_video->is_shadow_displayed = 0;
-
-  for (i = 0; i < 16; ++i) {
-    video_update_real_color(p_video, i, 0);
-  }
+  p_video->nula_pending_palette = -1;
 }
 
 static void
@@ -1642,6 +1626,7 @@ void
 video_power_on_reset(struct video_struct* p_video) {
   video_crtc_power_on_reset(p_video);
   video_ula_power_on_reset(p_video);
+  render_power_on_reset(p_video->p_render);
 
   /* Other state that needs resetting. */
   p_video->is_framing_changed_for_render = 1;
@@ -1855,18 +1840,17 @@ video_check_hack_legacy_shift_mode7(struct video_struct* p_video) {
 
 static void
 video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
-  int old_flash;
   int new_flash;
   int new_clock_speed;
   int old_clock_speed;
   int new_is_teletext;
   int old_is_teletext;
+  struct render_struct* p_render = p_video->p_render;
 
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
 
-  old_flash = video_get_flash(p_video);
   old_clock_speed = video_get_clock_speed(p_video);
   new_clock_speed = !!(val & k_ula_clock_speed);
   old_is_teletext = !!(p_video->video_ula_control & k_ula_teletext);
@@ -1889,18 +1873,10 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
   }
 
   new_flash = video_get_flash(p_video);
-  if (old_flash != new_flash) {
-    uint32_t i;
-    for (i = 0; i < 16; ++i) {
-      uint8_t val = p_video->ula_palette[i];
-      if (val & 0x8) {
-        video_update_real_color(p_video, i, val);
-      }
-    }
-  }
+  render_set_flash(p_render, new_flash);
 
   /* NOTE: yes, the last two are repeated. */
-  render_set_cursor_segments(p_video->p_render,
+  render_set_cursor_segments(p_render,
                              !!(val & 0x80),
                              !!(val & 0x40),
                              !!(val & 0x20),
@@ -1927,16 +1903,50 @@ video_ula_write_palette(struct video_struct* p_video, uint8_t val) {
 
   p_video->ula_palette[index] = val;
 
-  video_update_real_color(p_video, index, val);
+  render_set_physical_color(p_video->p_render, index, val);
 }
 
 void
 video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
-  if (addr == 0) {
+  uint8_t index;
+  uint8_t tmp;
+  uint32_t pixel;
+
+  if (!p_video->is_nula) {
+    addr &= 0x1;
+  }
+  switch (addr) {
+  case 0:
     video_ula_write_ctrl(p_video, val);
-  } else {
-    assert(addr == 1);
+    break;
+  case 1:
     video_ula_write_palette(p_video, val);
+    break;
+  case 2:
+    /* NuLA control register. Not yet implemented. */
+    break;
+  case 3:
+    /* NuLA palette register. */
+    if (p_video->nula_pending_palette == -1) {
+      p_video->nula_pending_palette = val;
+      break;
+    }
+
+    if (p_video->is_rendering_active) {
+      video_advance_crtc_timing(p_video);
+    }
+
+    index = (p_video->nula_pending_palette >> 4);
+    pixel = 0xff000000;
+    tmp = ((p_video->nula_pending_palette & 0xf) * 0x11);
+    pixel |= (tmp << 16);
+    tmp = ((val >> 4) * 0x11);
+    pixel |= (tmp << 8);
+    tmp = ((val & 0xf) * 0x11);
+    pixel |= tmp;
+    render_set_palette(p_video->p_render, index, pixel);
+    p_video->nula_pending_palette = -1;
+    break;
   }
 }
 

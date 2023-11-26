@@ -28,6 +28,9 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   int* p_fast_flag,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
+
+void video_set_nula(struct video_struct* p_video, int is_nula);
+
 void video_advance_for_memory_sync(void* p);
 void video_advance_crtc_timing(struct video_struct* p_video);
 void video_force_paint(struct video_struct* p_video, int do_clear_after_paint);

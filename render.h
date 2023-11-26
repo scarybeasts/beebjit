@@ -28,6 +28,8 @@ struct render_struct* render_create(struct teletext_struct* p_teletext,
                                     struct bbc_options* p_options);
 void render_destroy(struct render_struct* p_render);
 
+void render_power_on_reset(struct render_struct* p_render);
+
 void render_set_flyback_callback(struct render_struct* p_render,
                                  void (*p_flyback_callback)(void* p),
                                  void* p_callback_object);
@@ -49,7 +51,11 @@ void render_set_mode(struct render_struct* p_render,
                      int clock_speed,
                      int chars_per_line,
                      int is_teletext);
+void render_set_flash(struct render_struct* p_render, int is_flash);
 
+void render_set_physical_color(struct render_struct* p_render,
+                               uint8_t logical_color,
+                               uint8_t physical_color);
 void render_set_palette(struct render_struct* p_render,
                         uint8_t index,
                         uint32_t rgba);

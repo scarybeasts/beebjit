@@ -126,6 +126,7 @@ beebjit_main(void) {
   int has_sideways_ram = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
+  int nula_flag = 0;
   int32_t pc = -1;
   uint64_t cycles = 0;
   uint32_t expect = 0;
@@ -352,6 +353,8 @@ beebjit_main(void) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
       log_set_do_log_to_stdout(0);
+    } else if (!strcmp(arg, "-nula")) {
+      nula_flag = 1;
     } else if (!strcmp(arg, "-version") ||
                !strcmp(arg, "-v")) {
       (void) printf("beebjit "BEEBJIT_VERSION"\n");
@@ -396,6 +399,7 @@ beebjit_main(void) {
 "-dfs12             : for a model B with an 8271, load newer DFS v1.2 ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
 "-key-remap  <f> <t>: remap physical key from / to. See EXAMPLES.\n"
+"-nula              : use a VideoNuLA (early support).\n"
 "");
       exit(0);
     } else {
@@ -479,6 +483,10 @@ beebjit_main(void) {
   if (test_flag) {
     test_do_tests(p_bbc);
     exit(0);
+  }
+
+  if (nula_flag) {
+    bbc_set_nula(p_bbc, nula_flag);
   }
 
   if (cycles != 0) {
