@@ -70,6 +70,34 @@ echo 'Checking RVI rendering.'
     -opt video:always-render \
     -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x7c91a13d)||bail';q"
 
+# This checks some teletext state machine corner cases.
+echo 'Checking teletext rendering.'
+./beebjit -0 test/display/teletest_v1.ssd \
+    -mode jit \
+    -debug -fast -accurate \
+    -opt video:always-render \
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2100000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd3e8452c)||bail';q"
+
+# This checks some 6845 end-of-frame logic that can render an unexpected
+# blank scanline.
+echo 'Checking unexpected scanline.'
+./beebjit -0 test/display/mode7-75.ssd \
+    -mode jit \
+    -autoboot \
+    -debug -fast -accurate \
+    -opt video:always-render \
+    -commands "breakat 9000000;c;b expr 'render_y == 621';c;eval '(frame_buffer_crc32==0xe5a2ca70)||bail';q"
+
+# This checks the simple NuLA support.
+echo 'Checking NuLA palette.'
+./beebjit -0 test/games/Disc108-FroggerRSCB.ssd \
+    -mode jit \
+    -nula \
+    -autoboot \
+    -debug -fast -accurate \
+    -opt video:always-render \
+    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q"
+
 # This checks a replay of a 100% Nightworld run.
 # It breaks at the time the game is writing the "G" of "GAME END".
 ./beebjit -0 test/games/Disc012-Nightworld.ssd \
