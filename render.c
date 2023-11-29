@@ -15,7 +15,8 @@ enum {
   k_render_mode5 = 4,
   k_render_mode7 = 5,
   k_render_mode8 = 6,
-  k_render_num_modes = 7,
+  k_render_mode4_80 = 7,
+  k_render_mode2_10 = 8,
 };
 
 struct render_struct;
@@ -43,7 +44,9 @@ struct render_struct {
   struct render_table_2MHz render_table_mode0;
   struct render_table_2MHz render_table_mode1;
   struct render_table_2MHz render_table_mode2;
+  struct render_table_2MHz render_table_mode2_10;
   struct render_table_1MHz render_table_mode4;
+  struct render_table_1MHz render_table_mode4_80;
   struct render_table_1MHz render_table_mode5;
   struct render_table_1MHz render_table_mode8;
 
@@ -814,49 +817,22 @@ render_generate_2MHz_table(struct render_struct* p_render,
 }
 
 static void
-render_generate_mode0_table(struct render_struct* p_render) {
-  render_generate_2MHz_table(p_render, &p_render->render_table_mode0, 8);
-}
-
-static void
-render_generate_mode1_table(struct render_struct* p_render) {
-  render_generate_2MHz_table(p_render, &p_render->render_table_mode1, 4);
-}
-
-static void
-render_generate_mode2_table(struct render_struct* p_render) {
-  render_generate_2MHz_table(p_render, &p_render->render_table_mode2, 2);
-}
-
-static void
-render_generate_mode4_table(struct render_struct* p_render) {
-  render_generate_1MHz_table(p_render, &p_render->render_table_mode4, 8);
-}
-
-static void
-render_generate_mode5_table(struct render_struct* p_render) {
-  render_generate_1MHz_table(p_render, &p_render->render_table_mode5, 4);
-}
-
-static void
-render_generate_mode8_table(struct render_struct* p_render) {
-  render_generate_1MHz_table(p_render, &p_render->render_table_mode8, 2);
-}
-
-static void
 render_check_2MHz_render_table(struct render_struct* p_render) {
   int mode = p_render->render_mode;
 
   if (!(p_render->render_tables_built & (1 << mode))) {
     switch (mode) {
     case k_render_mode0:
-      render_generate_mode0_table(p_render);
+      render_generate_2MHz_table(p_render, &p_render->render_table_mode0, 8);
       break;
     case k_render_mode1:
-      render_generate_mode1_table(p_render);
+      render_generate_2MHz_table(p_render, &p_render->render_table_mode1, 4);
       break;
     case k_render_mode2:
-      render_generate_mode2_table(p_render);
+      render_generate_2MHz_table(p_render, &p_render->render_table_mode2, 2);
+      break;
+    case k_render_mode2_10:
+      render_generate_2MHz_table(p_render, &p_render->render_table_mode2_10, 1);
       break;
     default:
       assert(0);
@@ -875,6 +851,9 @@ render_check_2MHz_render_table(struct render_struct* p_render) {
   case k_render_mode2:
     p_render->p_render_table_2MHz = &p_render->render_table_mode2;
     break;
+  case k_render_mode2_10:
+    p_render->p_render_table_2MHz = &p_render->render_table_mode2_10;
+    break;
   default:
     assert(0);
     break;
@@ -887,14 +866,19 @@ render_check_1MHz_render_table(struct render_struct* p_render) {
 
   if (!(p_render->render_tables_built & (1 << mode))) {
     switch (mode) {
+    case k_render_mode4_80:
+      render_generate_1MHz_table(p_render,
+                                 &p_render->render_table_mode4_80,
+                                 16);
+      break;
     case k_render_mode4:
-      render_generate_mode4_table(p_render);
+      render_generate_1MHz_table(p_render, &p_render->render_table_mode4, 8);
       break;
     case k_render_mode5:
-      render_generate_mode5_table(p_render);
+      render_generate_1MHz_table(p_render, &p_render->render_table_mode5, 4);
       break;
     case k_render_mode8:
-      render_generate_mode8_table(p_render);
+      render_generate_1MHz_table(p_render, &p_render->render_table_mode8, 2);
       break;
     default:
       assert(0);
@@ -904,6 +888,9 @@ render_check_1MHz_render_table(struct render_struct* p_render) {
   }
 
   switch (mode) {
+  case k_render_mode4_80:
+    p_render->p_render_table_1MHz = &p_render->render_table_mode4_80;
+    break;
   case k_render_mode4:
     p_render->p_render_table_1MHz = &p_render->render_table_mode4;
     break;
@@ -1039,6 +1026,9 @@ render_check_mode_recalc(struct render_struct* p_render) {
         p_render->p_render_blank_func = render_function_2MHz_blank_interlaced;
       }
       switch (p_render->chars_per_line) {
+      case 0:
+        p_render->render_mode = k_render_mode2_10;
+        break;
       case 1:
         p_render->render_mode = k_render_mode2;
         break;
@@ -1049,7 +1039,7 @@ render_check_mode_recalc(struct render_struct* p_render) {
         p_render->render_mode = k_render_mode0;
         break;
       default:
-        p_render->render_mode = k_render_mode0;
+        assert(0);
         break;
       }
     } else {
@@ -1071,14 +1061,11 @@ render_check_mode_recalc(struct render_struct* p_render) {
       case 2:
         p_render->render_mode = k_render_mode4;
         break;
+      case 3:
+        p_render->render_mode = k_render_mode4_80;
+        break;
       default:
-        /* EMU NOTE: not clear what to render here. Probably anything will do
-         * for now because it's not a defined mode.
-         * This condition can occur in practice, for example half-way through
-         * mode switches.
-         * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
-         */
-        p_render->render_mode = k_render_mode4;
+        assert(0);
         break;
       }
     }
