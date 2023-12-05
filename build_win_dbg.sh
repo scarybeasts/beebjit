@@ -2,8 +2,8 @@
 
 # NOTE: -gdwarf-2 needed for my version of wine to recognize the symbols.
 
-x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
-    -Wall -W -Werror \
+x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 -DPLATFORM_WINDOWS \
+    -Wall -W -Werror -Wl,--default-image-base-low \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -Wl,--disable-dynamicbase,--image-base 0x00400000 \
     -g -gdwarf-2 -o beebjit.exe \
