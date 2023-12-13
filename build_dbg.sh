@@ -2,6 +2,7 @@
 set -e
 
 gcc -Wall -W -Werror \
+    -Wpointer-arith \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie -Wa,--noexecstack \
     -g -o beebjit \

@@ -184,8 +184,10 @@ os_window_create(uint32_t width, uint32_t height) {
   }
 
   os_alloc_make_mapping_none(p_window->p_shm_map_start, 4096);
-  os_alloc_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
-  p_window->p_image_data = (p_window->p_shm_map_start + 4096);
+  os_alloc_make_mapping_none(
+      (uint8_t*) p_window->p_shm_map_start + map_size - 4096,
+      4096);
+  p_window->p_image_data = ((uint8_t*) p_window->p_shm_map_start + 4096);
 
   p_window->p_image = XShmCreateImage(p_window->d,
                                       p_visual,

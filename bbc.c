@@ -1891,7 +1891,8 @@ bbc_setup_indirect_mappings(struct bbc_struct* p_bbc,
           0,
           map_size);
   p_bbc->p_mem_read_ind =
-      (os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) + map_offset);
+      ((uint8_t*) os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) +
+       map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_read_ind - map_offset), map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_read_ind + k_6502_addr_space_size),
                              map_offset);
@@ -1911,7 +1912,8 @@ bbc_setup_indirect_mappings(struct bbc_struct* p_bbc,
           (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
           half_map_size);
   p_bbc->p_mem_write_ind =
-      (os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) + map_offset);
+      ((uint8_t*) os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) +
+       map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_write_ind - map_offset), map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_6502_addr_space_size),
                              map_offset);
@@ -2077,7 +2079,8 @@ bbc_create(int mode,
           (void*) (size_t) (K_BBC_MEM_RAW_ADDR - map_offset),
           0,
           map_size);
-  p_mem_raw = (os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) + map_offset);
+  p_mem_raw =
+      ((uint8_t*) os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) + map_offset);
   p_bbc->p_mem_raw = p_mem_raw;
   os_alloc_make_mapping_none((p_mem_raw - map_offset), map_offset);
   os_alloc_make_mapping_none((p_mem_raw + k_6502_addr_space_size), map_offset);
@@ -2106,8 +2109,9 @@ bbc_create(int mode,
           (void*) (size_t) (K_BBC_MEM_READ_FULL_ADDR - map_offset),
           0,
           map_size);
-  p_bbc->p_mem_read = (os_alloc_get_mapping_addr(p_bbc->p_mapping_read) +
-                       map_offset);
+  p_bbc->p_mem_read =
+      ((uint8_t*) os_alloc_get_mapping_addr(p_bbc->p_mapping_read) +
+       map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_read - map_offset), map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_read + k_6502_addr_space_size),
                              map_offset);
@@ -2127,8 +2131,9 @@ bbc_create(int mode,
       os_alloc_get_mapping(
           (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
           half_map_size);
-  p_bbc->p_mem_write = (os_alloc_get_mapping_addr(p_bbc->p_mapping_write) +
-                        map_offset);
+  p_bbc->p_mem_write =
+      ((uint8_t*) os_alloc_get_mapping_addr(p_bbc->p_mapping_write) +
+       map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_write - map_offset), map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
                              map_offset);

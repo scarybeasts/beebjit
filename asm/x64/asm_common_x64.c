@@ -12,7 +12,7 @@ asm_unpatched_branch_target(void) {
 
 void
 asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
-  size_t size = (p_end - p_start);
+  size_t size = ((uint8_t*) p_end - (uint8_t*) p_start);
   util_buffer_add_chunk(p_buf, p_start, size);
 }
 
@@ -28,7 +28,7 @@ asm_patch_byte(struct util_buffer* p_buf,
                void* p_patch,
                uint8_t value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  int64_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + ((uint8_t*) p_patch - (uint8_t*) p_start));
 
   assert(pos >= 1);
 
@@ -44,7 +44,7 @@ asm_patch_u16(struct util_buffer* p_buf,
               void* p_patch,
               uint16_t value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  int64_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + ((uint8_t*) p_patch - (uint8_t*) p_start));
 
   assert(pos >= (int64_t) sizeof(uint16_t));
 
@@ -60,7 +60,7 @@ asm_patch_int(struct util_buffer* p_buf,
               void* p_patch,
               int value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  int64_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + ((uint8_t*) p_patch - (uint8_t*) p_start));
 
   assert(pos >= (int64_t) sizeof(int));
 
@@ -76,9 +76,9 @@ asm_patch_jump(struct util_buffer* p_buf,
                void* p_patch,
                void* p_jump_target) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  int64_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + ((uint8_t*) p_patch - (uint8_t*) p_start));
   void* p_jump_pc = (util_buffer_get_base_address(p_buf) + pos);
-  int64_t jump_delta = (p_jump_target - p_jump_pc);
+  int64_t jump_delta = ((uint8_t*) p_jump_target - (uint8_t*) p_jump_pc);
 
   assert(pos >= (int64_t) sizeof(int));
   assert(jump_delta <= INT_MAX);

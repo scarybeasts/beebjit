@@ -276,15 +276,15 @@ asm_emit_jit_jump(struct util_buffer* p_buf,
   size_t offset = util_buffer_get_pos(p_buf);
   void* p_source = (util_buffer_get_base_address(p_buf) + offset);
 
-  len_x64 = (p_jmp_end_8bit - p_jmp_8bit);
-  delta = (p_target - (p_source + len_x64));
+  len_x64 = ((uint8_t*) p_jmp_end_8bit - (uint8_t*) p_jmp_8bit);
+  delta = ((uint8_t*) p_target - ((uint8_t*) p_source + len_x64));
 
   if (delta <= INT8_MAX && delta >= INT8_MIN) {
     asm_copy(p_buf, p_jmp_8bit, p_jmp_end_8bit);
     asm_patch_byte(p_buf, offset, p_jmp_8bit, p_jmp_end_8bit, delta);
   } else {
-    len_x64 = (p_jmp_end_32bit - p_jmp_32bit);
-    delta = (p_target - (p_source + len_x64));
+    len_x64 = ((uint8_t*) p_jmp_end_32bit - (uint8_t*) p_jmp_32bit);
+    delta = ((uint8_t*) p_target - ((uint8_t*) p_source + len_x64));
     assert(delta <= INT32_MAX && delta >= INT32_MIN);
     asm_copy(p_buf, p_jmp_32bit, p_jmp_end_32bit);
     asm_patch_int(p_buf, offset, p_jmp_32bit, p_jmp_end_32bit, delta);
@@ -360,13 +360,13 @@ asm_jit_test_preconditions(void) {
   }
   s_preconditions_checked = 1;
 
-  if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
+  if (((uint8_t*) asm_jit_BEQ_8bit_END - (uint8_t*) asm_jit_BEQ_8bit) != 2) {
     util_bail("JIT assembly miscompiled (%p %p) clang issue? try opt build",
               asm_jit_BEQ_8bit,
               asm_jit_BEQ_8bit_END);
   }
 
-  delta = ((void*) asm_jit_interp - (void*) K_JIT_ADDR);
+  delta = ((uint8_t*) asm_jit_interp - (uint8_t*) K_JIT_ADDR);
   if ((delta > INT_MAX) || (delta < INT_MIN)) {
     util_bail("Binary bad location? (%p)", asm_jit_interp);
   }
@@ -438,7 +438,7 @@ asm_jit_create(void* p_jit_base,
     /* Initialize JIT trampoline. */
     util_buffer_setup(
         p_temp_buf,
-        (p_trampolines + (i * K_JIT_TRAMPOLINE_BYTES)),
+        ((uint8_t*) p_trampolines + (i * K_JIT_TRAMPOLINE_BYTES)),
         K_JIT_TRAMPOLINE_BYTES);
     asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
@@ -522,18 +522,20 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   wrap_indirect_write = 0;
 
   /* TODO: more checks, etc. */
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_OS_ROM_OFFSET)) &&
-      (p_fault_addr <
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+  if (((uint8_t*) p_fault_addr >=
+          ((uint8_t*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_OS_ROM_OFFSET)) &&
+      ((uint8_t*) p_fault_addr <
+          ((uint8_t*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     if (is_write) {
       inaccessible_indirect_page = 1;
     }
   }
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
-      (p_fault_addr <=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+  if (((uint8_t*) p_fault_addr >=
+          ((uint8_t*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      ((uint8_t*) p_fault_addr <=
+          ((uint8_t*) K_BBC_MEM_WRITE_IND_ADDR +
+          K_6502_ADDR_SPACE_SIZE +
+          0xFE))) {
     if (is_write) {
       wrap_indirect_write = 1;
     }
@@ -544,37 +546,40 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
     return 0;
   }
 
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_fault_addr <
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+  if (((uint8_t*) p_fault_addr >=
+          ((uint8_t*) K_BBC_MEM_READ_IND_ADDR +
+          K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      ((uint8_t*) p_fault_addr <
+          ((uint8_t*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
   }
-  if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
-      (p_fault_addr <=
-          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+  if (((uint8_t*) p_fault_addr >=
+          ((uint8_t*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      ((uint8_t*) p_fault_addr <=
+          ((uint8_t*) K_BBC_MEM_READ_IND_ADDR +
+          K_6502_ADDR_SPACE_SIZE +
+          0xFE))) {
     wrap_indirect_read = 1;
   }
-  if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
+  if ((uint8_t*) p_fault_addr ==
+          ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
     /* D flag alone. */
     bcd_fault_fixup = 1;
   }
-  if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
+  if ((uint8_t*) p_fault_addr ==
+          ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
     /* D flag and I flag. */
     bcd_fault_fixup = 1;
   }
-  if ((p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
-      (p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
+  if (((uint8_t*) p_fault_addr == ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
+      ((uint8_t*) p_fault_addr == ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
     /* Wrap via pushing (decrementing). */
     stack_wrap_fault_fixup = 1;
   }
-  if ((p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
-      (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 1))) {
+  if (((uint8_t*) p_fault_addr ==
+          ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
+      ((uint8_t*) p_fault_addr ==
+          ((uint8_t*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 1))) {
     /* Wrap via pulling (incrementing). */
     stack_wrap_fault_fixup = 1;
   }
@@ -620,8 +625,8 @@ asm_emit_jit_check_countdown(struct util_buffer* p_dest_buf,
                              uint32_t count,
                              uint16_t addr,
                              void* p_trampoline) {
-  void* p_code;
-  void* p_epilog;
+  uint8_t* p_code;
+  uint8_t* p_epilog;
   uint32_t value1;
 
   (void) addr;
@@ -650,7 +655,7 @@ asm_emit_jit_check_countdown(struct util_buffer* p_dest_buf,
   ASM_U8(check_countdown_jb);
 
   p_dest_buf = p_dest_buf_epilog;
-  value1 = (p_trampoline - p_epilog);
+  value1 = ((uint8_t*) p_trampoline - p_epilog);
   value1 -= 5;
   ASM_U32(JMP);
 }
@@ -1677,7 +1682,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_check_pending_irq:
   case k_opcode_check_pending_irq_plp:
     p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
-    p_trampoline_addr = (p_trampolines + (value1 * K_JIT_TRAMPOLINE_BYTES));
+    p_trampoline_addr =
+        ((uint8_t*) p_trampolines + (value1 * K_JIT_TRAMPOLINE_BYTES));
     break;
   default:
     break;

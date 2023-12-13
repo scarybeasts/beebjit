@@ -47,8 +47,7 @@ void*
 jit_metadata_get_host_block_address(struct jit_metadata* p_metadata,
                                     uint16_t addr_6502) {
   void* p_jit_ptr = p_metadata->p_jit_base;
-  p_jit_ptr += (addr_6502 * K_JIT_BYTES_PER_BYTE);
-  return p_jit_ptr;
+  return ((uint8_t*) p_jit_ptr + (addr_6502 * K_JIT_BYTES_PER_BYTE));
 }
 
 void*
@@ -117,7 +116,7 @@ jit_metadata_get_block_addr_from_host_pc(struct jit_metadata* p_metadata,
   size_t block_addr_6502;
   void* p_jit_base = p_metadata->p_jit_base;
 
-  block_addr_6502 = (p_host_pc - p_jit_base);
+  block_addr_6502 = ((uint8_t*) p_host_pc - (uint8_t*) p_jit_base);
   block_addr_6502 /= K_JIT_BYTES_PER_BYTE;
 
   assert(block_addr_6502 < k_6502_addr_space_size);

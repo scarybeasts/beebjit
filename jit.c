@@ -577,11 +577,12 @@ jit_compile(struct jit_struct* p_jit,
   /* Prepare for and write out the new binary code. */
   p_jit_block = jit_metadata_get_host_block_address(p_metadata, addr_6502);
   p_jit_block_end =
-      (p_jit_block + (bytes_6502_compiled * K_JIT_BYTES_PER_BYTE));
+      ((uint8_t*) p_jit_block + (bytes_6502_compiled * K_JIT_BYTES_PER_BYTE));
   assert(p_jit_block_end <= (void*) K_JIT_ADDR_END);
-  asm_jit_start_code_updates(p_jit->p_asm,
-                             p_jit_block,
-                             (p_jit_block_end - p_jit_block));
+  asm_jit_start_code_updates(
+      p_jit->p_asm,
+      p_jit_block,
+      ((uint8_t*) p_jit_block_end - (uint8_t*) p_jit_block));
   jit_compiler_execute_compile_block(p_compiler);
   asm_jit_finish_code_updates(p_jit->p_asm);
 
@@ -745,7 +746,8 @@ jit_handle_fault(uintptr_t* p_host_pc,
     /* Inturbo stores a pointer to JIT pointers in it's private member. */
     void** p_inturbo = (void**) host_context;
     void* p_jit_ptrs = *p_inturbo;
-    p_jit = (struct jit_struct*) (p_jit_ptrs - K_JIT_CONTEXT_OFFSET_JIT_PTRS);
+    p_jit = (struct jit_struct*) ((uint8_t*) p_jit_ptrs -
+                                  K_JIT_CONTEXT_OFFSET_JIT_PTRS);
   }
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
@@ -918,7 +920,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_metadata = jit_metadata_create(p_jit_base,
                                    p_no_code_mapping_addr,
-                                   (p_no_code_mapping_addr + 4),
+                                   ((uint8_t*) p_no_code_mapping_addr + 4),
                                    &p_jit->jit_ptrs[0]);
   p_jit->p_metadata = p_metadata;
   /* Set up the invalidation markers. jit_memory_range_invalidate() only

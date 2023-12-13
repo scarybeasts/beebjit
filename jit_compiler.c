@@ -1404,7 +1404,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       needs_reemit = 0;
 
       out_buf_pos = util_buffer_get_pos(p_tmp_buf);
-      p_host_address = (p_host_address_base + out_buf_pos);
+      p_host_address = ((uint8_t*) p_host_address_base + out_buf_pos);
       util_buffer_set_base_address(p_single_uopcode_buf, p_host_address);
       util_buffer_set_base_address(p_single_uopcode_epilog_buf, p_host_address);
       util_buffer_set_pos(p_single_uopcode_buf, 0);
@@ -1434,9 +1434,9 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         /* Emit jump to the next adjacent code block. We'll need to jump over
          * the compile trampoline at the beginning of the block.
          */
-        void* p_resume =
-            (p_host_address_base + util_buffer_get_length(p_tmp_buf));
-        p_resume += p_compiler->len_asm_invalidated;
+        void* p_resume = ((uint8_t*) p_host_address_base +
+                          util_buffer_get_length(p_tmp_buf) +
+                          p_compiler->len_asm_invalidated);
         asm_make_uop1(&tmp_uop, k_opcode_JMP, (intptr_t) p_resume);
         asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
 
@@ -1467,13 +1467,15 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
          */
         util_buffer_set_pos(p_single_uopcode_buf, 0);
         util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
-        p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+        p_host_address =
+            ((uint8_t*) p_host_address_base + util_buffer_get_pos(p_tmp_buf));
         util_buffer_set_base_address(p_single_uopcode_buf, p_host_address);
         epilog_pos = util_buffer_get_length(p_tmp_buf);
         epilog_pos -= block_epilog_len;
         epilog_pos -= epilog_len;
-        util_buffer_set_base_address(p_single_uopcode_epilog_buf,
-                                     (p_host_address_base + epilog_pos));
+        util_buffer_set_base_address(
+            p_single_uopcode_epilog_buf,
+            ((uint8_t*) p_host_address_base + epilog_pos));
         asm_emit_jit(p_compiler->p_asm,
                      p_single_uopcode_buf,
                      p_single_uopcode_epilog_buf,

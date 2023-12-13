@@ -61,7 +61,7 @@ os_channel_read(intptr_t handle, void* p_buf, uint32_t length) {
       util_bail("os_channel_read EOF");
     }
     to_go -= ret;
-    p_buf += ret;
+    p_buf = ((uint8_t*) p_buf + ret);
   }
 }
 
@@ -81,6 +81,6 @@ os_channel_write(intptr_t handle, const void* p_buf, uint32_t length) {
       util_bail("os_channel_write EOF");
     }
     to_go -= ret;
-    p_buf += ret;
+    p_buf = ((uint8_t*) p_buf + ret);
   }
 }

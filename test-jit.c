@@ -111,9 +111,10 @@ jit_test_simple_jit_metadata(void) {
   test_expect_eq(0xA00,
                  jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
                                                        p_jit_ptr));
-  test_expect_eq(0xA00,
-                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
-                                                       (p_jit_ptr + 1)));
+  test_expect_eq(
+      0xA00,
+      jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                            ((uint8_t*) p_jit_ptr + 1)));
   p_jit_ptr = jit_metadata_get_host_jit_ptr(s_p_metadata, 0xA01);
   test_expect_eq(0xA01,
                  jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
@@ -139,9 +140,10 @@ jit_test_simple_jit_metadata(void) {
   test_expect_eq(0x280,
                  jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
                                                        p_jit_ptr));
-  test_expect_eq(0x280,
-                 jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
-                                                       (p_jit_ptr + 1)));
+  test_expect_eq(
+      0x280,
+      jit_metadata_get_6502_pc_from_host_pc(s_p_metadata,
+                                            ((uint8_t*) p_jit_ptr + 1)));
   test_expect_eq(0x200, jit_metadata_get_code_block(s_p_metadata, 0x280));
 
   util_buffer_destroy(p_buf);
