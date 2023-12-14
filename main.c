@@ -128,7 +128,7 @@ beebjit_main(void) {
   int extended_roms_flag = 0;
   int nula_flag = 0;
   int32_t pc = -1;
-  uint64_t cycles = 0;
+  uint64_t stop_cycles = 0;
   uint32_t expect = 0;
   int window_open = 0;
   uint32_t num_discs_0 = 0;
@@ -263,7 +263,7 @@ beebjit_main(void) {
       has_sideways_ram = 1;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-cycles")) {
-      cycles = util_parse_u64(val1, 0);
+      stop_cycles = util_parse_u64(val1, 0);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-frame-cycles")) {
       frame_cycles = util_parse_u64(val1, 0);
@@ -489,8 +489,8 @@ beebjit_main(void) {
     bbc_set_nula(p_bbc, nula_flag);
   }
 
-  if (cycles != 0) {
-    bbc_set_stop_cycles(p_bbc, cycles);
+  if (stop_cycles != 0) {
+    bbc_set_stop_cycles(p_bbc, stop_cycles);
   }
   if (p_commands != NULL) {
     bbc_set_commands(p_bbc, p_commands);

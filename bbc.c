@@ -1752,7 +1752,6 @@ bbc_framebuffer_ready_callback(void* p,
   message.data[4] = do_wait_for_paint;
   bbc_cpu_send_message(p_bbc, &message);
   if (do_wait_for_paint) {
-    struct bbc_message message;
     bbc_cpu_receive_message(p_bbc, &message);
     assert(message.data[0] == k_message_render_done);
   }

@@ -2071,7 +2071,7 @@ intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   if (p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) {
     uint8_t clocks = p_fdc->mmio_clocks;
     uint8_t data = p_fdc->mmio_data;
-    uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(clocks, data);
+    uint32_t write_pulses = ibm_disc_format_fm_to_2us_pulses(clocks, data);
     if ((clocks != 0xFF) && (clocks != k_ibm_disc_mark_clock_pattern)) {
       log_do_log(k_log_disc,
                  k_log_unusual,
@@ -2079,7 +2079,7 @@ intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
                  clocks,
                  data);
     }
-    disc_drive_write_pulses(p_current_drive, pulses);
+    disc_drive_write_pulses(p_current_drive, write_pulses);
   }
 
   /* The external data register is always copied across to the bit processor's

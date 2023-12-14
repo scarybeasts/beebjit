@@ -391,13 +391,14 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     uint8_t data;
     uint16_t crc;
     uint16_t disc_crc;
-    struct disc_tool_sector* p_sector = &p_tool->sectors[i_sectors];
     uint8_t sector_data[k_disc_tool_max_sector_length + 2];
     uint32_t sector_start_byte;
     uint32_t sector_end_byte;
     uint32_t sector_size;
     uint32_t pulses_per_byte;
     int has_iffy_pulse;
+
+    p_sector = &p_tool->sectors[i_sectors];
 
     assert(p_sector->bit_pos_header != 0);
 

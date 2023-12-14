@@ -2273,7 +2273,6 @@ debug_callback_common(struct debug_struct* p_debug,
       debug_dump_bbc(p_bbc);
     } else if (!strcmp(p_command, "r")) {
       char flags_buf[9];
-      struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
       struct timing_struct* p_timing = p_debug->p_timing;
       uint64_t ticks = timing_get_total_timer_ticks(p_timing);
       uint64_t countdown = timing_get_countdown(p_timing);

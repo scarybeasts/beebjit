@@ -607,7 +607,6 @@ jit_compile(struct jit_struct* p_jit,
 
   if (p_jit->log_compile) {
     const char* p_text;
-    uint16_t addr_6502_end = (addr_6502 + bytes_6502_compiled - 1);
     if (is_invalidation) {
       p_text = "inval";
     } else if (is_block_continuation) {
@@ -621,7 +620,7 @@ jit_compile(struct jit_struct* p_jit,
                k_log_info,
                "compile @$%.4X-$%.4X [host 0x%"PRIx64"], %s at ticks %"PRIu64,
                addr_6502,
-               addr_6502_end,
+               addr_6502_last,
                (uint64_t) p_host_pc,
                p_text,
                timing_get_total_timer_ticks(p_jit->driver.p_extra->p_timing));

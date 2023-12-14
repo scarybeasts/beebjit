@@ -197,7 +197,7 @@ interp_call_debugger(struct interp_struct* p_interp,
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_interp;
-  void* (*debug_callback)(struct cpu_driver*, int) =
+  void* (*p_debug_callback)(struct cpu_driver*, int) =
       p_cpu_driver->abi.p_debug_callback;
 
   flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
@@ -209,7 +209,7 @@ interp_call_debugger(struct interp_struct* p_interp,
                            flags,
                            *p_pc);
 
-  debug_callback(p_cpu_driver, irq_vector);
+  p_debug_callback(p_cpu_driver, irq_vector);
 
   state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
   interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);

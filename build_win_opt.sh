@@ -4,7 +4,7 @@
 
 x86_64-w64-mingw32-gcc -D__USE_MINGW_ANSI_STDIO=0 \
     -Wall -W -Werror \
-    -Wpointer-arith \
+    -Wpointer-arith -Wshadow \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -Wl,--disable-dynamicbase,--image-base 0x00400000 \
     -O3 -DNDEBUG -flto -o beebjit.exe \
