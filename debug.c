@@ -29,12 +29,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_max_opcode_len = (13 + 1);
-static const size_t k_max_extra_len = 32;
 enum {
+  k_max_opcode_len = (13 + 1),
+  k_max_extra_len = 32,
   k_max_break = 16,
-};
-enum {
   k_max_input_len = 1024,
 };
 
