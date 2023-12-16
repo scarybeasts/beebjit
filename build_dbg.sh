@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-gcc -Wall -W -Werror \
+gcc -Wall -Wextra -Werror \
     -Wpointer-arith -Wshadow \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie -Wa,--noexecstack \
