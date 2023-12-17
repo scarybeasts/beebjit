@@ -17,6 +17,8 @@ struct util_buffer;
 struct util_buffer* util_buffer_create();
 void util_buffer_destroy(struct util_buffer* p_buf);
 void util_buffer_setup(struct util_buffer* p_buf, uint8_t* p_mem, size_t len);
+void util_buffer_setup_internal(struct util_buffer* p_buf);
+void util_buffer_ensure_capacity(struct util_buffer* p_buf, size_t capacity);
 size_t util_buffer_get_length(struct util_buffer* p_buf);
 uint8_t* util_buffer_get_ptr(struct util_buffer* p_buf);
 size_t util_buffer_get_pos(struct util_buffer* p_buf);

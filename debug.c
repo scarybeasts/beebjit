@@ -34,6 +34,7 @@ enum {
   k_max_extra_len = 32,
   k_max_break = 16,
   k_max_input_len = 1024,
+  k_max_temp_storage = (256 * 1024),
 };
 
 struct debug_breakpoint {
@@ -92,7 +93,7 @@ struct debug_struct {
   int32_t next_or_finish_stop_addr;
   struct debug_breakpoint breakpoints[k_max_break];
   uint32_t max_breakpoint_used_plus_one;
-  int64_t temp_storage[16];
+  struct util_buffer* p_temp_storage_buf;
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
   uint32_t sub_instruction_tick;
@@ -172,6 +173,7 @@ debug_destroy(struct debug_struct* p_debug) {
   disc_tool_destroy(p_debug->p_tool);
   util_string_list_free(p_debug->p_command_strings);
   util_string_list_free(p_debug->p_pending_commands);
+  util_buffer_destroy(p_debug->p_temp_storage_buf);
   free(p_debug);
 }
 
@@ -1173,11 +1175,18 @@ debug_read_variable_mem(void* p, uint32_t index) {
 
 static int64_t
 debug_read_variable_temp(void* p, uint32_t index) {
+  uint8_t* p_buf;
+  int64_t* p_entry;
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
-    return p_debug->temp_storage[index];
+  size_t entries = util_buffer_get_length(p_debug->p_temp_storage_buf);
+  entries /= sizeof(int64_t);
+  if (index >= entries) {
+    return 0;
   }
-  return -1;
+  p_buf = util_buffer_get_ptr(p_debug->p_temp_storage_buf);
+  p_entry = (int64_t*) p_buf;
+  p_entry += index;
+  return *p_entry;
 }
 
 static int64_t
@@ -1460,10 +1469,19 @@ debug_write_variable_mem(void* p, uint32_t index, int64_t value) {
 
 static void
 debug_write_variable_temp(void* p, uint32_t index, int64_t value) {
+  uint8_t* p_buf;
+  int64_t* p_entry;
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
-    p_debug->temp_storage[index] = value;
+
+  if (index >= k_max_temp_storage) {
+    return;
   }
+  util_buffer_ensure_capacity(p_debug->p_temp_storage_buf,
+                              ((index + 1) * sizeof(int64_t)));
+  p_buf = util_buffer_get_ptr(p_debug->p_temp_storage_buf);
+  p_entry = (int64_t*) p_buf;
+  p_entry += index;
+  *p_entry = value;
 }
 
 static void
@@ -2523,6 +2541,9 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->p_command_strings = util_string_list_alloc();
   p_debug->p_pending_commands = util_string_list_alloc();
   p_debug->breakpoint_continue = -1;
+
+  p_debug->p_temp_storage_buf = util_buffer_create();
+  util_buffer_setup_internal(p_debug->p_temp_storage_buf);
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);

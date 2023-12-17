@@ -80,6 +80,7 @@ struct util_buffer {
   size_t length;
   size_t pos;
   uint8_t* p_base;
+  int is_internal;
 };
 
 struct util_buffer*
@@ -91,15 +92,41 @@ util_buffer_create() {
 
 void
 util_buffer_destroy(struct util_buffer* p_buf) {
+  if (p_buf->is_internal) {
+    util_free(p_buf->p_mem);
+  }
   free(p_buf);
 }
 
 void
 util_buffer_setup(struct util_buffer* p_buf, uint8_t* p_mem, size_t len) {
+  assert(p_buf->is_internal == 0);
   p_buf->p_mem = p_mem;
   p_buf->length = len;
   p_buf->pos = 0;
   p_buf->p_base = p_mem;
+}
+
+void
+util_buffer_setup_internal(struct util_buffer* p_buf) {
+  assert(p_buf->p_mem == NULL);
+  assert(p_buf->is_internal == 0);
+  p_buf->is_internal = 1;
+}
+
+void
+util_buffer_ensure_capacity(struct util_buffer* p_buf, size_t capacity) {
+  size_t length;
+
+  assert(p_buf->is_internal == 1);
+  length = p_buf->length;
+  if (capacity <= length) {
+    return;
+  }
+
+  p_buf->p_mem = util_realloc(p_buf->p_mem, capacity);
+  (void) memset((p_buf->p_mem + length), '\0', (capacity - length));
+  p_buf->length = capacity;
 }
 
 size_t
