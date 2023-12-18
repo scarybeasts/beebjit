@@ -163,6 +163,7 @@ struct bbc_struct {
   int test_map_flag;
   int autoboot_flag;
   int do_video_memory_sync;
+  int do_paint_every_tick;
   struct bbc_options options;
   int is_compat_old_1MHz_cycles;
 
@@ -2036,6 +2037,8 @@ bbc_create(int mode,
   if (util_has_option(p_opt_flags, "video:no-memory-sync")) {
     p_bbc->do_video_memory_sync = 0;
   }
+  p_bbc->do_paint_every_tick = util_has_option(p_opt_flags,
+                                               "video:paint_every_tick");
 
   p_bbc->p_sleeper = os_time_create_sleeper();
   p_bbc->last_time_us = 0;
@@ -2966,6 +2969,12 @@ bbc_cycles_timer_callback(void* p) {
      * specifically some fraction of a 50Hz frame, a highly responsive system
      * results.
      */
+
+    if (p_bbc->do_paint_every_tick) {
+      video_advance_for_memory_sync(p_bbc->p_video);
+      bbc_framebuffer_ready_callback(p_bbc, 0, 0, 0);
+    }
+
     cycles_next_run = p_bbc->cycles_per_run_normal;
     delta_us = (1000000 / p_bbc->wakeup_rate);
 
