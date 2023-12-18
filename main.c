@@ -88,7 +88,7 @@ beebjit_main(void) {
 
   const char* rom_names[k_bbc_num_roms] = { NULL };
   int sideways_ram[k_bbc_num_roms] = { 0 };
-  const char* disc_names[2][k_max_discs_per_drive] = { NULL };
+  const char* disc_names[2][k_max_discs_per_drive] = { { NULL } };
   const char* p_tape_file_names[k_max_tapes] = { NULL };
 
   struct os_window_struct* p_window = NULL;
