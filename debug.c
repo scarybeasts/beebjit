@@ -335,6 +335,12 @@ debug_get_details(int* p_addr_6502,
   *p_wrapped_8bit = 0;
   *p_wrapped_16bit = 0;
 
+  /* This is correct for most modes, but needs care as we want to consider
+   * stack operations reads / writes too.
+   */
+  *p_is_read = !!(opmem & k_opmem_read_flag);
+  *p_is_write = !!(opmem & k_opmem_write_flag);
+
   switch (opmode) {
   case k_zpg:
     addr = operand1;
@@ -440,6 +446,26 @@ debug_get_details(int* p_addr_6502,
     }
     break;
   default:
+    switch (optype) {
+    case k_php:
+    case k_pha:
+    case k_phx:
+    case k_phy:
+      *p_is_write = 1;
+      addr = (p_debug->reg_s + k_6502_stack_addr);
+      *p_addr_6502 = addr;
+      break;
+    case k_plp:
+    case k_pla:
+    case k_plx:
+    case k_ply:
+      *p_is_read = 1;
+      addr = ((uint8_t) (p_debug->reg_s + 1) + k_6502_stack_addr);
+      *p_addr_6502 = addr;
+      break;
+    default:
+      break;
+    }
     break;
   }
 
@@ -451,8 +477,6 @@ debug_get_details(int* p_addr_6502,
     }
   }
 
-  *p_is_read = !!(opmem & k_opmem_read_flag);
-  *p_is_write = !!(opmem & k_opmem_write_flag);
   bbc_get_address_details(p_debug->p_bbc,
                           p_is_register,
                           p_is_rom,
