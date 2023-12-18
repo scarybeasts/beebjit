@@ -12,6 +12,10 @@
 #include <inttypes.h>
 #include <string.h>
 
+enum {
+  k_snapshot_size = 327885,
+};
+
 struct bem_v2x {
   uint8_t signature[8];
   uint8_t model;
@@ -102,8 +106,6 @@ struct bem_v2x {
   uint16_t sn_shift;
 } __attribute__((packed));
 
-static const uint64_t k_snapshot_size = 327885;
-
 static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
@@ -111,7 +113,7 @@ state_read(unsigned char* p_buf, const char* p_file_name) {
   uint64_t len = util_file_read_fully(p_file_name, p_buf, k_snapshot_size);
 
   if (len != k_snapshot_size) {
-    util_bail("wrong snapshot size (expected %"PRIu64")", k_snapshot_size);
+    util_bail("wrong snapshot size (expected %d)", k_snapshot_size);
   }
 
   p_bem = (struct bem_v2x*) p_buf;

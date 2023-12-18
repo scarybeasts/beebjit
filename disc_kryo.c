@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static uint32_t k_kryo_max_index_pulses = 16;
+enum {
+  k_kryo_max_index_pulses = 16,
+};
 
 void
 disc_kryo_load(struct disc_struct* p_disc, const char* p_full_file_name) {
