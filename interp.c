@@ -1364,9 +1364,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       INTERP_MODE_ZPr_READ(INTERP_INSTR_ORA(), x);
       break;
     case 0x16: /* ASL zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      INTERP_INSTR_ASL();
-      p_mem_write[addr] = v;
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_ASL());
       break;
     case 0x17: /* SLO zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -1565,9 +1563,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       INTERP_MODE_ZPr_READ(INTERP_INSTR_AND(), x);
       break;
     case 0x36: /* ROL zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      INTERP_INSTR_ROL();
-      p_mem_write[addr] = v;
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_ROL());
       break;
     case 0x37: /* RLA zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -1759,9 +1755,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       INTERP_MODE_ZPr_READ(INTERP_INSTR_EOR(), x);
       break;
     case 0x56: /* LSR zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      INTERP_INSTR_LSR();
-      p_mem_write[addr] = v;
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_LSR());
       break;
     case 0x57: /* SRE zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -2016,9 +2010,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       }
       break;
     case 0x76: /* ROR zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      INTERP_INSTR_ROR();
-      p_mem_write[addr] = v;
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_ROR());
       break;
     case 0x77: /* RRA zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -2564,10 +2556,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       INTERP_MODE_ZPr_READ(INTERP_INSTR_CMP(a), x);
       break;
     case 0xD6: /* DEC zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      v--;
-      p_mem_write[addr] = v;
-      INTERP_LOAD_NZ_FLAGS(v);
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_DEC());
       break;
     case 0xD7: /* DCP zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -2781,10 +2770,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       }
       break;
     case 0xF6: /* INC zpx */
-      INTERP_MODE_ZPX_READ_WRITE();
-      v++;
-      p_mem_write[addr] = v;
-      INTERP_LOAD_NZ_FLAGS(v);
+      INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_INC());
       break;
     case 0xF7: /* ISC zpx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
