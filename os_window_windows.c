@@ -171,12 +171,15 @@ os_window_create(uint32_t width, uint32_t height) {
   HDC handle_draw_bitmap;
   HGDIOBJ select_object_ret;
 
-  WNDCLASS wc = {};
-  BITMAPINFO bmi = {};
-  VOID* pvBits = NULL;
+  WNDCLASS wc;
+  BITMAPINFO bmi;
 
+  VOID* pvBits = NULL;
   struct os_window_struct* p_window =
       util_mallocz(sizeof(struct os_window_struct));
+
+  (void) memset(&wc, '\0', sizeof(wc));
+  (void) memset(&bmi, '\0', sizeof(bmi));
 
   assert(s_p_window == NULL);
   s_p_window = p_window;
