@@ -655,7 +655,7 @@ util_parse_u64(const char* p_str, int force_hex) {
   if (force_hex) {
     (void) sscanf(p_str, "%"PRIx64, &ret);
   } else {
-    (void) sscanf(p_str, "%"PRId64, &ret);
+    (void) sscanf(p_str, "%"PRIu64, &ret);
   }
   return ret;
 }
