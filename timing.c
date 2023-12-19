@@ -108,7 +108,7 @@ timing_update_counts(struct timing_struct* p_timing) {
   return countdown;
 }
 
-inline int64_t
+int64_t
 timing_get_countdown(struct timing_struct* p_timing) {
   return p_timing->countdown;
 }
