@@ -2115,7 +2115,7 @@ debug_callback_common(struct debug_struct* p_debug,
       debug_dump_stats(p_debug);
     } else if (!strcmp(p_command, "cs")) {
       debug_clear_stats(p_debug);
-    } else if (!strcmp(p_command, "s")) {
+    } else if (!strcmp(p_command, "s") || !strcmp(p_command, "step")) {
       break;
     } else if (!strcmp(p_command, "t")) {
       do_trap = 1;
@@ -2133,7 +2133,7 @@ debug_callback_common(struct debug_struct* p_debug,
         p_debug->breakpoint_continue_count = parse_int2;
       }
       break;
-    } else if (!strcmp(p_command, "n")) {
+    } else if (!strcmp(p_command, "n") || !strcmp(p_command, "next")) {
       p_debug->next_or_finish_stop_addr = (p_debug->reg_pc + oplen);
       p_debug->debug_running = 1;
       break;
