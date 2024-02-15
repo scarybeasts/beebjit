@@ -619,21 +619,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    /* Wraps 0xFF -> 0; uint8_t type. */
-    p_video->horiz_counter++;
-
-    if (r7_hit || p_video->is_even_vsync) {
-      if (p_video->horiz_counter == p_video->half_r0) {
-        if (!p_video->had_even_vsync_this_row) {
-          p_video->had_even_vsync_this_row = 1;
-          p_video->is_even_vsync = 1;
-        } else if (p_video->vsync_scanline_counter == 0) {
-          p_video->is_even_vsync = 0;
-        }
-        video_update_VSYNC(p_video, (ticks + ticks_inc));
-      }
-    }
-
     if (p_video->is_rendering_active) {
       uint16_t address_counter;
 
@@ -656,10 +641,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           p_video->in_hsync = 0;
         }
       } else {
-        /* This ugly -1 here is just a code ordering issue related to an
-         * optimization; we already incremented horiz_counter above.
-         */
-        r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
+        r2_hit = (p_video->horiz_counter == r2);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
           render_hsync(
               p_video->p_render,
@@ -720,9 +702,27 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                   p_video->screen_wrap_add,
                                   is_teletext);
       render_render(p_video->p_render, data, address_counter, ticks);
+
+      address_counter++;
+      address_counter &= 0x3FFF;
+      p_video->address_counter = address_counter;
     }
 
-    p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
+    /* Wraps 0xFF -> 0; uint8_t type. */
+    p_video->horiz_counter++;
+
+    if (r7_hit || p_video->is_even_vsync) {
+      if (p_video->horiz_counter == p_video->half_r0) {
+        if (!p_video->had_even_vsync_this_row) {
+          p_video->had_even_vsync_this_row = 1;
+          p_video->is_even_vsync = 1;
+        } else if (p_video->vsync_scanline_counter == 0) {
+          p_video->is_even_vsync = 0;
+        }
+        video_update_VSYNC(p_video, (ticks + ticks_inc));
+      }
+    }
+
     ticks += ticks_inc;
 
     if (!r0_hit) {
