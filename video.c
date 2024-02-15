@@ -505,7 +505,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int r7_hit;
   int r9_hit;
 
-  struct render_struct* p_render = p_video->p_render;
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   int clock_speed = p_video->is_ula_clock_fast;
@@ -520,11 +519,11 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t effective_r9 =
       (p_video->crtc_registers[k_crtc_reg_lines_per_character] &
        p_video->scanline_mask);
-  uint32_t cursor_addr =
-      ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
-       p_video->crtc_registers[k_crtc_reg_cursor_low]);
+  int is_render_prepared = 0;
   int last_external_dispen = -1;
   int this_external_dispen;
+  int is_teletext;
+  uint32_t cursor_addr;
 
   if (p_video->externally_clocked) {
     return;
@@ -567,8 +566,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   } else {
     ticks_inc = 1;
   }
-
-  render_prepare(p_render);
 
   goto check_r6;
 
@@ -638,8 +635,16 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (p_video->is_rendering_active) {
-      uint16_t address_counter = p_video->address_counter;
-      int is_teletext = (p_video->video_ula_control & k_ula_teletext);
+      uint16_t address_counter;
+
+      if (!is_render_prepared) {
+        render_prepare(p_video->p_render);
+        cursor_addr = (p_video->crtc_registers[k_crtc_reg_cursor_high] << 8);
+        cursor_addr |= p_video->crtc_registers[k_crtc_reg_cursor_low];
+        is_teletext = (p_video->video_ula_control & k_ula_teletext);
+
+        is_render_prepared = 1;
+      }
 
       if (r1_hit || r0_hit) {
         p_video->display_enable_bits &= ~k_video_display_enable_horiz;
@@ -656,8 +661,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
          */
         r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
-          render_hsync(p_render, (p_video->hsync_pulse_width <<
-                                  p_video->clock_tick_shift));
+          render_hsync(
+              p_video->p_render,
+              (p_video->hsync_pulse_width << p_video->clock_tick_shift));
           p_video->in_hsync = 1;
           p_video->hsync_tick_counter = p_video->hsync_pulse_width;
         }
@@ -678,12 +684,12 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         /* The IC15 latch only lets DISPEN through if teletext linear addressing
          * is in effect.
          */
-        this_external_dispen &= !!(address_counter & 0x2000);
+        this_external_dispen &= !!(p_video->address_counter & 0x2000);
         teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
       }
 
       if (!p_video->cursor_disabled) {
-        if ((address_counter == cursor_addr) &&
+        if ((p_video->address_counter == cursor_addr) &&
             p_video->has_hit_cursor_line_start &&
             !p_video->has_hit_cursor_line_end &&
             (!p_video->cursor_flashing || (p_video->crtc_frames &
@@ -700,19 +706,20 @@ video_advance_crtc_timing(struct video_struct* p_video) {
              * address match.
              */
             if (p_video->dispen_shifts[p_video->cursor_skew]) {
-              render_cursor(p_render);
+              render_cursor(p_video->p_render);
             }
           }
         }
       }
 
+      address_counter = p_video->address_counter;
       data = video_read_data_byte(p_video,
                                   ticks,
                                   address_counter,
                                   p_video->scanline_counter,
                                   p_video->screen_wrap_add,
                                   is_teletext);
-      render_render(p_render, data, address_counter, ticks);
+      render_render(p_video->p_render, data, address_counter, ticks);
     }
 
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
@@ -806,27 +813,29 @@ check_r7:
       video_update_VSYNC(p_video, ticks);
     }
 
-    if (p_video->scanline_counter == p_video->cursor_start_line) {
-      p_video->has_hit_cursor_line_start = 1;
-    }
+    if (p_video->is_rendering_active) {
+      if (p_video->scanline_counter == p_video->cursor_start_line) {
+        p_video->has_hit_cursor_line_start = 1;
+      }
 
-    if (p_video->is_interlace_sync_and_video) {
-      assert(p_video->is_interlace);
-      /* NOTE: it's not clear if the 6845 internally counts interlace odd frame
-       * row addresses as 1..3..5..7.. or not. For now, we still count
-       * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
-       * for interlace odd frames.
-       */
-      teletext_RA_ISV_changed(p_video->p_teletext,
-                              p_video->is_odd_frame,
-                              (r4 >= r6));
-    } else {
-      teletext_RA_ISV_changed(p_video->p_teletext,
-                              p_video->scanline_counter,
-                              0);
-    }
+      if (p_video->is_interlace_sync_and_video) {
+        assert(p_video->is_interlace);
+        /* NOTE: it's not clear if the 6845 internally counts interlace odd
+         * frame row addresses as 1..3..5..7.. or not. For now, we still count
+         * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
+         * for interlace odd frames.
+         */
+        teletext_RA_ISV_changed(p_video->p_teletext,
+                                p_video->is_odd_frame,
+                                (r4 >= r6));
+      } else {
+        teletext_RA_ISV_changed(p_video->p_teletext,
+                                p_video->scanline_counter,
+                                0);
+      }
 
-    render_set_RA(p_render, p_video->scanline_counter);
+      render_set_RA(p_video->p_render, p_video->scanline_counter);
+    }
 
     r4_hit = (p_video->vert_counter == r4);
     r5_hit = (p_video->vert_adjust_counter == r5);
