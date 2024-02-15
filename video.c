@@ -497,8 +497,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t ticks_inc;
 
   int r0_hit;
-  int r1_hit;
-  int r2_hit;
   int r4_hit;
   int r5_hit;
   int r6_hit;
@@ -510,8 +508,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int clock_speed = p_video->is_ula_clock_fast;
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
-  uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
-  uint32_t r2 = p_video->crtc_registers[k_crtc_reg_horiz_position];
   uint32_t r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
   uint32_t r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
   uint32_t r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
@@ -571,11 +567,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   while (ticks < ticks_target) {
     r0_hit = (p_video->horiz_counter == r0);
-    r1_hit = (p_video->horiz_counter == r1);
-
-    if (r1_hit && r9_hit) {
-      p_video->address_counter_saved = p_video->address_counter;
-    }
 
     if (p_video->start_of_line_state_checks) {
       if (p_video->start_of_line_state_checks & 8) {
@@ -621,6 +612,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->is_rendering_active) {
       uint16_t address_counter;
+      int r1_hit;
 
       if (!is_render_prepared) {
         render_prepare(p_video->p_render);
@@ -629,6 +621,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         is_teletext = (p_video->video_ula_control & k_ula_teletext);
 
         is_render_prepared = 1;
+      }
+
+      r1_hit = (p_video->horiz_counter ==
+                p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
+
+      if (r1_hit && r9_hit) {
+        p_video->address_counter_saved = p_video->address_counter;
       }
 
       if (r1_hit || r0_hit) {
@@ -641,7 +640,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           p_video->in_hsync = 0;
         }
       } else {
-        r2_hit = (p_video->horiz_counter == r2);
+        int r2_hit = (p_video->horiz_counter ==
+                      p_video->crtc_registers[k_crtc_reg_horiz_position]);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
           render_hsync(
               p_video->p_render,
