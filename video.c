@@ -489,16 +489,119 @@ video_update_VSYNC(struct video_struct* p_video, uint64_t ticks) {
   }
 }
 
+static void
+video_do_rendering_tick(struct video_struct* p_video,
+                        int* p_is_render_prepared,
+                        uint8_t horiz_counter,
+                        int r0_hit,
+                        int r9_hit,
+                        uint64_t ticks) {
+  uint16_t address_counter;
+  int r1_hit;
+  uint8_t data;
+  int this_external_dispen;
+
+  if (!*p_is_render_prepared) {
+    render_prepare(p_video->p_render);
+
+    *p_is_render_prepared = 1;
+  }
+
+  r1_hit = (horiz_counter ==
+            p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
+
+  if (r1_hit && r9_hit) {
+    p_video->address_counter_saved = p_video->address_counter;
+  }
+
+  if (r1_hit || r0_hit) {
+    p_video->display_enable_bits &= ~k_video_display_enable_horiz;
+  }
+
+  if (p_video->in_hsync) {
+    p_video->hsync_tick_counter--;
+    if (p_video->hsync_tick_counter == 0) {
+      p_video->in_hsync = 0;
+    }
+  } else {
+    int r2_hit = (horiz_counter ==
+                  p_video->crtc_registers[k_crtc_reg_horiz_position]);
+    if (r2_hit && (p_video->hsync_pulse_width > 0)) {
+      render_hsync(
+          p_video->p_render,
+          (p_video->hsync_pulse_width << p_video->clock_tick_shift));
+      p_video->in_hsync = 1;
+      p_video->hsync_tick_counter = p_video->hsync_pulse_width;
+    }
+  }
+
+  /* Handle maintaining the DISPEN history for skew. */
+  p_video->dispen_shifts[2] = p_video->dispen_shifts[1];
+  p_video->dispen_shifts[1] = p_video->dispen_shifts[0];
+  p_video->dispen_shifts[0] =
+      (p_video->display_enable_bits == k_video_display_enable_all);
+  /* The DISPEN signal could be based on the current display bits, or
+   * previous display bits if there's skew, or a hard-wired 0
+   * (dispen_shifts[3]) if the skew register indicates display off.
+   */
+  this_external_dispen = p_video->dispen_shifts[p_video->skew_dispen_index];
+  /* TODO: only call these if DISPEN changed? */
+  render_set_DISPEN(p_video->p_render, this_external_dispen);
+  /* The IC15 latch only lets DISPEN through if teletext linear addressing
+   * is in effect.
+   */
+  this_external_dispen &= !!(p_video->address_counter & 0x2000);
+  teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
+
+  if (!p_video->cursor_disabled) {
+    uint32_t cursor_addr =
+        (p_video->crtc_registers[k_crtc_reg_cursor_high] << 8);
+    cursor_addr |= p_video->crtc_registers[k_crtc_reg_cursor_low];
+
+    if ((p_video->address_counter == cursor_addr) &&
+        p_video->has_hit_cursor_line_start &&
+        !p_video->has_hit_cursor_line_end &&
+        (!p_video->cursor_flashing || (p_video->crtc_frames &
+                                       p_video->cursor_flash_mask))) {
+      p_video->cursor_skew_counter = p_video->cursor_skew;
+    }
+    if (p_video->cursor_skew_counter >= 0) {
+      p_video->cursor_skew_counter--;
+      if (p_video->cursor_skew_counter == -1) {
+        /* EMU: cursor _does_ display if master display enable is off, but
+         * it's within the horiz / vert border.
+         * Also note, the horiz / vert enable must be checked at the time
+         * the skew counter expires and not the time we trigger the cursor
+         * address match.
+         */
+        if (p_video->dispen_shifts[p_video->cursor_skew]) {
+          render_cursor(p_video->p_render);
+        }
+      }
+    }
+  }
+
+  address_counter = p_video->address_counter;
+  data = video_read_data_byte(p_video,
+                              ticks,
+                              address_counter,
+                              p_video->scanline_counter,
+                              p_video->screen_wrap_add,
+                              (p_video->video_ula_control & k_ula_teletext));
+  render_render(p_video->p_render, data, address_counter, ticks);
+
+  address_counter++;
+  address_counter &= 0x3FFF;
+  p_video->address_counter = address_counter;
+}
+
 void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t ticks;
   uint64_t ticks_target;
-  int is_teletext;
-  uint32_t cursor_addr;
   uint8_t r0;
   uint8_t horiz_counter;
 
-  int r0_hit;
   int r4_hit;
   int r5_hit;
   int r6_hit;
@@ -512,7 +615,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       (p_video->crtc_registers[k_crtc_reg_lines_per_character] &
        p_video->scanline_mask);
   int is_render_prepared = 0;
-  int last_external_dispen = -1;
   uint64_t ticks_inc = 1;
 
   if (p_video->externally_clocked) {
@@ -556,7 +658,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   goto check_r6;
 
   while (ticks < ticks_target) {
-    r0_hit = (horiz_counter == r0);
+    int r0_hit;
 
     if (p_video->start_of_line_state_checks) {
       if (p_video->start_of_line_state_checks & 8) {
@@ -600,104 +702,14 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
+    r0_hit = (horiz_counter == r0);
     if (p_video->is_rendering_active) {
-      uint16_t address_counter;
-      int r1_hit;
-      int this_external_dispen;
-      uint8_t data;
-
-      if (!is_render_prepared) {
-        render_prepare(p_video->p_render);
-        cursor_addr = (p_video->crtc_registers[k_crtc_reg_cursor_high] << 8);
-        cursor_addr |= p_video->crtc_registers[k_crtc_reg_cursor_low];
-        is_teletext = (p_video->video_ula_control & k_ula_teletext);
-
-        is_render_prepared = 1;
-      }
-
-      r1_hit = (horiz_counter ==
-                p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
-
-      if (r1_hit && r9_hit) {
-        p_video->address_counter_saved = p_video->address_counter;
-      }
-
-      if (r1_hit || r0_hit) {
-        p_video->display_enable_bits &= ~k_video_display_enable_horiz;
-      }
-
-      if (p_video->in_hsync) {
-        p_video->hsync_tick_counter--;
-        if (p_video->hsync_tick_counter == 0) {
-          p_video->in_hsync = 0;
-        }
-      } else {
-        int r2_hit = (horiz_counter ==
-                      p_video->crtc_registers[k_crtc_reg_horiz_position]);
-        if (r2_hit && (p_video->hsync_pulse_width > 0)) {
-          render_hsync(
-              p_video->p_render,
-              (p_video->hsync_pulse_width << p_video->clock_tick_shift));
-          p_video->in_hsync = 1;
-          p_video->hsync_tick_counter = p_video->hsync_pulse_width;
-        }
-      }
-
-      /* Handle maintaining the DISPEN history for skew. */
-      p_video->dispen_shifts[2] = p_video->dispen_shifts[1];
-      p_video->dispen_shifts[1] = p_video->dispen_shifts[0];
-      p_video->dispen_shifts[0] =
-          (p_video->display_enable_bits == k_video_display_enable_all);
-      /* The DISPEN signal could be based on the current display bits, or
-       * previous display bits if there's skew, or a hard-wired 0
-       * (dispen_shifts[3]) if the skew register indicates display off.
-       */
-      this_external_dispen = p_video->dispen_shifts[p_video->skew_dispen_index];
-      if (this_external_dispen != last_external_dispen) {
-        render_set_DISPEN(p_video->p_render, this_external_dispen);
-        /* The IC15 latch only lets DISPEN through if teletext linear addressing
-         * is in effect.
-         */
-        this_external_dispen &= !!(p_video->address_counter & 0x2000);
-        teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
-      }
-
-      if (!p_video->cursor_disabled) {
-        if ((p_video->address_counter == cursor_addr) &&
-            p_video->has_hit_cursor_line_start &&
-            !p_video->has_hit_cursor_line_end &&
-            (!p_video->cursor_flashing || (p_video->crtc_frames &
-                                           p_video->cursor_flash_mask))) {
-          p_video->cursor_skew_counter = p_video->cursor_skew;
-        }
-        if (p_video->cursor_skew_counter >= 0) {
-          p_video->cursor_skew_counter--;
-          if (p_video->cursor_skew_counter == -1) {
-            /* EMU: cursor _does_ display if master display enable is off, but
-             * it's within the horiz / vert border.
-             * Also note, the horiz / vert enable must be checked at the time
-             * the skew counter expires and not the time we trigger the cursor
-             * address match.
-             */
-            if (p_video->dispen_shifts[p_video->cursor_skew]) {
-              render_cursor(p_video->p_render);
-            }
-          }
-        }
-      }
-
-      address_counter = p_video->address_counter;
-      data = video_read_data_byte(p_video,
-                                  ticks,
-                                  address_counter,
-                                  p_video->scanline_counter,
-                                  p_video->screen_wrap_add,
-                                  is_teletext);
-      render_render(p_video->p_render, data, address_counter, ticks);
-
-      address_counter++;
-      address_counter &= 0x3FFF;
-      p_video->address_counter = address_counter;
+      video_do_rendering_tick(p_video,
+                              &is_render_prepared,
+                              horiz_counter,
+                              r0_hit,
+                              r9_hit,
+                              ticks);
     }
 
     /* Wraps 0xFF -> 0; uint8_t type. */
@@ -765,6 +777,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     /* End-of-line state transitions. */
     if (p_video->in_dummy_raster) {
+      p_video->horiz_counter = horiz_counter;
       video_start_new_frame(p_video);
       goto check_r7;
     } else if (p_video->is_vert_adjust_pending) {
@@ -774,6 +787,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
         p_video->in_dummy_raster = 1;
       } else {
+        p_video->horiz_counter = horiz_counter;
         video_start_new_frame(p_video);
         goto check_r7;
       }
