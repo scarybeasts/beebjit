@@ -130,8 +130,9 @@ struct video_struct {
   int via_ca1_irq_level;
 
   /* Video ULA state and derivatives. */
-  uint8_t video_ula_control;
   uint8_t ula_palette[16];
+  uint8_t video_ula_control;
+  int is_ula_clock_fast;
   uint32_t screen_wrap_add;
   uint32_t clock_tick_shift;
   int is_shadow_displayed;
@@ -139,9 +140,9 @@ struct video_struct {
   int32_t nula_pending_palette;
 
   /* 6845 registers and derivatives. */
+  uint8_t crtc_registers[k_video_crtc_num_registers];
   /* The one field referenced by JIT. */
   uint8_t crtc_address_register;
-  uint8_t crtc_registers[k_video_crtc_num_registers];
   int is_interlace;
   int is_interlace_sync_and_video;
   uint32_t scanline_stride;
@@ -275,11 +276,6 @@ video_start_new_frame(struct video_struct* p_video) {
   if (p_video->opt_is_show_frame_boundaries) {
     render_horiz_line(p_video->p_render, 0xffff0000);
   }
-}
-
-static inline int
-video_get_clock_speed(struct video_struct* p_video) {
-  return !!(p_video->video_ula_control & k_ula_clock_speed);
 }
 
 void
@@ -512,7 +508,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   struct render_struct* p_render = p_video->p_render;
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  int clock_speed = video_get_clock_speed(p_video);
+  int clock_speed = p_video->is_ula_clock_fast;
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
@@ -1028,7 +1024,7 @@ video_update_timer(struct video_struct* p_video) {
     return;
   }
 
-  clock_speed = video_get_clock_speed(p_video);
+  clock_speed = p_video->is_ula_clock_fast;
 
   timer_value = video_calculate_timer(p_video, clock_speed);
   if (p_video->log_timer) {
@@ -1209,7 +1205,7 @@ video_mode_updated(struct video_struct* p_video) {
   /* Let the renderer know about the new mode. */
   int is_teletext = (p_video->video_ula_control & k_ula_teletext);
   int chars_per_line = (p_video->video_ula_control & k_ula_chars_per_line);
-  int clock_speed = video_get_clock_speed(p_video);
+  int clock_speed = p_video->is_ula_clock_fast;
   chars_per_line >>= k_ula_chars_per_line_shift;
 
   render_set_mode(p_video->p_render, clock_speed, chars_per_line, is_teletext);
@@ -1512,9 +1508,15 @@ video_shadow_mode_updated(struct video_struct* p_video,
 }
 
 static void
+video_ula_set_control(struct video_struct* p_video, uint8_t val) {
+  p_video->video_ula_control = val;
+  p_video->is_ula_clock_fast = !!(val & k_ula_clock_speed);
+}
+
+static void
 video_ula_power_on_reset(struct video_struct* p_video) {
   /* Teletext mode, 1MHz operation. */
-  p_video->video_ula_control = k_ula_teletext;
+  video_ula_set_control(p_video, k_ula_teletext);
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_shift = 1;
@@ -1851,7 +1853,7 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
     video_advance_crtc_timing(p_video);
   }
 
-  old_clock_speed = video_get_clock_speed(p_video);
+  old_clock_speed = p_video->is_ula_clock_fast;
   new_clock_speed = !!(val & k_ula_clock_speed);
   old_is_teletext = !!(p_video->video_ula_control & k_ula_teletext);
   new_is_teletext = !!(val & k_ula_teletext);
@@ -1864,7 +1866,7 @@ video_ula_write_ctrl(struct video_struct* p_video, uint8_t val) {
     p_video->clock_tick_shift = !new_clock_speed;
   }
 
-  p_video->video_ula_control = val;
+  video_ula_set_control(p_video, val);
 
   if ((new_clock_speed != old_clock_speed) ||
       (new_is_teletext != old_is_teletext)) {

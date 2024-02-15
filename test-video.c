@@ -209,7 +209,7 @@ video_test_clock_speed_flip() {
 
   test_expect_u32(0, g_p_video->horiz_counter);
   /* We default to MODE7; should be 1MHz. */
-  test_expect_u32(0, video_get_clock_speed(g_p_video));
+  test_expect_u32(0, g_p_video->is_ula_clock_fast);
 
   countdown = timing_advance_time(g_p_timing, (countdown - 1));
   video_advance_crtc_timing(g_p_video);
