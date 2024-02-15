@@ -491,10 +491,12 @@ video_update_VSYNC(struct video_struct* p_video, uint64_t ticks) {
 
 void
 video_advance_crtc_timing(struct video_struct* p_video) {
-  uint8_t data;
   uint64_t ticks;
   uint64_t ticks_target;
-  uint64_t ticks_inc;
+  int is_teletext;
+  uint32_t cursor_addr;
+  uint8_t r0;
+  uint8_t horiz_counter;
 
   int r0_hit;
   int r4_hit;
@@ -505,21 +507,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  int clock_speed = p_video->is_ula_clock_fast;
 
-  uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
-  uint32_t r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
-  uint32_t r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
-  uint32_t r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
-  uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
   uint32_t effective_r9 =
       (p_video->crtc_registers[k_crtc_reg_lines_per_character] &
        p_video->scanline_mask);
   int is_render_prepared = 0;
   int last_external_dispen = -1;
-  int this_external_dispen;
-  int is_teletext;
-  uint32_t cursor_addr;
+  uint64_t ticks_inc = 1;
 
   if (p_video->externally_clocked) {
     return;
@@ -538,35 +532,31 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
   }
 
-  p_video->num_crtc_advances++;
   ticks = p_video->prev_system_ticks;
   ticks_target = curr_system_ticks;
 
   assert((ticks_target - ticks) < INT_MAX);
 
-  if (clock_speed == 0) {
+  if (!p_video->is_ula_clock_fast) {
     /* If we're advancing from an odd clock, pretend to start 1 cycle sooner in
      * order to get aligned to 1MHz.
      */
-    if (ticks & 1) {
-      ticks--;
-    }
+    ticks &= ~1ull;
     /* If we're advancing to an odd clock, stop on the 1MHz boundary before. */
-    if (ticks_target & 1) {
-      ticks_target--;
-    }
+    ticks_target &= ~1ull;
     /* 1MHz mode => CRTC ticks pass at half rate. This double increment also
      * makes sure we're only advance to an even clock.
      */
     ticks_inc = 2;
-  } else {
-    ticks_inc = 1;
   }
+
+  r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
+  horiz_counter = p_video->horiz_counter;
 
   goto check_r6;
 
   while (ticks < ticks_target) {
-    r0_hit = (p_video->horiz_counter == r0);
+    r0_hit = (horiz_counter == r0);
 
     if (p_video->start_of_line_state_checks) {
       if (p_video->start_of_line_state_checks & 8) {
@@ -613,6 +603,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (p_video->is_rendering_active) {
       uint16_t address_counter;
       int r1_hit;
+      int this_external_dispen;
+      uint8_t data;
 
       if (!is_render_prepared) {
         render_prepare(p_video->p_render);
@@ -623,7 +615,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         is_render_prepared = 1;
       }
 
-      r1_hit = (p_video->horiz_counter ==
+      r1_hit = (horiz_counter ==
                 p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
 
       if (r1_hit && r9_hit) {
@@ -640,7 +632,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           p_video->in_hsync = 0;
         }
       } else {
-        int r2_hit = (p_video->horiz_counter ==
+        int r2_hit = (horiz_counter ==
                       p_video->crtc_registers[k_crtc_reg_horiz_position]);
         if (r2_hit && (p_video->hsync_pulse_width > 0)) {
           render_hsync(
@@ -709,10 +701,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     /* Wraps 0xFF -> 0; uint8_t type. */
-    p_video->horiz_counter++;
+    horiz_counter++;
 
     if (r7_hit || p_video->is_even_vsync) {
-      if (p_video->horiz_counter == p_video->half_r0) {
+      if (horiz_counter == p_video->half_r0) {
         if (!p_video->had_even_vsync_this_row) {
           p_video->had_even_vsync_this_row = 1;
           p_video->is_even_vsync = 1;
@@ -730,7 +722,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     /* End of horizontal line. */
-    p_video->horiz_counter = 0;
+    horiz_counter = 0;
     p_video->display_enable_bits |= k_video_display_enable_horiz;
     /* Start the new line state check chain. */
     p_video->start_of_line_state_checks |= 1;
@@ -793,7 +785,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
 check_r6:
-    r6_hit = (p_video->vert_counter == r6);
+    r6_hit = (p_video->vert_counter ==
+              p_video->crtc_registers[k_crtc_reg_vert_displayed]);
     if (r6_hit &&
         (p_video->display_enable_bits & k_video_display_enable_vert) &&
         !p_video->is_first_frame_scanline) {
@@ -803,7 +796,8 @@ check_r6:
     }
 
 check_r7:
-    r7_hit = (p_video->vert_counter == r7);
+    r7_hit = (p_video->vert_counter ==
+              p_video->crtc_registers[k_crtc_reg_vert_sync_position]);
     if (r7_hit && !p_video->had_odd_vsync_this_row) {
       p_video->had_odd_vsync_this_row = 1;
       p_video->is_odd_vsync = 1;
@@ -825,9 +819,11 @@ check_r7:
          * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
          * for interlace odd frames.
          */
-        teletext_RA_ISV_changed(p_video->p_teletext,
-                                p_video->is_odd_frame,
-                                (r4 >= r6));
+        teletext_RA_ISV_changed(
+            p_video->p_teletext,
+            p_video->is_odd_frame,
+            (p_video->crtc_registers[k_crtc_reg_vert_total] >=
+             p_video->crtc_registers[k_crtc_reg_vert_displayed]));
       } else {
         teletext_RA_ISV_changed(p_video->p_teletext,
                                 p_video->scanline_counter,
@@ -837,12 +833,16 @@ check_r7:
       render_set_RA(p_video->p_render, p_video->scanline_counter);
     }
 
-    r4_hit = (p_video->vert_counter == r4);
-    r5_hit = (p_video->vert_adjust_counter == r5);
+    r4_hit = (p_video->vert_counter ==
+              p_video->crtc_registers[k_crtc_reg_vert_total]);
+    r5_hit = (p_video->vert_adjust_counter ==
+              p_video->crtc_registers[k_crtc_reg_vert_adjust]);
     r9_hit = (p_video->scanline_counter == effective_r9);
   }
 
+  p_video->horiz_counter = horiz_counter;
   p_video->prev_system_ticks = curr_system_ticks;
+  p_video->num_crtc_advances++;
 }
 
 void
