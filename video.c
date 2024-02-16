@@ -601,6 +601,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t ticks_target;
   uint8_t r0;
   uint8_t horiz_counter;
+  uint32_t start_of_line_state_checks;
 
   int r4_hit;
   int r5_hit;
@@ -652,6 +653,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     ticks_inc = 2;
   }
 
+  start_of_line_state_checks = p_video->start_of_line_state_checks;
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   horiz_counter = p_video->horiz_counter;
 
@@ -660,8 +662,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   while (ticks < ticks_target) {
     int r0_hit;
 
-    if (p_video->start_of_line_state_checks) {
-      if (p_video->start_of_line_state_checks & 8) {
+    if (start_of_line_state_checks) {
+      if (start_of_line_state_checks & 8) {
         /* It's unclear what exactly goes on here. Currently it's just here to
          * delay end of frame so that end of frame can only fire in a single
          * scanline if R0>=3 (4 clocks). This matches testing against a real
@@ -670,9 +672,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         if (p_video->is_end_of_vert_adjust_latched) {
           p_video->is_end_of_frame_latched = 1;
         }
-        p_video->start_of_line_state_checks &= ~8;
+        start_of_line_state_checks &= ~8;
       }
-      if (p_video->start_of_line_state_checks & 4) {
+      if (start_of_line_state_checks & 4) {
         /* One tick after the end-of-main check is the end-of-vert-adjust
          * check.
          */
@@ -683,22 +685,22 @@ video_advance_crtc_timing(struct video_struct* p_video) {
             p_video->is_vert_adjust_pending = 1;
           }
         }
-        p_video->start_of_line_state_checks &= ~4;
-        p_video->start_of_line_state_checks |= 8;
+        start_of_line_state_checks &= ~4;
+        start_of_line_state_checks |= 8;
       }
-      if (p_video->start_of_line_state_checks & 2) {
+      if (start_of_line_state_checks & 2) {
         /* One tick after the new line (typically C0=1), end-of-main is
          * checked and latched.
          */
         if (r4_hit && r9_hit) {
           p_video->is_end_of_main_latched = 1;
         }
-        p_video->start_of_line_state_checks &= ~2;
-        p_video->start_of_line_state_checks |= 4;
+        start_of_line_state_checks &= ~2;
+        start_of_line_state_checks |= 4;
       }
-      if (p_video->start_of_line_state_checks & 1) {
-        p_video->start_of_line_state_checks &= ~1;
-        p_video->start_of_line_state_checks |= 2;
+      if (start_of_line_state_checks & 1) {
+        start_of_line_state_checks &= ~1;
+        start_of_line_state_checks |= 2;
       }
     }
 
@@ -737,7 +739,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     horiz_counter = 0;
     p_video->display_enable_bits |= k_video_display_enable_horiz;
     /* Start the new line state check chain. */
-    p_video->start_of_line_state_checks |= 1;
+    start_of_line_state_checks |= 1;
 
     p_video->is_first_frame_scanline = 0;
     if (p_video->scanline_counter ==
@@ -778,6 +780,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* End-of-line state transitions. */
     if (p_video->in_dummy_raster) {
       p_video->horiz_counter = horiz_counter;
+      p_video->start_of_line_state_checks = start_of_line_state_checks;
       video_start_new_frame(p_video);
       goto check_r7;
     } else if (p_video->is_vert_adjust_pending) {
@@ -788,6 +791,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->in_dummy_raster = 1;
       } else {
         p_video->horiz_counter = horiz_counter;
+        p_video->start_of_line_state_checks = start_of_line_state_checks;
         video_start_new_frame(p_video);
         goto check_r7;
       }
@@ -855,6 +859,7 @@ check_r7:
   }
 
   p_video->horiz_counter = horiz_counter;
+  p_video->start_of_line_state_checks = start_of_line_state_checks;
   p_video->prev_system_ticks = curr_system_ticks;
   p_video->num_crtc_advances++;
 }
