@@ -399,7 +399,10 @@ tape_uef_load(struct tape_struct* p_tape,
        */
       break;
     default:
-      util_bail("UEF unknown chunk type 0x%.4"PRIx16, chunk_type);
+      log_do_log(k_log_tape,
+                 k_log_error,
+                 "UEF unknown chunk type 0x%.4"PRIx16,
+                 chunk_type);
       break;
     }
 
