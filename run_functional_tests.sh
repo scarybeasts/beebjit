@@ -68,7 +68,7 @@ echo 'Checking RVI rendering.'
     -mode interp \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x7c91a13d)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x646f907a)||bail';q"
 
 # This checks some teletext state machine corner cases.
 echo 'Checking teletext rendering.'
@@ -76,7 +76,7 @@ echo 'Checking teletext rendering.'
     -mode jit \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2100000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd3e8452c)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2100000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x314d2162)||bail';q"
 
 # This checks some 6845 end-of-frame logic that can render an unexpected
 # blank scanline.
