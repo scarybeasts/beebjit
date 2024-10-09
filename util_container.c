@@ -219,6 +219,11 @@ util_tree_node_get_type(struct util_tree_node_struct* p_node) {
   return p_node->type;
 }
 
+void
+util_tree_node_set_type(struct util_tree_node_struct* p_node, int32_t type) {
+  p_node->type = type;
+}
+
 struct util_tree_node_struct*
 util_tree_node_get_parent(struct util_tree_node_struct* p_node) {
   return p_node->p_parent;

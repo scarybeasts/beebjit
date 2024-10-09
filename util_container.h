@@ -37,6 +37,8 @@ void util_tree_set_root(struct util_tree_struct* p_tree,
 
 struct util_tree_node_struct* util_tree_node_alloc(int32_t type);
 int32_t util_tree_node_get_type(struct util_tree_node_struct* p_node);
+void util_tree_node_set_type(struct util_tree_node_struct* p_node,
+                             int32_t type);
 struct util_tree_node_struct* util_tree_node_get_parent(
     struct util_tree_node_struct* p_node);
 uint32_t util_tree_node_get_num_children(struct util_tree_node_struct* p_node);

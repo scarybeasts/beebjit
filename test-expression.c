@@ -253,6 +253,25 @@ expression_test_misc(void) {
   expression_destroy(p_expression);
 }
 
+static void
+expression_test_parens(void) {
+  struct expression_struct* p_expression = expression_test_get_expression();
+
+  expression_parse(p_expression, "((9))");
+  test_expect_u32(9, expression_execute(p_expression));
+
+  expression_parse(p_expression, "(1)+(2)*(3)");
+  test_expect_u32(7, expression_execute(p_expression));
+
+  expression_parse(p_expression, "(1)*(2)+(3)");
+  test_expect_u32(5, expression_execute(p_expression));
+
+  expression_parse(p_expression, "((1)||1)");
+  test_expect_u32(1, expression_execute(p_expression));
+
+  expression_destroy(p_expression);
+}
+
 void
 expression_test() {
   expression_test_basic();
@@ -263,4 +282,5 @@ expression_test() {
   expression_test_array();
   expression_test_assign();
   expression_test_misc();
+  expression_test_parens();
 }

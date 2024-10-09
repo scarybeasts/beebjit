@@ -121,10 +121,12 @@ expression_get_precedence(int32_t type) {
     ret = 10;
     break;
   case k_expression_node_paren_open:
-  case k_expression_node_paren_close:
   case k_expression_node_square_open:
-  case k_expression_node_square_close:
     ret = 0;
+    break;
+  case k_expression_node_paren_close:
+  case k_expression_node_square_close:
+    ret = INT_MAX;
     break;
   default:
     ret = 0;
@@ -151,9 +153,8 @@ expression_parent_walk_for_closure(struct expression_struct* p_expression,
   }
   if (p_parent_node == NULL) {
     log_do_log(k_log_misc, k_log_warning, "mismatched %s", p_closing_symbol);
-  } else {
-    p_parent_node = util_tree_node_get_parent(p_parent_node);
   }
+
   p_expression->p_current_node = p_parent_node;
 }
 
@@ -251,35 +252,35 @@ expression_process_token(struct expression_struct* p_expression,
     expression_parent_walk_for_closure(p_expression,
                                        k_expression_node_paren_open,
                                        ")");
+    util_tree_node_set_type(p_expression->p_current_node, type);
     return;
   } else if (type == k_expression_node_square_close) {
     expression_parent_walk_for_closure(p_expression,
                                        k_expression_node_square_open,
                                        "]");
+    util_tree_node_set_type(p_expression->p_current_node, type);
     return;
   }
 
-  if ((type == k_expression_node_paren_open) ||
-      (type == k_expression_node_square_open)) {
-    /* ( and [ are special. They stop tree walks (precedence 0 for tree walks)
-     * but must also go exactly in our current position in the tree.
-     */
-    new_precedence = INT_MAX;
-  } else {
-    new_precedence = expression_get_precedence(type);
-  }
-  while (1) {
-    int32_t curr_type;
-    int32_t curr_precedence;
-    if (p_parent_node == NULL) {
-      break;
+  new_precedence = expression_get_precedence(type);
+  /* ( and [ are special. They go at the current tree position. Otherwise we
+   * walk up the tree comparing precedence.
+   */
+  if ((type != k_expression_node_paren_open) &&
+      (type != k_expression_node_square_open)) {
+    while (1) {
+      int32_t curr_type;
+      int32_t curr_precedence;
+      if (p_parent_node == NULL) {
+        break;
+      }
+      curr_type = util_tree_node_get_type(p_parent_node);
+      curr_precedence = expression_get_precedence(curr_type);
+      if (new_precedence > curr_precedence) {
+        break;
+      }
+      p_parent_node = util_tree_node_get_parent(p_parent_node);
     }
-    curr_type = util_tree_node_get_type(p_parent_node);
-    curr_precedence = expression_get_precedence(curr_type);
-    if (new_precedence > curr_precedence) {
-      break;
-    }
-    p_parent_node = util_tree_node_get_parent(p_parent_node);
   }
   if (p_parent_node == NULL) {
     struct util_tree_node_struct* p_old_root = util_tree_get_root(p_tree);
@@ -516,8 +517,8 @@ expression_execute_node(struct expression_struct* p_expression,
       ret |= expression_execute_node(p_expression, p_child_node_2);
     }
     break;
-  case k_expression_node_paren_open:
-  case k_expression_node_square_open:
+  case k_expression_node_paren_close:
+  case k_expression_node_square_close:
     if (num_children == 1) {
       ret = expression_execute_node(p_expression, p_child_node_1);
     }
