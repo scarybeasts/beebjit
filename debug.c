@@ -1168,6 +1168,14 @@ debug_read_variable_flags(void* p, uint32_t index) {
 }
 
 static int64_t
+debug_read_variable_ticks(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint64_t ticks = timing_get_total_timer_ticks(p_debug->p_timing);
+  (void) index;
+  return (int64_t) ticks;
+}
+
+static int64_t
 debug_read_variable_addr(void* p, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   (void) index;
@@ -1392,6 +1400,8 @@ debug_get_read_variable_function(void* p, const char* p_name) {
     ret = debug_read_variable_pc;
   } else if (!strcmp(p_name, "flags")) {
     ret = debug_read_variable_flags;
+  } else if (!strcmp(p_name, "ticks")) {
+    ret = debug_read_variable_ticks;
   } else if (!strcmp(p_name, "addr")) {
     ret = debug_read_variable_addr;
   } else if (!strcmp(p_name, "is_read")) {
