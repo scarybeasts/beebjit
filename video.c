@@ -681,7 +681,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         if (p_video->is_end_of_main_latched) {
           if (r5_hit) {
             p_video->is_end_of_vert_adjust_latched = 1;
-          } else if (!p_video->is_in_vert_adjust) {
+          } else if (!p_video->is_in_vert_adjust && !p_video->in_dummy_raster) {
             p_video->is_vert_adjust_pending = 1;
           }
         }

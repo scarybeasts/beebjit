@@ -1282,7 +1282,41 @@ video_test_inactive_non_interlace() {
   test_expect_u32(115968, g_p_video->last_vsync_lower_ticks);
 }
 
-void video_test_scale_factor() {
+static void
+video_test_adjust_assert() {
+  /* Test an elusive assert when starting a new frame, sometimes hit when
+   * pressing Break as LinearTTX.ssd ran.
+   */
+  video_test_setup_mode_4_non_interlaced();
+
+  /* Need interlace on for the dummy raster row. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 1);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_per_frame);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->crtc_frames);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_dummy_raster);
+
+  test_expect_u32(0, g_p_video->is_vert_adjust_pending);
+  test_expect_u32(0, g_p_video->is_in_vert_adjust);
+
+  /* Arrange for R5 miss. */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 1);
+
+  /* Finish frame. */
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_scanline);
+  video_advance_crtc_timing(g_p_video);
+
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+}
+
+static void
+video_test_scale_factor() {
   /* Test for an assert that occured when the video system was operating with
    * a timing scale.
    */
@@ -1389,6 +1423,10 @@ video_test() {
 
   video_test_init();
   video_test_inactive_non_interlace();
+  video_test_end();
+
+  video_test_init();
+  video_test_adjust_assert();
   video_test_end();
 
   g_timing_scale_factor = 8;
