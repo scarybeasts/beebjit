@@ -661,7 +661,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_sax:
-    /* Only send SLO along to the asm backend for the simple mode used by
+    /* Only send SAX along to the asm backend for the simple mode used by
      * Zalaga. This avoids the backend having to implement too much for a
      * non-critical opcode.
      */
@@ -681,7 +681,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      * Zalaga. This avoids the backend having to implement too much for a
      * non-critical opcode.
      */
-    if ((opmode == k_abs) || (opmode == k_zpg)) {
+    if (opmode == k_zpg) {
       asm_make_uop0(p_uop, k_opcode_SLO);
       p_uop++;
     } else {

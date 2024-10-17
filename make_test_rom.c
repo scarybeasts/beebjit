@@ -2811,8 +2811,22 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
   emit_JMP(p_buf, k_abs, 0xE800);
 
-  /* End of test. */
+  /* Test SLO abs to the swram / ROM area.
+   * Quest compiles this in a block at $0BD1 but doesn't execute it because
+   * the block exits with an always taken BEQ.
+   */
   set_new_index(p_buf, 0x2800);
+  emit_LDA(p_buf, k_imm, 0x01);
+  /* SLO $8000.
+   * BASIC paged in, $8000 has value $C9.
+   */
+  util_buffer_add_3b(p_buf, 0x0F, 0x00, 0x80);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x93);
+  emit_JMP(p_buf, k_abs, 0xE840);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2840);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
