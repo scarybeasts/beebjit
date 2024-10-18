@@ -1401,6 +1401,7 @@ debug_get_read_variable_function(void* p, const char* p_name) {
   } else if (!strcmp(p_name, "flags")) {
     ret = debug_read_variable_flags;
   } else if (!strcmp(p_name, "ticks")) {
+    needs_sub_instruction = 1;
     ret = debug_read_variable_ticks;
   } else if (!strcmp(p_name, "addr")) {
     ret = debug_read_variable_addr;
