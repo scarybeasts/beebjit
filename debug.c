@@ -1519,6 +1519,13 @@ debug_write_variable_temp(void* p, uint32_t index, int64_t value) {
 }
 
 static void
+debug_write_variable_log(void* p, uint32_t index, int64_t value) {
+  (void) p;
+  (void) index;
+  log_do_log(k_log_misc, k_log_info, "breakpoint eval log: %"PRId64, value);
+}
+
+static void
 debug_write_variable_drawline(void* p, uint32_t index, int64_t value) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
@@ -1561,6 +1568,8 @@ debug_get_write_variable_function(void* p, const char* p_name) {
     ret = debug_write_variable_mem;
   } else if (!strcmp(p_name, "temp")) {
     ret = debug_write_variable_temp;
+  } else if (!strcmp(p_name, "log")) {
+    ret = debug_write_variable_log;
   } else if (!strcmp(p_name, "drawline")) {
     ret = debug_write_variable_drawline;
   } else if (!strcmp(p_name, "sysvia_r")) {
