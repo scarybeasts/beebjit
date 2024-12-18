@@ -1,15 +1,19 @@
 Notes on performance measurements, newer (and more relevant) first.
 
+- beebjit-0.9.9, Windows 11 on 19-14900HX
+RTRACE, -opt sound:off:        18.4 GHz
+CLOCKSP (with display):        30.2 GHz
+
 - beebjit-0.9.6, F34 on i7-1165G7, taskset -p 2 `pidof beebjit`
-RTRACE, -opt sound:off:        12.1GHz (-log perf:speed)
-CLOCKSP, -terminal -headless:  18.5GHz
+RTRACE, -opt sound:off:        12.1 GHz (-log perf:speed)
+CLOCKSP, -terminal -headless:  18.5 GHz
 
 - beebjit-0.9.5, F34 on i7-1165G7, taskset -p 2 `pidof beebjit`
-RTRACE, -opt sound:off:        11.3GHz (-log perf:speed)
-CLOCKSP, -terminal -headless:  15.8GHz
+RTRACE, -opt sound:off:        11.3 GHz (-log perf:speed)
+CLOCKSP, -terminal -headless:  15.8 GHz
 
 - beebjit-0.9.4, CLOCKSP, i5-5200U @ 2.20GHz (2.7GHz boost).
-723MHz interp, 1036MHz inturbo, 6687MHz JIT.
+723MHz interp, 1036MHz inturbo, 6687 MHz JIT.
 
 
 - Galaforce, beebjit-0.6.

@@ -2,9 +2,15 @@ A list of software that has some sort of demonstration mode suitable for
 speed testing and demos.
 
 Included with each item is an indication of current best speed seen:
-- beebjit v0.9.9
-- My laptop, Intel i7-1165G7 that boosts to 4.1GHz+
 
+- beebjit v0.9.9, laptop, Windows 11, Intel i9-14900HX that boosts to 5.2GHz+
+Baron                         41.5 GHz
+Citadel                       29.0 GHz
+Elite                          8.5 GHz
+Galaforce                     16.5 GHz
+Starship Command               9.0 GHz
+
+- beebjit v0.9.9, laptop, Fedora Linux, Intel i7-1165G7 that boosts to 4.1GHz+
 Arcadians                     16.2 GHz  Eventually hangs!
 Baron                         28.5 GHz  Record?!
 Boulderdash                    5.5 GHz
