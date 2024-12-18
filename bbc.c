@@ -2038,7 +2038,7 @@ bbc_create(int mode,
     p_bbc->do_video_memory_sync = 0;
   }
   p_bbc->do_paint_every_tick = util_has_option(p_opt_flags,
-                                               "video:paint_every_tick");
+                                               "video:paint-every-tick");
 
   p_bbc->p_sleeper = os_time_create_sleeper();
   p_bbc->last_time_us = 0;
