@@ -145,7 +145,7 @@ asm_jit_is_enabled(void) {
 
 int
 asm_jit_is_default(void) {
-  return 0;
+  return 1;
 }
 
 void
