@@ -224,7 +224,7 @@ asm_jit_start_code_updates(struct asm_jit_struct* p_asm,
   }
   p_asm->p_start = p_start;
   p_asm->length = length;
-  p_end = (p_start + length);
+  p_end = ((uint8_t*) p_start + length);
 
   assert(p_end <= (void*) K_JIT_ADDR_END);
 
@@ -232,7 +232,7 @@ asm_jit_start_code_updates(struct asm_jit_struct* p_asm,
   p_pages_end = (void*) ((uintptr_t) p_end & page_mask);
   end_index = ((uintptr_t) p_end & page_index_mask);
 
-  pages_length = (p_pages_end - p_pages_start);
+  pages_length = ((uint8_t*) p_pages_end - (uint8_t*) p_pages_start);
   if (end_index > 0) {
     pages_length += page_size;
   }
@@ -253,7 +253,8 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
   /* mprotect(), as far as I can discern, does not guarantee to clear icache
    * for PROT_EXEC mappings.
    */
-  __builtin___clear_cache(p_asm->p_start, (p_asm->p_start + p_asm->length));
+  __builtin___clear_cache(p_asm->p_start,
+                          ((char*) p_asm->p_start + p_asm->length));
 }
 
 int

@@ -9,6 +9,7 @@ then
 fi
 
 clang -Wall -W -Werror \
+      -Wpointer-arith -Wshadow \
       -Wno-unknown-warning-option -Wno-address-of-packed-member \
       -Wa,--noexecstack \
       -framework Cocoa -framework Audiotoolbox \

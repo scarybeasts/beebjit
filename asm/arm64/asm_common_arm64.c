@@ -9,7 +9,7 @@
 
 void
 asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
-  size_t size = (p_end - p_start);
+  size_t size = ((uint8_t*) p_end - (uint8_t*) p_start);
   util_buffer_add_chunk(p_buf, p_start, size);
 }
 
