@@ -1,1 +1,4 @@
-These came from the b2 repository.
+These came from the b2 repository, with one exception.
+
+mos.rom is from https://mdfs.net/ROMs/AcornMOS/Master320/G_MOS320 because
+that contains the credits in the ROM (that are hidden by the I/O region).
