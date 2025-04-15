@@ -186,7 +186,7 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
     accumulated_value += ((1.0 - leftover) * this_sample_value);
 
     if (driver_buffer_index < driver_buffer_size) {
-      float average_sample_value = (accumulated_value / resample_count);
+      double average_sample_value = (accumulated_value / resample_count);
       p_driver_frames[driver_buffer_index] = round(average_sample_value);
       driver_buffer_index++;
       num_driver_frames_written++;
