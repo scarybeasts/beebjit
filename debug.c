@@ -1176,6 +1176,14 @@ debug_read_variable_ticks(void* p, uint32_t index) {
 }
 
 static int64_t
+debug_read_variable_subtick(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint64_t subtick = p_debug->sub_instruction_tick;
+  (void) index;
+  return (int64_t) subtick;
+}
+
+static int64_t
 debug_read_variable_addr(void* p, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   (void) index;
@@ -1403,6 +1411,9 @@ debug_get_read_variable_function(void* p, const char* p_name) {
   } else if (!strcmp(p_name, "ticks")) {
     needs_sub_instruction = 1;
     ret = debug_read_variable_ticks;
+  } else if (!strcmp(p_name, "subtick")) {
+    needs_sub_instruction = 1;
+    ret = debug_read_variable_subtick;
   } else if (!strcmp(p_name, "addr")) {
     ret = debug_read_variable_addr;
   } else if (!strcmp(p_name, "is_read")) {
