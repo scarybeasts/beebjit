@@ -35,7 +35,7 @@ struct sound_struct {
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
   uint32_t sn_frames_per_driver_buffer_size;
-  int16_t volumes[16];
+  int16_t volume_outputs[16];
   int16_t volume_silence;
 
   /* Internal state. */
@@ -54,7 +54,7 @@ struct sound_struct {
   uint16_t counter[k_sound_num_channels];
   uint8_t output[k_sound_num_channels];
   uint16_t noise_rng;
-  int16_t volume[k_sound_num_channels];
+  uint8_t volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
   /* 0 - low, 1 - medium, 2 - high, 3 -- use tone generator 1. */
   int noise_frequency;
@@ -76,7 +76,7 @@ struct sound_struct {
 static void
 sound_fill_sn76489_buffer(struct sound_struct* p_sound,
                           uint32_t num_frames,
-                          int16_t* p_volumes,
+                          uint8_t* p_volumes,
                           uint16_t* p_periods,
                           uint16_t noise_rng,
                           int noise_type) {
@@ -140,7 +140,8 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
       p_counters[channel] = counter;
 
       if (output) {
-        sample_component = p_volumes[channel];
+        uint8_t sn_value = p_volumes[channel];
+        sample_component = p_sound->volume_outputs[sn_value];
       }
       sample += sample_component;
     }
@@ -210,7 +211,7 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
 
 static void
 sound_direct_write_driver_frames(struct sound_struct* p_sound,
-                                 int16_t* p_volumes,
+                                 uint8_t* p_volumes,
                                  uint16_t* p_periods,
                                  uint16_t noise_rng,
                                  int noise_type,
@@ -248,7 +249,7 @@ sound_direct_write_driver_frames(struct sound_struct* p_sound,
 
 static void*
 sound_play_thread(void* p) {
-  int16_t volume[4];
+  uint8_t volume[4];
   uint16_t period[4];
 
   struct sound_struct* p_sound = (struct sound_struct*) p;
@@ -256,7 +257,7 @@ sound_play_thread(void* p) {
 
   /* We read these but the main thread writes them. */
   volatile int* p_do_exit = &p_sound->do_exit;
-  volatile int16_t* p_volume = &p_sound->volume[0];
+  volatile uint8_t* p_volume = &p_sound->volume[0];
   volatile uint16_t* p_period = &p_sound->period[0];
   volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
   volatile int* p_noise_type = &p_sound->noise_type;
@@ -285,10 +286,10 @@ sound_create(int synchronous,
              struct timing_struct* p_timing,
              struct bbc_options* p_options) {
   uint32_t i;
-  double volume_scale;
   int positive_silence;
 
   struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
+  int16_t quarter_max = (32767 / 4);
 
   p_sound->p_timing = p_timing;
   p_sound->p_sleeper = os_time_create_sleeper();
@@ -311,15 +312,15 @@ sound_create(int synchronous,
   positive_silence = util_has_option(p_options->p_opt_flags,
                                      "sound:positive-silence");
 
-  volume_scale = 1.0;
-  i = 16;
-  do {
-    int32_t volume;
-    i--;
-    if (i == 0) {
-      volume_scale = 0.0;
-    }
-    volume = (32767 * volume_scale);
+  for (i = 0; i < 15; ++i) {
+    double volume_scale = pow(10.0, (-0.1 * i));
+    /* Apportion the full volume range equally across the 4 channels. */
+    int32_t volume = round(quarter_max * volume_scale);
+    p_sound->volume_outputs[i] = volume;
+  }
+  p_sound->volume_outputs[15] = 0;
+
+  if (positive_silence) {
     /* EMU: surprise! The SN76489 outputs positive voltage for silence and no
      * voltage for max volume. The voltage output on the SN76489 sound output
      * pin ranges from ~0 - ~3.6v.
@@ -327,16 +328,12 @@ sound_create(int synchronous,
      * seem to mix well with other sounds, so default is zero voltage for
      * silence.
      */
-    if (positive_silence) {
-      volume = (32767 - volume);
+    for (i = 0; i < 16; ++i) {
+      p_sound->volume_outputs[i] = (quarter_max - p_sound->volume_outputs[i]);
     }
-    /* Apportion the full volume range equally across the 4 channels. */
-    volume /= 4;
-    p_sound->volumes[i] = volume;
-    volume_scale *= pow(10.0, -0.1);
-  } while (i > 0);
+  }
 
-  p_sound->volume_silence = p_sound->volumes[0];
+  p_sound->volume_silence = p_sound->volume_outputs[0xf];
 
   return p_sound;
 }
@@ -429,7 +426,6 @@ sound_start_playing(struct sound_struct* p_sound) {
 void
 sound_power_on_reset(struct sound_struct* p_sound) {
   uint32_t i;
-  int16_t volume_max = p_sound->volumes[0xf];
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -444,8 +440,8 @@ sound_power_on_reset(struct sound_struct* p_sound) {
    * http://www.smspower.org/Development/SN76489
    */
   for (i = 0; i < 4; ++i) {
-    /* NOTE: b-em uses volume of 8, mid-way volume. */
-    p_sound->volume[i] = volume_max;
+    /* NOTE: b-em uses volume of 8, mid-way volume. We use full. */
+    p_sound->volume[i] = 0;
     /* NOTE: b-em == 0x3ff, b2 == 0x3ff, jsbeeb == 0 -> 0x3ff, MAME == 0 -> 0.
      * I'm willing to bet jsbeeb is closest but still wrong. jsbeeb flips the
      * output signal to positive immediately as it traverses -1.
@@ -597,8 +593,8 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t value) {
 
   if (command & 0x10) {
     /* Update volume of channel. */
-    uint8_t volume_index = (0x0f - (value & 0x0f));
-    p_sound->volume[channel] = p_sound->volumes[volume_index];
+    uint8_t volume = (value & 0x0f);
+    p_sound->volume[channel] = volume;
   } else if (channel == 3) {
     /* For the noise channel, we only ever update the lower bits. */
     int noise_frequency = (value & 0x03);
@@ -633,18 +629,6 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t value) {
   }
 }
 
-static uint8_t
-sound_inverse_volume_lookup(struct sound_struct* p_sound, int16_t volume) {
-  size_t i;
-  for (i = 0; i < 16; ++i) {
-    if (p_sound->volumes[i] == volume) {
-      return i;
-    }
-  }
-  assert(0);
-  return 0;
-}
-
 void
 sound_get_state(struct sound_struct* p_sound,
                 uint8_t* p_volumes,
@@ -657,7 +641,7 @@ sound_get_state(struct sound_struct* p_sound,
                 uint16_t* p_noise_rng) {
   size_t i;
   for (i = 0; i < 4; ++i) {
-    p_volumes[i] = sound_inverse_volume_lookup(p_sound, p_sound->volume[i]);
+    p_volumes[i] = p_sound->volume[i];
     p_periods[i] = p_sound->period[i];
     p_counters[i] = p_sound->counter[i];
     p_outputs[i] = p_sound->output[i];
@@ -681,7 +665,7 @@ sound_set_state(struct sound_struct* p_sound,
                 uint16_t noise_rng) {
   size_t i;
   for (i = 0; i < 4; ++i) {
-    p_sound->volume[i] = p_sound->volumes[p_volumes[i]];
+    p_sound->volume[i] = p_volumes[i];
     p_sound->period[i] = p_periods[i];
     p_sound->counter[i] = p_counters[i];
     p_sound->output[i] = p_outputs[i];
