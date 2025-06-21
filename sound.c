@@ -50,6 +50,13 @@ struct sound_struct {
   double accumulated_value;
   double accumulated_count;
 
+  /* Second-order IIR filtering. */
+  uint32_t filter_cutoff;
+  double iir_input_coefficients[3];
+  double iir_output_coefficients[3];
+  double iir_input_history[2];
+  double iir_output_history[2];
+
   /* sn76489 state. */
   uint16_t counter[k_sound_num_channels];
   uint8_t output[k_sound_num_channels];
@@ -74,6 +81,54 @@ struct sound_struct {
 };
 
 static void
+iir_lowpass_calculate_coefficients(double* p_input_coefficients,
+                                   double* p_output_coefficients,
+                                   uint32_t sample_rate,
+                                   uint32_t cutoff_frequency,
+                                   double q) {
+  /* Based on the lowpass mode of:
+   * https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
+   * This appears to be a Butterworth filter, based on coefficient matching
+   * from the tool at:
+   * http://www.massmind.org/techref/uk/ac/york/cs/www-users/http/~fisher/mkfilter/trad.html
+   */
+  double cutoff_ratio = ((double) cutoff_frequency / sample_rate);
+  double k = tan(M_PI * cutoff_ratio);
+  double norm = (1.0 / (1.0 + (k / q) + (k * k)));
+
+  p_input_coefficients[0] = (k * k * norm);
+  p_input_coefficients[1] = (2.0 * p_input_coefficients[0]);
+  p_input_coefficients[2] = p_input_coefficients[0];
+
+  p_output_coefficients[0] = 1.0;
+  p_output_coefficients[1] = (2.0 * ((k * k) - 1) * norm);
+  p_output_coefficients[2] = ((1.0 - (k / q) + (k * k)) * norm);
+}
+
+static double
+iir_lowpass_apply(double new_sample,
+                  double* p_input_history,
+                  double* p_output_history,
+                  double* p_input_coefficients,
+                  double* p_output_coefficients) {
+  double new_output = (new_sample * p_input_coefficients[0]);
+
+  new_output += (p_input_history[0] * p_input_coefficients[1]);
+  new_output -= (p_output_history[0] * p_output_coefficients[1]);
+
+  new_output += (p_input_history[1] * p_input_coefficients[2]);
+  new_output -= (p_output_history[1] * p_output_coefficients[2]);
+
+  p_input_history[1] = p_input_history[0];
+  p_input_history[0] = new_sample;
+
+  p_output_history[1] = p_output_history[0];
+  p_output_history[0] = new_output;
+
+  return new_output;
+}
+
+static void
 sound_fill_sn76489_buffer(struct sound_struct* p_sound,
                           uint32_t num_frames,
                           uint8_t* p_volumes,
@@ -95,7 +150,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
   }
 
   for (i = 0; i < num_frames; ++i) {
-    int16_t sample = 0;
+    int32_t sample = 0;
     for (channel = 0; channel < 4; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
@@ -144,6 +199,20 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
         sample_component = p_sound->volume_outputs[sn_value];
       }
       sample += sample_component;
+    }
+    if (p_sound->filter_cutoff != 0) {
+      double output_sample = (double) sample;
+      output_sample = iir_lowpass_apply(output_sample,
+                                        &p_sound->iir_input_history[0],
+                                        &p_sound->iir_output_history[0],
+                                        &p_sound->iir_input_coefficients[0],
+                                        &p_sound->iir_output_coefficients[0]);
+      sample = (int32_t) output_sample;
+      if (sample > INT16_MAX) {
+        sample = INT16_MAX;
+      } else if (sample < INT16_MIN) {
+        sample = INT16_MIN;
+      }
     }
     p_sn_frames[sn_frames_filled + i] = sample;
   }
@@ -289,7 +358,7 @@ sound_create(int synchronous,
   int positive_silence;
 
   struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
-  int16_t quarter_max = (32767 / 4);
+  int16_t quarter_max = (INT16_MAX / 4);
 
   p_sound->p_timing = p_timing;
   p_sound->p_sleeper = os_time_create_sleeper();
@@ -300,6 +369,11 @@ sound_create(int synchronous,
   p_sound->accumulated_value = 0.0;
   p_sound->accumulated_count = 0.0;
 
+  p_sound->iir_input_history[0] = 0.0;
+  p_sound->iir_input_history[1] = 0.0;
+  p_sound->iir_output_history[0] = 0.0;
+  p_sound->iir_output_history[1] = 0.0;
+
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
   p_sound->driver_buffer_index = 0;
@@ -309,8 +383,21 @@ sound_create(int synchronous,
                              p_options->p_opt_flags,
                              "sound:latency=");
 
+  p_sound->filter_cutoff = 7000;
+  (void) util_get_u32_option(&p_sound->filter_cutoff,
+                             p_options->p_opt_flags,
+                             "sound:filter_cutoff=");
+
   positive_silence = util_has_option(p_options->p_opt_flags,
                                      "sound:positive-silence");
+
+  if (p_sound->filter_cutoff != 0) {
+    iir_lowpass_calculate_coefficients(&p_sound->iir_input_coefficients[0],
+                                       &p_sound->iir_output_coefficients[0],
+                                       k_sound_clock_rate,
+                                       p_sound->filter_cutoff,
+                                       (1.0 / (sqrt(2.0))));
+  }
 
   for (i = 0; i < 15; ++i) {
     double volume_scale = pow(10.0, (-0.1 * i));
