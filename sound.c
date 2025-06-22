@@ -54,8 +54,10 @@ struct sound_struct {
   uint32_t filter_cutoff;
   double iir_input_coefficients[3];
   double iir_output_coefficients[3];
-  double iir_input_history[2];
-  double iir_output_history[2];
+  double iir_first_pass_input_history[2];
+  double iir_first_pass_output_history[2];
+  double iir_second_pass_input_history[2];
+  double iir_second_pass_output_history[2];
 
   /* sn76489 state. */
   uint16_t counter[k_sound_num_channels];
@@ -202,11 +204,18 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
     }
     if (p_sound->filter_cutoff != 0) {
       double output_sample = (double) sample;
-      output_sample = iir_lowpass_apply(output_sample,
-                                        &p_sound->iir_input_history[0],
-                                        &p_sound->iir_output_history[0],
-                                        &p_sound->iir_input_coefficients[0],
-                                        &p_sound->iir_output_coefficients[0]);
+      output_sample = iir_lowpass_apply(
+          output_sample,
+          &p_sound->iir_first_pass_input_history[0],
+          &p_sound->iir_first_pass_output_history[0],
+          &p_sound->iir_input_coefficients[0],
+          &p_sound->iir_output_coefficients[0]);
+      output_sample = iir_lowpass_apply(
+          output_sample,
+          &p_sound->iir_second_pass_input_history[0],
+          &p_sound->iir_second_pass_output_history[0],
+          &p_sound->iir_input_coefficients[0],
+          &p_sound->iir_output_coefficients[0]);
       sample = (int32_t) output_sample;
       if (sample > INT16_MAX) {
         sample = INT16_MAX;
@@ -383,7 +392,7 @@ sound_create(int synchronous,
                              p_options->p_opt_flags,
                              "sound:latency=");
 
-  p_sound->filter_cutoff = 7000;
+  p_sound->filter_cutoff = 7200;
   (void) util_get_u32_option(&p_sound->filter_cutoff,
                              p_options->p_opt_flags,
                              "sound:filter_cutoff=");
@@ -392,11 +401,12 @@ sound_create(int synchronous,
                                      "sound:positive-silence");
 
   if (p_sound->filter_cutoff != 0) {
+    double q = (1.0 / sqrt(2.0));
     iir_lowpass_calculate_coefficients(&p_sound->iir_input_coefficients[0],
                                        &p_sound->iir_output_coefficients[0],
                                        k_sound_clock_rate,
                                        p_sound->filter_cutoff,
-                                       (1.0 / (sqrt(2.0))));
+                                       q);
   }
 
   for (i = 0; i < 15; ++i) {
