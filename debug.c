@@ -10,6 +10,7 @@
 #include "keyboard.h"
 #include "log.h"
 #include "render.h"
+#include "sound.h"
 #include "state.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -675,6 +676,40 @@ debug_dump_bbc(struct bbc_struct* p_bbc) {
     (void) printf("$%.2X ", ula_palette[i]);
   }
   printf("\n");
+}
+
+static void
+debug_dump_sn76489(struct bbc_struct* p_bbc) {
+  uint8_t volumes[4];
+  uint16_t periods[4];
+  uint16_t counters[4];
+  uint8_t outputs[4];
+  uint8_t last_channel;
+  int noise_type;
+  uint8_t noise_frequency;
+  uint16_t noise_rng;
+  struct sound_struct* p_sound = bbc_get_sound(p_bbc);
+
+  sound_get_state(p_sound,
+                  &volumes[0],
+                  &periods[0],
+                  &counters[0],
+                  &outputs[0],
+                  &last_channel,
+                  &noise_type,
+                  &noise_frequency,
+                  &noise_rng);
+
+  (void) printf("periods %d %d %d %d\n",
+                periods[0],
+                periods[1],
+                periods[2],
+                periods[3]);
+  (void) printf("volumes %X %X %X %X\n",
+                volumes[0],
+                volumes[1],
+                volumes[2],
+                volumes[3]);
 }
 
 static struct debug_breakpoint*
@@ -2342,6 +2377,8 @@ debug_callback_common(struct debug_struct* p_debug,
       debug_dump_crtc(p_bbc);
     } else if (!strcmp(p_command, "bbc")) {
       debug_dump_bbc(p_bbc);
+    } else if (!strcmp(p_command, "sn")) {
+      debug_dump_sn76489(p_bbc);
     } else if (!strcmp(p_command, "r")) {
       char flags_buf[9];
       struct timing_struct* p_timing = p_debug->p_timing;
@@ -2524,6 +2561,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "fast               : toggle fast mode on/off\n"
   "seek <s>           : seek a replay file to <s> seconds\n"
   "bail               : exit emulator with failure code\n"
+  "sn                 : dump SN76489 state\n"
   );
     } else {
       (void) printf("???\n");
