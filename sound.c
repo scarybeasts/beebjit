@@ -378,10 +378,14 @@ sound_create(int synchronous,
   p_sound->accumulated_value = 0.0;
   p_sound->accumulated_count = 0.0;
 
-  p_sound->iir_input_history[0] = 0.0;
-  p_sound->iir_input_history[1] = 0.0;
-  p_sound->iir_output_history[0] = 0.0;
-  p_sound->iir_output_history[1] = 0.0;
+  p_sound->iir_first_pass_input_history[0] = 0.0;
+  p_sound->iir_first_pass_input_history[1] = 0.0;
+  p_sound->iir_first_pass_output_history[0] = 0.0;
+  p_sound->iir_first_pass_output_history[1] = 0.0;
+  p_sound->iir_second_pass_input_history[0] = 0.0;
+  p_sound->iir_second_pass_input_history[1] = 0.0;
+  p_sound->iir_second_pass_output_history[0] = 0.0;
+  p_sound->iir_second_pass_output_history[1] = 0.0;
 
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
