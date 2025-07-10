@@ -474,6 +474,7 @@ sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct cmos_struct* p_cmos = bbc_get_cmos(p_bbc);
+  struct sound_struct* p_sound = bbc_get_sound(p_bbc);
   int fire = 0;
   uint8_t IC32 = bbc_get_IC32(p_bbc);
   uint8_t peripheral_a = 0xFF;
@@ -511,10 +512,7 @@ sysvia_update_port_a(struct via_struct* p_via) {
 
   via_set_CA2(p_via, fire);
 
-  if (!(IC32 & 1)) {
-    struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
-    sound_sn_write(p_sound, bus_val);
-  }
+  sound_sn_set_bus_value(p_sound, bus_val);
 
   p_via->bus_value_a = bus_val;
 }

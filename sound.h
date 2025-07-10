@@ -43,6 +43,7 @@ void sound_set_state(struct sound_struct* p_sound,
                      uint8_t noise_frequency,
                      uint16_t noise_rng);
 
-void sound_sn_write(struct sound_struct* p_sound, uint8_t data);
+void sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value);
+void sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value);
 
 #endif /* BEEBJIT_SOUND_H */

@@ -2658,15 +2658,18 @@ bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val) {
    * Changing this selection requires various notifications.
    */
 
-  /* Selecting or deselecting the keyboard may need to change interrupt and / or
-   * bus value status.
-   */
-  via_update_port_a(p_bbc->p_system_via);
-
   /* The video ULA needs to know about changes to the video wrap-around
    * address.
    */
   video_IC32_updated(p_bbc->p_video, val);
+
+  /* The SN76489 needs to see if its write enable line changed. */
+  sound_sn_IC32_updated(p_bbc->p_sound, val);
+
+  /* Selecting or deselecting the keyboard may need to change interrupt and / or
+   * bus value status.
+   */
+  via_update_port_a(p_bbc->p_system_via);
 }
 
 uint8_t*
