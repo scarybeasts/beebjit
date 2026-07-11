@@ -812,6 +812,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   for (i_sides = 0; i_sides < num_sides; ++i_sides) {
     uint8_t sector_t0s0[256];
     uint8_t sector_t0s1[256];
+    uint8_t sector_marker[128];
     char dfs_title[13];
     int32_t dfs_catalog_count = -1;
     uint32_t i_tracks;
@@ -819,6 +820,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     uint32_t disc_crc_even = util_crc32_init();
     int have_t0s0 = 0;
     int have_t0s1 = 0;
+    int have_marker = 0;
 
     (void) memset(&dfs_title[0], '\0', sizeof(dfs_title));
 
@@ -994,6 +996,13 @@ disc_tool_log_summary(struct disc_struct* p_disc,
               have_t0s1 = 1;
             }
           }
+          /* Keep track of any disc marker sector. */
+          if (((!is_80t && (i_tracks == 40)) || (is_80t && (i_tracks == 80))) &&
+              (i_sectors == 0) &&
+              !memcmp(&sector_data[1], "\x01\x02\x03\x04\x05", 5)) {
+            (void) memcpy(&sector_marker[0], &sector_data[1], 128);
+            have_marker = 1;
+          }
         }
         if (p_raw_dump_file != NULL) {
           util_file_write(p_raw_dump_file,
@@ -1060,6 +1069,20 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                    "disc side %d, as 40 track, CRC32 fingerprint %.8X",
                    i_sides,
                    disc_crc_even);
+      }
+
+      if (have_marker) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "disc birthday (YY/MM/DD): %.2X/%.2X/%.2X",
+                   sector_marker[14],
+                   sector_marker[15],
+                   sector_marker[16]);
+        sector_marker[127] = '\0';
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "disc extra info: %s",
+                   &sector_marker[23]);
       }
     }
 
