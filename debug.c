@@ -639,7 +639,7 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                        &is_in_dummy_raster);
   video_get_crtc_registers(p_video, &regs[0]);
 
-  (void) printf("horiz %"PRId8" scanline %"PRId8" vert %"PRId8
+  (void) printf("horiz %"PRIu8" scanline %"PRIu8" vert %"PRIu8
                 " addr $%.4"PRIX16" frames %"PRIu64"\n",
                 horiz_counter,
                 scanline_counter,
