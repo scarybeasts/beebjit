@@ -2162,7 +2162,9 @@ debug_callback_common(struct debug_struct* p_debug,
       parse_hex_int3 = (int32_t) util_parse_u64(p_param_3_str, 1);
     }
 
-    if (!strcmp(p_command, "q")) {
+    if (!strcmp(p_command, "q") ||
+        !strcmp(p_command, "quit") ||
+        !strcmp(p_command, "exit")) {
       exit(0);
     } else if (!strcmp(p_command, "bail")) {
       util_bail("debug bail (command)");
@@ -2272,7 +2274,8 @@ debug_callback_common(struct debug_struct* p_debug,
       if (p_breakpoint->is_in_use) {
         p_breakpoint->is_enabled = 0;
       }
-    } else if (!strcmp(p_command, "eval") && (p_param_1_str != NULL)) {
+    } else if ((!strcmp(p_command, "eval") || !strcmp(p_command, "e")) &&
+               (p_param_1_str != NULL)) {
       int64_t expression_ret;
       struct expression_struct* p_expression = expression_create(
           debug_get_read_variable_function,
