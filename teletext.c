@@ -289,10 +289,12 @@ teletext_new_frame_started(struct teletext_struct* p_teletext) {
   p_teletext->scanline = 0;
   p_teletext->second_character_row_of_double = 0;
 
+  /* Flash counter is a simple 6 bits on the silicon.
+   * See SAA5050 reverse engineering thead:
+   * https://stardot.org.uk/forums/viewtopic.php?t=21608
+   */
   p_teletext->flash_count++;
-  if (p_teletext->flash_count == 48) {
-    p_teletext->flash_count = 0;
-  }
+  p_teletext->flash_count &= 63;
   p_teletext->flash_visible_this_frame = (p_teletext->flash_count >= 16);
 }
 
