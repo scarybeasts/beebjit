@@ -1222,6 +1222,15 @@ render_convert_to_grayscale(struct render_struct* p_render) {
 
 void
 render_vsync(struct render_struct* p_render) {
+  /* Ignore any vsyncs that come in shortly after a previous one. A CRT is
+   * unlikely to lock to those.
+   * This situation should be very rare, but a prototype demo hit this
+   * condition when triggering vsyncs in an unusual manner.
+   */
+  if (p_render->vert_beam_pos < 64) {
+    return;
+  }
+
   if (p_render->p_flyback_callback) {
     if (p_render->is_crt_grayscale_fakeout) {
       render_convert_to_grayscale(p_render);
