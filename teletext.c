@@ -258,7 +258,7 @@ teletext_set_active_characters(struct teletext_struct* p_teletext) {
 }
 
 static inline void
-teletext_scanline_ended(struct teletext_struct* p_teletext) {
+teletext_reset_scanline_state(struct teletext_struct* p_teletext) {
   p_teletext->is_graphics_active = 0;
   p_teletext->is_separated_active = 0;
   p_teletext->double_active = 0;
@@ -270,7 +270,10 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
   p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
 
   teletext_set_active_characters(p_teletext);
+}
 
+static inline void
+teletext_advance_scanline(struct teletext_struct* p_teletext) {
   p_teletext->scanline++;
   if (p_teletext->scanline == 10) {
     p_teletext->scanline = 0;
@@ -323,7 +326,7 @@ teletext_create(void) {
   p_teletext->flash_count = 0;
   p_teletext->scanline = 0;
 
-  teletext_scanline_ended(p_teletext);
+  teletext_reset_scanline_state(p_teletext);
   teletext_new_frame_started(p_teletext);
 
   for (i = 0; i < 8; ++i) {
@@ -515,7 +518,8 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
    * enable from the 6845.
    */
   if ((is_dispen == 0) && (p_teletext->curr_dispen == 1)) {
-    teletext_scanline_ended(p_teletext);
+    teletext_reset_scanline_state(p_teletext);
+    teletext_advance_scanline(p_teletext);
   }
   p_teletext->curr_dispen = is_dispen;
 
