@@ -76,7 +76,7 @@ echo 'Checking teletext rendering.'
     -mode jit \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2100000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x314d2162)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2550000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd1431641)||bail';q"
 
 # This checks some 6845 end-of-frame logic that can render an unexpected
 # blank scanline.

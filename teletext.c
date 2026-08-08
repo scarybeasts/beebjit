@@ -60,6 +60,7 @@ struct teletext_struct {
   uint8_t* p_active_characters;
   int is_graphics_active;
   int is_separated_active;
+  int is_concealed;
   int double_active;
   int flash_active;
   int had_double_active_this_scanline;
@@ -260,6 +261,7 @@ static inline void
 teletext_reset_scanline_state(struct teletext_struct* p_teletext) {
   p_teletext->is_graphics_active = 0;
   p_teletext->is_separated_active = 0;
+  p_teletext->is_concealed = 0;
   p_teletext->double_active = 0;
   p_teletext->flash_active = 0;
   p_teletext->fg_color = p_teletext->palette[7];
@@ -378,6 +380,11 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   case 0x07:
     p_teletext->is_graphics_active = 0;
     p_teletext->fg_color = p_teletext->palette[src_char];
+    if (p_teletext->is_concealed) {
+      p_teletext->is_concealed = 0;
+      /* Current character remains concealed. */
+      p_teletext->render_fg_color = p_teletext->bg_color;
+    }
     break;
   case 0x08:
     p_teletext->flash_active = 1;
@@ -404,14 +411,17 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   case 0x17:
     p_teletext->is_graphics_active = 1;
     p_teletext->fg_color = p_teletext->palette[(src_char & 7)];
+    if (p_teletext->is_concealed) {
+      p_teletext->is_concealed = 0;
+      /* Current character remains concealed. */
+      p_teletext->render_fg_color = p_teletext->bg_color;
+    }
     break;
   case 0x18:
     /* Not commonly seen but needed e.g. by the JCB Digger MODE7 intro
      * animation.
      */
-    p_teletext->fg_color = p_teletext->bg_color;
-    /* This control code is set-at, unlike other changes to foreground color. */
-    p_teletext->render_fg_color = p_teletext->fg_color;
+    p_teletext->is_concealed = 1;
     break;
   case 0x19:
     p_teletext->is_separated_active = 0;
@@ -556,6 +566,11 @@ teletext_render(struct teletext_struct* p_teletext,
   if ((p_teletext->flash_active && !p_teletext->flash_visible_this_frame) ||
       (p_teletext->second_character_row_of_double &&
        !p_teletext->double_active)) {
+    /* Re-route to space. */
+    p_src_data = &s_teletext_generated_glyphs[0];
+  }
+
+  if (p_teletext->is_concealed) {
     /* Re-route to space. */
     p_src_data = &s_teletext_generated_glyphs[0];
   }
