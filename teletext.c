@@ -501,14 +501,18 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data, int is_dispen) {
   uint8_t queue_data = p_teletext->data_pipeline[0];
   int is_pipelined_dispen = p_teletext->dispen_pipeline[0];
 
-  /* A logic gate in IC37 and IC36 is used to set bit 6 in the data if DISPEN
-   * is low. This has the effect of avoiding control codes.
-   * We can get the same effect, a bit faster, by only sending data along if
-   * display is enabled.
+  /* NOTE: this logic is outside the SAA5050 chip, but put here in the
+   * pipeline handling logic for convenience.
+   * A logic gate in IC37 and IC36 is used to set bit 6 in the pipelined data
+   * byte if current DISPEN is low. This has the effect of avoiding control
+   * codes in the off-screen data bytes leading up to the start of a line.
    */
-  if (is_pipelined_dispen) {
-    teletext_do_data_byte(p_teletext, queue_data);
+  if (!is_dispen) {
+    p_teletext->data_pipeline[2] |= 0x40;
   }
+
+  teletext_do_data_byte(p_teletext, queue_data);
+
   p_teletext->data_pipeline[0] = p_teletext->data_pipeline[1];
   p_teletext->data_pipeline[1] = p_teletext->data_pipeline[2];
   p_teletext->data_pipeline[2] = data;
