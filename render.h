@@ -73,7 +73,6 @@ void render_set_RA(struct render_struct* p_render, uint32_t row_address);
 void render_prepare(struct render_struct* p_render);
 void render_render(struct render_struct* p_render,
                    uint8_t data,
-                   uint16_t addr,
                    uint64_t ticks);
 
 void render_clear_buffer(struct render_struct* p_render);

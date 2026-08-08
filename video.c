@@ -607,7 +607,7 @@ video_do_rendering_tick(struct video_struct* p_video,
     teletext_data(p_video->p_teletext, data_teletext, dispen_teletext);
   }
 
-  render_render(p_video->p_render, data, address_counter, ticks);
+  render_render(p_video->p_render, data, ticks);
 
   address_counter++;
   address_counter &= 0x3FFF;
@@ -1817,7 +1817,7 @@ video_render_full_frame(struct video_struct* p_video) {
       render_set_RA(p_render, i_lines);
       crtc_line_address = (crtc_start_address + (i_rows * num_cols));
       for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
-        render_render(p_render, 0x00, 0, 0);
+        render_render(p_render, 0x00, 0);
       }
       render_set_DISPEN(p_render, 1);
       for (i_cols = 0; i_cols < num_cols; ++i_cols) {
@@ -1831,7 +1831,7 @@ video_render_full_frame(struct video_struct* p_video) {
         if (is_teletext) {
           teletext_data(p_teletext, data, 1);
         }
-        render_render(p_render, data, crtc_line_address, 0);
+        render_render(p_render, data, 0);
         crtc_line_address++;
       }
       if (is_teletext) {
@@ -1840,7 +1840,7 @@ video_render_full_frame(struct video_struct* p_video) {
          */
         for (i_cols = 0; i_cols < 3; ++i_cols) {
           teletext_data(p_teletext, 0, 0);
-          render_render(p_render, 0x00, 0, 0);
+          render_render(p_render, 0x00, 0);
         }
       }
       render_set_DISPEN(p_render, 0);
