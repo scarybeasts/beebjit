@@ -363,49 +363,49 @@ static inline void
 teletext_handle_control_character(struct teletext_struct* p_teletext,
                                   uint8_t src_char) {
   switch (src_char) {
-  case 0:
+  case 0x00:
     /* NOTE: SAA5050 appears to be a pre-2.5 presentation level, which doesn't
      * have the ability to select black.
      * See: https://www.etsi.org/deliver/etsi_i_ets/300700_300799/300706/01_60/ets_300706e01p.pdf
      */
     break;
-  case 1:
-  case 2:
-  case 3:
-  case 4:
-  case 5:
-  case 6:
-  case 7:
+  case 0x01:
+  case 0x02:
+  case 0x03:
+  case 0x04:
+  case 0x05:
+  case 0x06:
+  case 0x07:
     p_teletext->is_graphics_active = 0;
     p_teletext->fg_color = p_teletext->palette[src_char];
     break;
-  case 8:
+  case 0x08:
     p_teletext->flash_active = 1;
     break;
-  case 9:
+  case 0x09:
     p_teletext->flash_active = 0;
     break;
-  case 12:
+  case 0x0C:
     p_teletext->double_active = 0;
     break;
-  case 13:
+  case 0x0D:
     p_teletext->double_active = 1;
     p_teletext->had_double_active_this_scanline = 1;
     break;
-  case 16:
+  case 0x10:
     /* Can't select black graphics -- see above. */
     break;
-  case 17:
-  case 18:
-  case 19:
-  case 20:
-  case 21:
-  case 22:
-  case 23:
+  case 0x11:
+  case 0x12:
+  case 0x13:
+  case 0x14:
+  case 0x15:
+  case 0x16:
+  case 0x17:
     p_teletext->is_graphics_active = 1;
     p_teletext->fg_color = p_teletext->palette[(src_char & 7)];
     break;
-  case 24:
+  case 0x18:
     /* Not commonly seen but needed e.g. by the JCB Digger MODE7 intro
      * animation.
      */
@@ -413,22 +413,22 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
     /* This control code is set-at, unlike other changes to foreground color. */
     p_teletext->render_fg_color = p_teletext->fg_color;
     break;
-  case 25:
+  case 0x19:
     p_teletext->is_separated_active = 0;
     break;
-  case 26:
+  case 0x1A:
     p_teletext->is_separated_active = 1;
     break;
-  case 28:
+  case 0x1C:
     p_teletext->bg_color = p_teletext->palette[0];
     break;
-  case 29:
+  case 0x1D:
     p_teletext->bg_color = p_teletext->fg_color;
     break;
-  case 30:
+  case 0x1E:
     p_teletext->is_hold_graphics = 1;
     break;
-  case 31:
+  case 0x1F:
     p_teletext->is_hold_graphics = 0;
     break;
   }
