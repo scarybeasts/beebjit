@@ -105,4 +105,13 @@ echo 'Checking NuLA palette.'
     -fast -accurate -mode jit \
     -commands "breakat 2110319378;c;eval '(pc==0xCFB7)||bail';eval '(a==0xE8)||bail';q"
 
+# This checks that the teletext data pipeline is still fed in bitmapped modes.
+echo 'Checking teletext data pipeline.'
+./beebjit -0 test/display/teletext_bytes_pipeline.ssd \
+    -mode jit \
+    -autoboot \
+    -debug -fast -accurate \
+    -opt video:always-render \
+    -commands "breakat 2000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x3156b9d1)||bail';q"
+
 echo 'Functional tests OK.'

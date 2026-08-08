@@ -71,7 +71,6 @@ struct teletext_struct {
   int crtc_ra0;
   int is_isv;
   int curr_dispen;
-  int incoming_dispen;
   uint8_t* p_render_character;
   uint32_t render_fg_color;
 };
@@ -487,7 +486,7 @@ teletext_do_data_byte(struct teletext_struct* p_teletext, uint8_t data) {
 }
 
 void
-teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
+teletext_data(struct teletext_struct* p_teletext, uint8_t data, int is_dispen) {
   /* This function handles the pipelining of incoming signals, which is to say
    * that in real hardware, incoming signals have their visible effect some
    * number of cycles after initial receipt.
@@ -500,14 +499,14 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
    * skew and 2 clocks of pipeline latency.
    */
   uint8_t queue_data = p_teletext->data_pipeline[0];
-  int is_dispen = p_teletext->dispen_pipeline[0];
+  int is_pipelined_dispen = p_teletext->dispen_pipeline[0];
 
   /* A logic gate in IC37 and IC36 is used to set bit 6 in the data if DISPEN
    * is low. This has the effect of avoiding control codes.
    * We can get the same effect, a bit faster, by only sending data along if
    * display is enabled.
    */
-  if (is_dispen) {
+  if (is_pipelined_dispen) {
     teletext_do_data_byte(p_teletext, queue_data);
   }
   p_teletext->data_pipeline[0] = p_teletext->data_pipeline[1];
@@ -517,14 +516,14 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
   /* The chip increments its scanline counter on the falling edge of display
    * enable from the 6845.
    */
-  if ((is_dispen == 0) && (p_teletext->curr_dispen == 1)) {
+  if ((is_pipelined_dispen == 0) && (p_teletext->curr_dispen == 1)) {
     teletext_reset_scanline_state(p_teletext);
     teletext_advance_scanline(p_teletext);
   }
-  p_teletext->curr_dispen = is_dispen;
+  p_teletext->curr_dispen = is_pipelined_dispen;
 
   p_teletext->dispen_pipeline[0] = p_teletext->dispen_pipeline[1];
-  p_teletext->dispen_pipeline[1] = p_teletext->incoming_dispen;
+  p_teletext->dispen_pipeline[1] = is_dispen;
 }
 
 void
@@ -629,15 +628,6 @@ teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
                         int is_isv) {
   p_teletext->crtc_ra0 = (ra & 1);
   p_teletext->is_isv = is_isv;
-}
-
-void
-teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value) {
-  /* The DISPEN signal is pipelined, just like the data bytes are pipelined.
-   * The affects of a changing DISPEN are committed in teletext_data() as they
-   * hit the head of the pipeline.
-   */
-  p_teletext->incoming_dispen = value;
 }
 
 void

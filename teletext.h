@@ -13,11 +13,10 @@ void teletext_destroy(struct teletext_struct* p_teletext);
 
 void teletext_set_black_rgb(struct teletext_struct* p_teletext, uint32_t rgb);
 
-void teletext_data(struct teletext_struct* p_teletext, uint8_t data);
+void teletext_data(struct teletext_struct* p_teletext, uint8_t data, int is_dispen);
 void teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
                              uint8_t ra,
                              int is_isv);
-void teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value);
 void teletext_VSYNC_changed(struct teletext_struct* p_teletext, int value);
 
 void teletext_render(struct teletext_struct* p_teletext,

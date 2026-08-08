@@ -556,11 +556,6 @@ video_do_rendering_tick(struct video_struct* p_video,
   this_external_dispen = p_video->dispen_shifts[p_video->skew_dispen_index];
   /* TODO: only call these if DISPEN changed? */
   render_set_DISPEN(p_video->p_render, this_external_dispen);
-  /* The IC15 latch only lets DISPEN through if teletext linear addressing
-   * is in effect.
-   */
-  this_external_dispen &= !!(p_video->address_counter & 0x2000);
-  teletext_DISPEN_changed(p_video->p_teletext, this_external_dispen);
 
   if (!p_video->cursor_disabled) {
     uint32_t cursor_addr =
@@ -596,6 +591,22 @@ video_do_rendering_tick(struct video_struct* p_video,
                               address_counter,
                               p_video->scanline_counter,
                               p_video->screen_wrap_add);
+  if (!(ticks & 1)) {
+    uint8_t data_teletext = data;
+    int dispen_teletext = this_external_dispen;
+    /* Always crank the teletext data pipeline, because we can flip bitmap ->
+     * teletext at any time, including in the middle of a scanline.
+     */
+    /* The IC15 latch only lets DISPEN and data through if teletext linear
+     * addressing is in effect.
+     */
+    if (!(address_counter & 0x2000)) {
+      data_teletext = 0;
+      dispen_teletext = 0;
+    }
+    teletext_data(p_video->p_teletext, data_teletext, dispen_teletext);
+  }
+
   render_render(p_video->p_render, data, address_counter, ticks);
 
   address_counter++;
@@ -1809,7 +1820,6 @@ video_render_full_frame(struct video_struct* p_video) {
         render_render(p_render, 0x00, 0, 0);
       }
       render_set_DISPEN(p_render, 1);
-      teletext_DISPEN_changed(p_teletext, 1);
       for (i_cols = 0; i_cols < num_cols; ++i_cols) {
         uint8_t data;
         crtc_line_address &= 0x3FFF;
@@ -1818,6 +1828,9 @@ video_render_full_frame(struct video_struct* p_video) {
                                     crtc_line_address,
                                     i_lines,
                                     screen_wrap_add);
+        if (is_teletext) {
+          teletext_data(p_teletext, data, 1);
+        }
         render_render(p_render, data, crtc_line_address, 0);
         crtc_line_address++;
       }
@@ -1826,14 +1839,12 @@ video_render_full_frame(struct video_struct* p_video) {
          * path is pipelined, and three behind.
          */
         for (i_cols = 0; i_cols < 3; ++i_cols) {
+          teletext_data(p_teletext, 0, 0);
           render_render(p_render, 0x00, 0, 0);
         }
       }
       render_set_DISPEN(p_render, 0);
-      teletext_DISPEN_changed(p_teletext, 0);
       (void) render_hsync(p_render, hsync_pulse_ticks);
-      teletext_DISPEN_changed(p_teletext, 1);
-      teletext_DISPEN_changed(p_teletext, 0);
     }
   }
 }

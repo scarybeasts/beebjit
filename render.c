@@ -407,21 +407,13 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
   uint32_t* p_render_pos = p_render->p_render_pos;
   struct teletext_struct* p_teletext = p_render->p_teletext;
 
+  (void) data;
+  (void) address;
+
   /* The SAA5050 is clocked at 1MHz. */
   if (ticks & 1) {
     return;
   }
-
-  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
-  if (!(address & 0x2000)) {
-    data = 0;
-  }
-
-  /* Need to send along the data even for off-screen bytes so that the
-   * SAA5050 state is correctly maintained.
-   * e.g. the super-wide MODE7 in the Firetrack loader.
-   */
-  teletext_data(p_teletext, data);
 
   p_render->horiz_beam_pos += 16;
 
@@ -448,33 +440,25 @@ render_function_teletext_interlaced(struct render_struct* p_render,
   uint32_t* p_render_pos = p_render->p_render_pos;
   struct teletext_struct* p_teletext = p_render->p_teletext;
 
+  (void) data;
+  (void) address;
+
   /* The SAA5050 is clocked at 1MHz. */
   if (ticks & 1) {
     return;
   }
-
-  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
-  if (!(address & 0x2000)) {
-    data = 0;
-  }
-
-  /* Need to send along the data even for off-screen bytes so that the
-   * SAA5050 state is correctly maintained.
-   * e.g. the super-wide MODE7 in the Firetrack loader.
-   */
-  teletext_data(p_teletext, data);
 
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     if (p_render->vert_beam_pos & 1) {
       uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      teletext_render(p_render->p_teletext,
+      teletext_render(p_teletext,
                       (struct render_character_1MHz*) p_next_render_pos,
                       NULL);
       render_check_cursor(p_render, p_next_render_pos, NULL, 16);
     } else {
-      teletext_render(p_render->p_teletext,
+      teletext_render(p_teletext,
                       (struct render_character_1MHz*) p_render_pos,
                       NULL);
       render_check_cursor(p_render, p_render_pos, NULL, 16);
