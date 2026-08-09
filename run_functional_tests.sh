@@ -52,6 +52,38 @@ echo 'Checking RVI rendering.'
     -opt video:always-render \
     -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q"
 
+echo 'Checking -headless-render produces matching framebuffer.'
+# This re-runs the RVI rendering scenario in headless mode with
+# -headless-render. The CRC must match the GUI-mode value above, proving
+# that headless rendering is pixel-identical to GUI rendering and that the
+# buffer allocation path triggered by -headless-render works.
+./beebjit -0 test/display/raster-c.ssd \
+    -mode jit \
+    -autoboot \
+    -fast -accurate -debug \
+    -headless -headless-render \
+    -opt video:always-render \
+    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q"
+
+echo 'Checking savescreen dumps render buffer to file.'
+# This runs the same scenario and uses savescreen to dump the BGRA buffer.
+# The file size must equal width * height * 4 = 768 * 640 * 4 = 1966080
+# bytes for the current render dimensions.
+TMP_BGRA=$(mktemp)
+./beebjit -0 test/display/raster-c.ssd \
+    -mode jit \
+    -autoboot \
+    -fast -accurate -debug \
+    -headless -headless-render \
+    -opt video:always-render \
+    -commands "breakat 11000000;c;savescreen $TMP_BGRA;q" > /dev/null
+SAVESCREEN_SIZE=$(wc -c < "$TMP_BGRA")
+rm -f "$TMP_BGRA"
+if [ "$SAVESCREEN_SIZE" -ne 1966080 ]; then
+    echo "savescreen file size $SAVESCREEN_SIZE != expected 1966080"
+    exit 1
+fi
+
 # This checks the framebuffer looks as expected, in an RVI test case that uses
 # teletext output to implement pre-line blanking.
 ./beebjit -0 test/display/rvi-working.ssd \

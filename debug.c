@@ -1122,6 +1122,37 @@ debug_save_raw(struct debug_struct* p_debug,
 }
 
 static void
+debug_save_screen(struct debug_struct* p_debug, const char* p_file_name) {
+  struct util_file* p_file;
+  struct render_struct* p_render = p_debug->p_render;
+  uint32_t* p_buffer;
+  uint32_t size;
+
+  if (!render_has_buffer(p_render)) {
+    (void) printf("no render buffer; start with -headless-render or "
+                  "-frame-cycles\n");
+    return;
+  }
+
+  p_buffer = render_get_buffer(p_render);
+  size = render_get_buffer_size(p_render);
+
+  p_file = util_file_try_open(p_file_name, 1, 1);
+  if (p_file == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "cannot open file %s", p_file_name);
+    return;
+  }
+
+  util_file_write(p_file, p_buffer, size);
+  util_file_close(p_file);
+  (void) printf("saved %ux%u BGRA (%u bytes) to %s\n",
+                render_get_width(p_render),
+                render_get_height(p_render),
+                size,
+                p_file_name);
+}
+
+static void
 debug_print_registers(uint8_t reg_a,
                       uint8_t reg_x,
                       uint8_t reg_y,
@@ -2360,6 +2391,8 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_hex_int3 >= 0) &&
                (parse_hex_int3 < 65536)) {
       debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
+    } else if (!strcmp(p_command, "savescreen") && (p_param_1_str != NULL)) {
+      debug_save_screen(p_debug, p_param_1_str);
     } else if (!strcmp(p_command, "ss")) {
       state_save(p_bbc, p_param_1_str);
     } else if (!strcmp(p_command, "d")) {
@@ -2529,6 +2562,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "find <a> <l> ...   : find a byte sequence, starting at <a>, length <l>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
+  "savescreen <f>     : save render buffer to raw BGRA file <f>\n"
   "sys                : show system VIA registers\n"
   "user               : show user VIA registers\n"
   "r                  : show regular registers\n"
