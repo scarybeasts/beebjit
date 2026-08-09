@@ -35,7 +35,7 @@
 /* Apple macOS on ARM64. 64-bit addresses strictly required. <4GB unmappable. */
 #define K_BBC_MEM_RAW_ADDR                 0x30f008000
 #define K_JIT_ADDR                         0x300000000
-#define K_INTURBO_ADDR                     0x400000000
+#define K_INTURBO_ADDR                     0x380000000
 #define K_ASM_TABLE_ADDR                   0x0          /* Unused om ARM64. */
 #endif
 #else
