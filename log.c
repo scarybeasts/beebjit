@@ -8,6 +8,13 @@
 #include <string.h>
 
 static int s_do_log_to_stdout = 1;
+
+//
+// Redirects the stdout log stream to stderr. No effect when
+// s_do_log_to_stdout is 0 -- that gate disables terminal logging entirely.
+//
+static int s_do_log_to_stderr = 0;
+
 static struct util_file* s_p_log_file = NULL;
 
 static const char*
@@ -74,6 +81,11 @@ log_set_do_log_to_stdout(int do_log_to_stdout) {
   s_do_log_to_stdout = do_log_to_stdout;
 }
 
+void
+log_set_log_to_stderr(void) {
+  s_do_log_to_stderr = 1;
+}
+
 static void
 log_do_log_va_list(int module, int severity, const char* p_msg, va_list args) {
   char msg[256];
@@ -92,11 +104,12 @@ log_do_log_va_list(int module, int severity, const char* p_msg, va_list args) {
   }
 
   if (s_do_log_to_stdout) {
-    ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
+    FILE* p_stream = s_do_log_to_stderr ? stderr : stdout;
+    ret = fprintf(p_stream, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
     if (ret <= 0) {
       util_bail("fprintf failed");
     }
-    ret = fflush(stdout);
+    ret = fflush(p_stream);
     if (ret != 0) {
       util_bail("fflush failed");
     }
