@@ -3111,13 +3111,13 @@ bbc_cpu_thread(void* p) {
 
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
-  p_bbc->p_thread_cpu = os_thread_create(bbc_cpu_thread, p_bbc);
-
   assert(!p_bbc->thread_allocated);
   assert(!p_bbc->running);
 
   p_bbc->thread_allocated = 1;
   p_bbc->running = 1;
+
+  p_bbc->p_thread_cpu = os_thread_create(bbc_cpu_thread, p_bbc);
 
   sound_start_playing(p_bbc->p_sound);
 }
