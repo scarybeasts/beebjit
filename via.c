@@ -242,7 +242,7 @@ via_do_fire_t1(struct via_struct* p_via) {
    * interrupt again until T1CH has been re-written.
    */
   if (!(p_via->ACR & 0x40)) {
-    timing_set_firing(p_timing, timer_id, 0);
+    (void) timing_set_firing(p_timing, timer_id, 0);
   } else {
     int64_t delta = (p_via->T1L + 2);
     (void) timing_adjust_timer_value(p_timing, NULL, timer_id, (delta << 1));
@@ -258,7 +258,7 @@ via_do_fire_t2(struct via_struct* p_via) {
   p_via->t2_last_fire_cycles = timing_get_total_timer_ticks(p_timing);
 
   via_raise_interrupt(p_via, k_int_TIMER2);
-  timing_set_firing(p_timing, timer_id, 0);
+  (void) timing_set_firing(p_timing, timer_id, 0);
 }
 
 static void
@@ -371,8 +371,8 @@ via_power_on_reset(struct via_struct* p_via) {
    * It's unclear whether "power on" / "reset" counts as an effective timer
    * load or not. Let's copy jsbeeb and b-em and say that it does not.
    */
-  timing_set_firing(p_timing, t1_timer_id, 0);
-  timing_set_firing(p_timing, t2_timer_id, 0);
+  (void) timing_set_firing(p_timing, t1_timer_id, 0);
+  (void) timing_set_firing(p_timing, t2_timer_id, 0);
 
   /* EMU: the counter values appear to be quasi-random on a real machine, but
    * we'll initialize them to 0xFFFF for deterministic behavior.
@@ -861,7 +861,7 @@ via_write_T1CH(struct via_struct* p_via, uint8_t val) {
   }
   p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
   via_load_T1(p_via);
-  timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
+  (void) timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
   /* EMU TODO: does this behave differently if t1_firing as well? */
   p_via->t1_pb7 = 0;
 }
@@ -884,7 +884,7 @@ via_write_T2CH(struct via_struct* p_via, uint8_t val) {
     timer_val++;
   }
   via_set_t2c(p_via, timer_val);
-  timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
+  (void) timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
 }
 
 static void
@@ -905,7 +905,7 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
    * See: tests.ssd:VIA.AC2
    */
   if (via_t1_just_fired(p_via) && (!(val & 0x40))) {
-    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
+    (void) timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
   }
 
   if (!p_via->externally_clocked) {
@@ -1398,7 +1398,7 @@ void via_set_registers(struct via_struct* p_via,
   p_via->T1L = T1L;
   via_set_t2c_raw(p_via, T2C_raw);
   p_via->T2L = T2L;
-  timing_set_firing(p_timing, p_via->t1_timer_id, !t1_oneshot_fired);
-  timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);
+  (void) timing_set_firing(p_timing, p_via->t1_timer_id, !t1_oneshot_fired);
+  (void) timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);
   p_via->t1_pb7 = t1_pb7;
 }
