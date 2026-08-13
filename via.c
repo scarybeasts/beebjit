@@ -45,6 +45,7 @@ struct via_struct {
   struct timing_struct* p_timing;
   uint32_t t1_timer_id;
   uint32_t t2_timer_id;
+  uint32_t shift_timer_id;
   uint64_t t1_last_fire_cycles;
   uint64_t t2_last_fire_cycles;
 
@@ -286,6 +287,11 @@ via_t2_fired(void* p) {
   via_do_fire_t2(p_via);
 }
 
+static void
+via_shift_fired(void* p) {
+  (void) p;
+}
+
 struct via_struct*
 via_create(int id,
            int externally_clocked,
@@ -306,6 +312,10 @@ via_create(int id,
                                              "via_t2",
                                              via_t2_fired,
                                              p_via);
+  p_via->shift_timer_id = timing_register_timer(p_timing,
+                                                "shift",
+                                                via_shift_fired,
+                                                p_via);
 
   return p_via;
 }

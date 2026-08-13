@@ -7,7 +7,7 @@
 #include <inttypes.h>
 
 enum {
-  k_timing_num_timers = 24,
+  k_timing_num_timers = 26,
 };
 
 struct timer_struct {
