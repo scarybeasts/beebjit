@@ -39,23 +39,9 @@ enum {
 };
 
 struct via_struct {
-  int id;
-  int externally_clocked;
-  struct bbc_struct* p_bbc;
-  struct timing_struct* p_timing;
-  uint32_t t1_timer_id;
-  uint32_t t2_timer_id;
-  uint32_t shift_timer_id;
-  uint64_t t1_last_fire_cycles;
-  uint64_t t2_last_fire_cycles;
-
-  void (*p_CA2_changed_callback)(void* p, int level, int output);
-  void* p_CA2_changed_object;
-  void (*p_CB2_changed_callback)(void* p, int level, int output);
-  void* p_CB2_changed_object;
-  void (*p_PCR_changed_callback)(void* p, uint8_t val);
-  void* p_PCR_changed_object;
-
+  /* Core 6522 state goes first, because field offsets are sometimes referenced
+   * in the JIT.
+   */
   uint8_t IRA;
   uint8_t IRB;
   uint8_t ORB;
@@ -78,6 +64,24 @@ struct via_struct {
   int CB2;
   uint8_t bus_value_a;
   uint8_t IRA_cached;
+
+  void (*p_CA2_changed_callback)(void* p, int level, int output);
+  void* p_CA2_changed_object;
+  void (*p_CB2_changed_callback)(void* p, int level, int output);
+  void* p_CB2_changed_object;
+  void (*p_PCR_changed_callback)(void* p, uint8_t val);
+  void* p_PCR_changed_object;
+
+  int id;
+  int externally_clocked;
+  struct bbc_struct* p_bbc;
+  struct timing_struct* p_timing;
+  uint32_t t1_timer_id;
+  uint32_t t2_timer_id;
+  uint32_t shift_timer_id;
+  uint64_t t1_last_fire_cycles;
+  uint64_t t2_last_fire_cycles;
+  uint64_t t2_shift_last_fire_cycles;
 };
 
 static void
@@ -130,6 +134,25 @@ via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
   assert(!(val & 0x80));
   via_set_IFR(p_via, (p_via->IFR & ~val));
 }
+
+static int
+via_t1_just_fired(struct via_struct* p_via) {
+  return (timing_get_total_timer_ticks(p_via->p_timing) ==
+          p_via->t1_last_fire_cycles);
+}
+
+static int
+via_t2_just_fired(struct via_struct* p_via) {
+  return (timing_get_total_timer_ticks(p_via->p_timing) ==
+          p_via->t2_last_fire_cycles);
+}
+
+static int
+via_t2_shift_just_fired(struct via_struct* p_via) {
+  return (timing_get_total_timer_ticks(p_via->p_timing) ==
+          p_via->t2_shift_last_fire_cycles);
+}
+
 
 static void
 via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
@@ -219,8 +242,19 @@ via_get_t2c_raw(struct via_struct* p_via) {
 
 static int32_t
 via_get_t2c(struct via_struct* p_via) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
   int32_t val = via_get_t2c_raw(p_via);
   val >>= 1;
+  if (timing_timer_is_running(p_timing, shift_timer_id)) {
+    int32_t shift_val = timing_get_timer_value(p_timing, shift_timer_id);
+    shift_val >>= 1;
+    shift_val--;
+    if (via_t2_shift_just_fired(p_via)) {
+      shift_val = -1;
+    }
+    val = ((val & 0xFF00) | (shift_val & 0xFF));
+  }
   return val;
 }
 
@@ -289,7 +323,37 @@ via_t2_fired(void* p) {
 
 static void
 via_shift_fired(void* p) {
-  (void) p;
+  struct via_struct* p_via = (struct via_struct*) p;
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t t2_timer_id = p_via->t2_timer_id;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
+  uint16_t t2c_val = via_get_t2c(p_via);
+
+  p_via->t2_shift_last_fire_cycles = timing_get_total_timer_ticks(p_timing);
+
+  /* In shift mode, using T2 timing, only the low 8 bits are used as the
+   * counter.
+   */
+  int64_t delta = ((p_via->T2L & 0xFF) + 2);
+  (void) timing_adjust_timer_value(p_timing,
+                                   NULL,
+                                   shift_timer_id,
+                                   (delta << 1));
+
+  /* In shift mode, when the low 8 bits of T2 underflow, the high 8 bits are
+   * still decremented.
+   */
+  t2c_val >>= 8;
+  t2c_val--;
+  t2c_val <<= 8;
+  via_set_t2c(p_via, t2c_val);
+
+  /* In shift mode, when the high 8 bits of T2 underflow, the one-shot interrupt
+   * still fires.
+   */
+  if ((t2c_val == 0xFF00) && timing_get_firing(p_timing, t2_timer_id)) {
+    via_do_fire_t2(p_via);
+  }
 }
 
 struct via_struct*
@@ -330,6 +394,7 @@ via_power_on_reset(struct via_struct* p_via) {
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t t1_timer_id = p_via->t1_timer_id;
   uint32_t t2_timer_id = p_via->t2_timer_id;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
@@ -368,10 +433,13 @@ via_power_on_reset(struct via_struct* p_via) {
 
   if (!p_via->externally_clocked) {
     if (!timing_timer_is_running(p_timing, t1_timer_id)) {
-      timing_start_timer(p_timing, t1_timer_id);
+      (void) timing_start_timer(p_timing, t1_timer_id);
     }
     if (!timing_timer_is_running(p_timing, t2_timer_id)) {
-      timing_start_timer(p_timing, t2_timer_id);
+      (void) timing_start_timer(p_timing, t2_timer_id);
+    }
+    if (timing_timer_is_running(p_timing, shift_timer_id)) {
+      (void) timing_stop_timer(p_timing, shift_timer_id);
     }
   }
 
@@ -383,6 +451,7 @@ via_power_on_reset(struct via_struct* p_via) {
    */
   (void) timing_set_firing(p_timing, t1_timer_id, 0);
   (void) timing_set_firing(p_timing, t2_timer_id, 0);
+  (void) timing_set_firing(p_timing, shift_timer_id, 1);
 
   /* EMU: the counter values appear to be quasi-random on a real machine, but
    * we'll initialize them to 0xFFFF for deterministic behavior.
@@ -391,6 +460,10 @@ via_power_on_reset(struct via_struct* p_via) {
   p_via->T1L = 0xFFFF;
   via_set_t2c(p_via, 0xFFFF);
   p_via->T2L = 0xFFFF;
+
+  p_via->t1_last_fire_cycles = 0;
+  p_via->t2_last_fire_cycles = 0;
+  p_via->t2_shift_last_fire_cycles = 0;
 
   /* Sets bus_value_a and IRA_cached. */
   via_update_port_a(p_via);
@@ -598,18 +671,6 @@ via_load_T1(struct via_struct* p_via) {
   /* Increment the value because it must take effect in 1 tick. */
   timer_val++;
   via_set_t1c(p_via, timer_val);
-}
-
-static int
-via_t1_just_fired(struct via_struct* p_via) {
-  return (timing_get_total_timer_ticks(p_via->p_timing) ==
-          p_via->t1_last_fire_cycles);
-}
-
-static int
-via_t2_just_fired(struct via_struct* p_via) {
-  return (timing_get_total_timer_ticks(p_via->p_timing) ==
-          p_via->t2_last_fire_cycles);
 }
 
 static uint8_t
@@ -899,6 +960,12 @@ via_write_T2CH(struct via_struct* p_via, uint8_t val) {
 
 static void
 via_write_ACR(struct via_struct* p_via, uint8_t val) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t t2_timer_id = p_via->t2_timer_id;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
+  int is_shift_running =
+      timing_timer_is_running(p_timing, p_via->shift_timer_id);
+
   p_via->ACR = val;
   via_update_IRA_cached(p_via);
   /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
@@ -918,23 +985,42 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
     (void) timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
   }
 
-  if (!p_via->externally_clocked) {
-    uint32_t t2_timer_id = p_via->t2_timer_id;
+  /* Currently only responding to "Shift out free running at T2 rate". */
+  if (((val & 0x1C) == 0x10) && !is_shift_running) {
+    int64_t shift_timer_val;
+    uint16_t t2_val = via_get_t2c(p_via);
+
+    shift_timer_val = (t2_val & 0xFF);
+    // Trigger timer at -1.
+    shift_timer_val++;
+    // Convert 1MHz -> 2MHz ticks.
+    shift_timer_val <<= 1;
+
+    assert(timing_timer_is_running(p_timing, t2_timer_id));
+    (void) timing_stop_timer(p_timing, t2_timer_id);
+    (void) timing_start_timer_with_value(p_timing,
+                                         shift_timer_id,
+                                         shift_timer_val);
+    is_shift_running = 1;
+  }
+
+  /* TODO: really unclear how to resolve shift timer vs. pulse counting. */
+  if (!p_via->externally_clocked && !is_shift_running) {
     if (val & 0x20) {
       /* Stop T2 if that bit is set. */
-      if (timing_timer_is_running(p_via->p_timing, t2_timer_id)) {
+      if (timing_timer_is_running(p_timing, t2_timer_id)) {
         int32_t t2_val = via_get_t2c(p_via);
         /* The value freezes after ticking one more time. */
         via_set_t2c(p_via, (t2_val - 1));
-        (void) timing_stop_timer(p_via->p_timing, t2_timer_id);
+        (void) timing_stop_timer(p_timing, t2_timer_id);
       }
     } else {
       /* Otherwise start it. */
-      if (!(timing_timer_is_running(p_via->p_timing, t2_timer_id))) {
+      if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
         int32_t t2_val = via_get_t2c(p_via);
         /* The value starts ticking next cycle. */
         via_set_t2c(p_via, (t2_val + 1));
-        (void) timing_start_timer(p_via->p_timing, t2_timer_id);
+        (void) timing_start_timer(p_timing, t2_timer_id);
       }
     }
   }

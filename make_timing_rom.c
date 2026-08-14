@@ -1179,8 +1179,52 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x34);
   emit_JMP(p_buf, k_abs, 0xD000);
 
-  /* Exit sequence. */
+  /* Test T2 counting when it's supporting shifting. */
   set_new_index(p_buf, 0x1000);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 7);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 2);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  /* Continuous shift out at T2 rate. */
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0xFE6B);
+  /* 3... 2... 1... */
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_STA(p_buf, k_abs, 0xC00);
+  /* 7... 6... 5... (HI=1) */
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_STA(p_buf, k_abs, 0xC01);
+  /* 2... */
+  emit_NOP(p_buf);
+  /* 1... 0... -1... (HI=0) */
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_NOP(p_buf);
+  /* 6... 5... 4... (HI=0) */
+  emit_LDX(p_buf, k_abs, 0xFE69);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  /* 1... 0... -1... */
+  emit_LDY(p_buf, k_abs, 0xFE6D);
+  emit_STA(p_buf, k_abs, 0xC02);
+  emit_STX(p_buf, k_abs, 0xC03);
+  emit_STY(p_buf, k_abs, 0xC04);
+
+  emit_LDA(p_buf, k_abs, 0xC00);
+  emit_REQUIRE_EQ(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xC01);
+  emit_REQUIRE_EQ(p_buf, 5);
+  emit_LDA(p_buf, k_abs, 0xC02);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_abs, 0xC03);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_abs, 0xC04);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0x20);
+  emit_JMP(p_buf, k_abs, 0xD080);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x1080);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
