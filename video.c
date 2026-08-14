@@ -679,7 +679,16 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   goto check_r6;
 
   while (ticks < ticks_target) {
-    int r0_hit;
+    int r0_hit = (horiz_counter == r0);
+    if (p_video->is_rendering_active) {
+      video_do_rendering_tick(p_video,
+                              &is_render_prepared,
+                              horiz_counter,
+                              r0_hit,
+                              r9_hit,
+                              ticks);
+    }
+
 
     if (start_of_line_state_checks) {
       if (start_of_line_state_checks & 8) {
@@ -723,18 +732,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    r0_hit = (horiz_counter == r0);
-    if (p_video->is_rendering_active) {
-      video_do_rendering_tick(p_video,
-                              &is_render_prepared,
-                              horiz_counter,
-                              r0_hit,
-                              r9_hit,
-                              ticks);
-    }
-
     /* Wraps 0xFF -> 0; uint8_t type. */
     horiz_counter++;
+
+    ticks += ticks_inc;
 
     if (r7_hit || p_video->is_even_vsync) {
       if (horiz_counter == p_video->half_r0) {
@@ -744,11 +745,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         } else if (p_video->vsync_scanline_counter == 0) {
           p_video->is_even_vsync = 0;
         }
-        video_update_VSYNC(p_video, (ticks + ticks_inc));
+        video_update_VSYNC(p_video, ticks);
       }
     }
-
-    ticks += ticks_inc;
 
     if (!r0_hit) {
       continue;
