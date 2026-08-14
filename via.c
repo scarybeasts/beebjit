@@ -165,8 +165,13 @@ via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
 }
 
 static void
-via_set_t1c(struct via_struct* p_via, int32_t val) {
-  via_set_t1c_raw(p_via, (val << 1));
+via_set_t1c(struct via_struct* p_via, uint16_t val, int is_for_next_tick) {
+  int32_t raw_val = val;
+  if (is_for_next_tick) {
+    raw_val++;
+  }
+  raw_val <<= 1;
+  via_set_t1c_raw(p_via, raw_val);
 }
 
 static int32_t
@@ -193,11 +198,18 @@ via_get_t1c_raw(struct via_struct* p_via) {
   return val;
 }
 
-static int32_t
+static uint16_t
 via_get_t1c(struct via_struct* p_via) {
   int32_t val = via_get_t1c_raw(p_via);
   /* TODO: add assert invariant that accesses are always done VIA mid cycle? */
   val >>= 1;
+  if (via_t1_just_fired(p_via)) {
+    /* If the timer is firing, return 0xFFFF. Need to force this because the raw
+     * timer value is set to the relatch value plus one which must not be
+     * exposed.
+     */
+    val = 0xFFFF;
+  }
   return val;
 }
 
@@ -212,8 +224,13 @@ via_set_t2c_raw(struct via_struct* p_via, int32_t val) {
 }
 
 static void
-via_set_t2c(struct via_struct* p_via, int32_t val) {
-  via_set_t2c_raw(p_via, (val << 1));
+via_set_t2c(struct via_struct* p_via, uint16_t val, int is_for_next_tick) {
+  int32_t raw_val = val;
+  if (is_for_next_tick) {
+    raw_val++;
+  }
+  raw_val <<= 1;
+  via_set_t2c_raw(p_via, raw_val);
 }
 
 static int32_t
@@ -240,7 +257,7 @@ via_get_t2c_raw(struct via_struct* p_via) {
   return val;
 }
 
-static int32_t
+static uint16_t
 via_get_t2c(struct via_struct* p_via) {
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t shift_timer_id = p_via->shift_timer_id;
@@ -299,10 +316,10 @@ via_do_fire_t2(struct via_struct* p_via) {
 static void
 via_t1_fired(void* p) {
   struct via_struct* p_via = (struct via_struct*) p;
-  int64_t val = via_get_t1c(p_via);
+  uint16_t val = via_get_t1c(p_via);
 
   (void) val;
-  assert(val == -1);
+  assert(val == 0xFFFF);
   assert(!p_via->externally_clocked);
 
   via_do_fire_t1(p_via);
@@ -311,10 +328,10 @@ via_t1_fired(void* p) {
 static void
 via_t2_fired(void* p) {
   struct via_struct* p_via = (struct via_struct*) p;
-  int64_t val = via_get_t2c(p_via);
+  uint16_t val = via_get_t2c(p_via);
 
   (void) val;
-  assert(val == -1);
+  assert(val == 0xFFFF);
   assert(!p_via->externally_clocked);
   assert(!(p_via->ACR & 0x20)); /* Shouldn't fire in pulse counting mode. */
 
@@ -346,7 +363,7 @@ via_shift_fired(void* p) {
   t2c_val >>= 8;
   t2c_val--;
   t2c_val <<= 8;
-  via_set_t2c(p_via, t2c_val);
+  via_set_t2c(p_via, t2c_val, 0);
 
   /* In shift mode, when the high 8 bits of T2 underflow, the one-shot interrupt
    * still fires.
@@ -456,9 +473,9 @@ via_power_on_reset(struct via_struct* p_via) {
   /* EMU: the counter values appear to be quasi-random on a real machine, but
    * we'll initialize them to 0xFFFF for deterministic behavior.
    */
-  via_set_t1c(p_via, 0xFFFF);
+  via_set_t1c(p_via, 0xFFFF, 0);
   p_via->T1L = 0xFFFF;
-  via_set_t2c(p_via, 0xFFFF);
+  via_set_t2c(p_via, 0xFFFF, 0);
   p_via->T2L = 0xFFFF;
 
   p_via->t1_last_fire_cycles = 0;
@@ -507,7 +524,7 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
 
   t1c = via_get_t1c(p_via);
   t1c -= ticks;
-  via_set_t1c(p_via, t1c);
+  via_set_t1c(p_via, t1c, 0);
 
   if (t1c < 0) {
     if (timing_get_firing(p_timing, p_via->t1_timer_id)) {
@@ -523,7 +540,7 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
 
   t2c = via_get_t2c(p_via);
   t2c -= ticks;
-  via_set_t2c(p_via, t2c);
+  via_set_t2c(p_via, t2c, 0);
 
   if (t2c < 0) {
     if (timing_get_firing(p_timing, p_via->t2_timer_id)) {
@@ -665,14 +682,6 @@ via_update_port_b(struct via_struct* p_via) {
   }
 }
 
-static void
-via_load_T1(struct via_struct* p_via) {
-  int32_t timer_val = p_via->T1L;
-  /* Increment the value because it must take effect in 1 tick. */
-  timer_val++;
-  via_set_t1c(p_via, timer_val);
-}
-
 static uint8_t
 via_read_ORB_internal(struct via_struct* p_via, int do_avoid_side_effects) {
   uint8_t orb;
@@ -713,55 +722,40 @@ via_read_ORB_internal(struct via_struct* p_via, int do_avoid_side_effects) {
 static uint8_t
 via_read_T1CL(struct via_struct* p_via, int do_avoid_side_effects) {
   uint8_t ret;
-  int32_t t1_val;
+  uint16_t t1_val;
   if (!via_t1_just_fired(p_via) && !do_avoid_side_effects) {
     via_clear_interrupt(p_via, k_int_TIMER1);
   }
   t1_val = via_get_t1c(p_via);
-  if (via_t1_just_fired(p_via)) {
-    /* If the timer is firing, return -1. Need to force this because the raw
-     * timer value is set to the relatch value plus one which must not be
-     * exposed.
-     */
-    t1_val = -1;
-  }
-  ret = (((uint16_t) t1_val) & 0xFF);
+  ret = (t1_val & 0xFF);
   return ret;
 }
 
 static uint8_t
 via_read_T1CH(struct via_struct* p_via) {
   uint8_t ret;
-  int32_t t1_val = via_get_t1c(p_via);
-  if (via_t1_just_fired(p_via)) {
-    /* If the timer is firing, return -1. Need to force this because the raw
-     * timer value is set to the relatch value plus one which must not be
-     * exposed.
-     */
-    t1_val = -1;
-  }
-
-  ret = (((uint16_t) t1_val) >> 8);
+  uint16_t t1_val = via_get_t1c(p_via);
+  ret = (t1_val >> 8);
   return ret;
 }
 
 static uint8_t
 via_read_T2CL(struct via_struct* p_via, int do_avoid_side_effects) {
   uint8_t ret;
-  int32_t t2_val;
+  uint16_t t2_val;
   if (!via_t2_just_fired(p_via) && !do_avoid_side_effects) {
     via_clear_interrupt(p_via, k_int_TIMER2);
   }
   t2_val = via_get_t2c(p_via);
-  ret = ((uint16_t) t2_val & 0xFF);
+  ret = (t2_val & 0xFF);
   return ret;
 }
 
 static uint8_t
 via_read_T2CH(struct via_struct* p_via) {
   uint8_t ret;
-  int32_t t2_val = via_get_t2c(p_via);
-  ret = ((uint16_t) t2_val >> 8);
+  uint16_t t2_val = via_get_t2c(p_via);
+  ret = (t2_val >> 8);
   return ret;
 }
 
@@ -921,7 +915,7 @@ via_write_T1CL(struct via_struct* p_via, uint8_t val) {
    * Finally hit by the second(?) stage Nightshade tape loader at $7300.
    */
   if (via_t1_just_fired(p_via) && (p_via->ACR & 0x40)) {
-    via_load_T1(p_via);
+    via_set_t1c(p_via, p_via->T1L, 1);
   }
 }
 
@@ -931,7 +925,7 @@ via_write_T1CH(struct via_struct* p_via, uint8_t val) {
     via_clear_interrupt(p_via, k_int_TIMER1);
   }
   p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-  via_load_T1(p_via);
+  via_set_t1c(p_via, p_via->T1L, 1);
   (void) timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
   /* EMU TODO: does this behave differently if t1_firing as well? */
   p_via->t1_pb7 = 0;
@@ -944,17 +938,15 @@ via_write_T2CL(struct via_struct* p_via, uint8_t val) {
 
 static void
 via_write_T2CH(struct via_struct* p_via, uint8_t val) {
-  int32_t timer_val;
+  int is_for_next_tick = 0;
   if (!via_t2_just_fired(p_via)) {
     via_clear_interrupt(p_via, k_int_TIMER2);
   }
   p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
-  timer_val = p_via->T2L;
-  /* Increment the value because it must take effect in 1 tick. */
   if (!(p_via->ACR & 0x20)) {
-    timer_val++;
+    is_for_next_tick = 1;
   }
-  via_set_t2c(p_via, timer_val);
+  via_set_t2c(p_via, p_via->T2L, is_for_next_tick);
   (void) timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
 }
 
@@ -1009,17 +1001,17 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
     if (val & 0x20) {
       /* Stop T2 if that bit is set. */
       if (timing_timer_is_running(p_timing, t2_timer_id)) {
-        int32_t t2_val = via_get_t2c(p_via);
+        uint16_t t2_val = via_get_t2c(p_via);
         /* The value freezes after ticking one more time. */
-        via_set_t2c(p_via, (t2_val - 1));
+        via_set_t2c(p_via, (t2_val - 1), 0);
         (void) timing_stop_timer(p_timing, t2_timer_id);
       }
     } else {
       /* Otherwise start it. */
       if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
-        int32_t t2_val = via_get_t2c(p_via);
+        uint16_t t2_val = via_get_t2c(p_via);
         /* The value starts ticking next cycle. */
-        via_set_t2c(p_via, (t2_val + 1));
+        via_set_t2c(p_via, t2_val, 1);
         (void) timing_start_timer(p_timing, t2_timer_id);
       }
     }
@@ -1114,7 +1106,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     if (!via_t1_just_fired(p_via)) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     } else if (p_via->ACR & 0x40) {
-      via_load_T1(p_via);
+      via_set_t1c(p_via, p_via->T1L, 1);
     }
     break;
   case k_via_T2CL:
