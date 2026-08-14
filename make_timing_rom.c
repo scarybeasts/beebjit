@@ -1209,6 +1209,24 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xC02);
   emit_STX(p_buf, k_abs, 0xC03);
   emit_STY(p_buf, k_abs, 0xC04);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_imm, 100);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  /* 7... 6... 5... */
+  emit_LDA(p_buf, k_abs, 0xFE69);
+  emit_STA(p_buf, k_abs, 0xC05);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  /* 0... -1... 7... */
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_STA(p_buf, k_abs, 0xC06);
+  /* Finally, out of shift mode. */
+  emit_LDA(p_buf, k_imm, 0);
+  emit_STA(p_buf, k_abs, 0xFE6B);
+  /* 0... 255... 254... */
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_STA(p_buf, k_abs, 0xC07);
 
   emit_LDA(p_buf, k_abs, 0xC00);
   emit_REQUIRE_EQ(p_buf, 1);
@@ -1221,10 +1239,16 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xC04);
   emit_AND(p_buf, k_imm, 0x20);
   emit_REQUIRE_EQ(p_buf, 0x20);
-  emit_JMP(p_buf, k_abs, 0xD080);
+  emit_LDA(p_buf, k_abs, 0xC05);
+  emit_REQUIRE_EQ(p_buf, 100);
+  emit_LDA(p_buf, k_abs, 0xC06);
+  emit_REQUIRE_EQ(p_buf, 7);
+  emit_LDA(p_buf, k_abs, 0xC07);
+  emit_REQUIRE_EQ(p_buf, 0xFE);
+  emit_JMP(p_buf, k_abs, 0xD0C0);
 
   /* Exit sequence. */
-  set_new_index(p_buf, 0x1080);
+  set_new_index(p_buf, 0x10C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

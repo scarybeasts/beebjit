@@ -345,13 +345,13 @@ via_shift_fired(void* p) {
   uint32_t t2_timer_id = p_via->t2_timer_id;
   uint32_t shift_timer_id = p_via->shift_timer_id;
   uint16_t t2c_val = via_get_t2c(p_via);
+  int64_t delta = ((p_via->T2L & 0xFF) + 2);
 
   p_via->t2_shift_last_fire_cycles = timing_get_total_timer_ticks(p_timing);
 
   /* In shift mode, using T2 timing, only the low 8 bits are used as the
    * counter.
    */
-  int64_t delta = ((p_via->T2L & 0xFF) + 2);
   (void) timing_adjust_timer_value(p_timing,
                                    NULL,
                                    shift_timer_id,
@@ -938,15 +938,25 @@ via_write_T2CL(struct via_struct* p_via, uint8_t val) {
 
 static void
 via_write_T2CH(struct via_struct* p_via, uint8_t val) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
   int is_for_next_tick = 0;
   if (!via_t2_just_fired(p_via)) {
     via_clear_interrupt(p_via, k_int_TIMER2);
   }
   p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
-  if (!(p_via->ACR & 0x20)) {
-    is_for_next_tick = 1;
+  if (timing_timer_is_running(p_timing, shift_timer_id)) {
+    int64_t shift_val = ((p_via->T2L & 0xFF) + 2);
+    (void) timing_set_timer_value(p_timing,
+                                  shift_timer_id,
+                                  (shift_val << 1));
+    via_set_t2c(p_via, p_via->T2L, 0);
+  } else {
+    if (!(p_via->ACR & 0x20)) {
+      is_for_next_tick = 1;
+    }
+    via_set_t2c(p_via, p_via->T2L, is_for_next_tick);
   }
-  via_set_t2c(p_via, p_via->T2L, is_for_next_tick);
   (void) timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
 }
 
@@ -955,8 +965,7 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t t2_timer_id = p_via->t2_timer_id;
   uint32_t shift_timer_id = p_via->shift_timer_id;
-  int is_shift_running =
-      timing_timer_is_running(p_timing, p_via->shift_timer_id);
+  int is_shift_running = timing_timer_is_running(p_timing, shift_timer_id);
 
   p_via->ACR = val;
   via_update_IRA_cached(p_via);
@@ -974,7 +983,7 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
    * See: tests.ssd:VIA.AC2
    */
   if (via_t1_just_fired(p_via) && (!(val & 0x40))) {
-    (void) timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 0);
+    (void) timing_set_firing(p_timing, p_via->t1_timer_id, 0);
   }
 
   /* Currently only responding to "Shift out free running at T2 rate". */
@@ -994,6 +1003,15 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
                                          shift_timer_id,
                                          shift_timer_val);
     is_shift_running = 1;
+  } else if (((val & 0x1C) != 0x10) && is_shift_running) {
+    uint16_t t2_val = via_get_t2c(p_via);
+
+    assert(!timing_timer_is_running(p_timing, t2_timer_id));
+    (void) timing_stop_timer(p_timing, shift_timer_id);
+    (void) timing_start_timer_with_value(p_timing, t2_timer_id, 0);
+    via_set_t2c(p_via, t2_val, 0);
+
+    is_shift_running = 0;
   }
 
   /* TODO: really unclear how to resolve shift timer vs. pulse counting. */
