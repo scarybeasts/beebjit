@@ -64,6 +64,7 @@ struct via_struct {
   int CB2;
   uint8_t bus_value_a;
   uint8_t IRA_cached;
+  int32_t shift_counter;
 
   void (*p_CA2_changed_callback)(void* p, int level, int output);
   void* p_CA2_changed_object;
@@ -346,6 +347,7 @@ via_shift_fired(void* p) {
   uint32_t shift_timer_id = p_via->shift_timer_id;
   uint16_t t2c_val = via_get_t2c(p_via);
   int64_t delta = ((p_via->T2L & 0xFF) + 2);
+  int32_t shift_counter = p_via->shift_counter;
 
   p_via->t2_shift_last_fire_cycles = timing_get_total_timer_ticks(p_timing);
 
@@ -370,6 +372,29 @@ via_shift_fired(void* p) {
    */
   if ((t2c_val == 0xFF00) && timing_get_firing(p_timing, t2_timer_id)) {
     via_do_fire_t2(p_via);
+  }
+
+  /* Actually do the shift if we are shifting. */
+  if (shift_counter != -1) {
+    /* The CB1 output shift clock toggles every timer expiry, and the actual
+     * shift is every other CB1 toggle.
+     */
+    /* TODO: incorrect timing. On real hardware it looks like there's a couple
+     * of ticks latency between timer expired and a new SR value reading back.
+     */
+    /* TODO: actually perform the CB1 and CB2 pin management. */
+    if (shift_counter == 1) {
+      uint8_t SR = p_via->SR;
+      int outgoing_bit = !!(SR & 0x80);
+      SR <<= 1;
+      SR |= outgoing_bit;
+      p_via->SR = SR;
+    }
+    shift_counter--;
+    if (shift_counter == -1) {
+      shift_counter = 1;
+    }
+    p_via->shift_counter = shift_counter;
   }
 }
 
@@ -481,6 +506,8 @@ via_power_on_reset(struct via_struct* p_via) {
   p_via->t1_last_fire_cycles = 0;
   p_via->t2_last_fire_cycles = 0;
   p_via->t2_shift_last_fire_cycles = 0;
+
+  p_via->shift_counter = -1;
 
   /* Sets bus_value_a and IRA_cached. */
   via_update_port_a(p_via);
@@ -774,6 +801,18 @@ via_read_ORA_internal(struct via_struct* p_via, int do_avoid_side_effects) {
   return via_read_ORAnh(p_via);
 }
 
+static void
+via_check_start_shifting(struct via_struct* p_via) {
+  if ((p_via->ACR & 0x1C) != 0x10) {
+    return;
+  }
+  if (p_via->shift_counter != -1) {
+    return;
+  }
+  /* Only catering for continuous shifting at this time. */
+  p_via->shift_counter = 1;
+}
+
 static uint8_t
 via_read_internal(struct via_struct* p_via,
                   uint8_t reg,
@@ -808,6 +847,7 @@ via_read_internal(struct via_struct* p_via,
   case k_via_T2CH:
     return via_read_T2CH(p_via);
   case k_via_SR:
+    via_check_start_shifting(p_via);
     ret = p_via->SR;
     break;
   case k_via_ACR:
@@ -1011,6 +1051,8 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
     (void) timing_start_timer_with_value(p_timing, t2_timer_id, 0);
     via_set_t2c(p_via, t2_val, 0);
 
+    p_via->shift_counter = -1;
+
     is_shift_running = 0;
   }
 
@@ -1134,6 +1176,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     via_write_T2CH(p_via, val);
     return;
   case k_via_SR:
+    via_check_start_shifting(p_via);
     p_via->SR = val;
     break;
   case k_via_ACR:
