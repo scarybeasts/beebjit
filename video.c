@@ -621,6 +621,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t r0;
   uint8_t horiz_counter;
   uint32_t start_of_line_state_checks;
+  int is_1MHz;
+  uint64_t vsync_ticks;
 
   int r4_hit;
   int r5_hit;
@@ -635,7 +637,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       (p_video->crtc_registers[k_crtc_reg_lines_per_character] &
        p_video->scanline_mask);
   int is_render_prepared = 0;
-  uint64_t ticks_inc = 1;
 
   if (p_video->externally_clocked) {
     return;
@@ -659,18 +660,18 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   assert((ticks_target - ticks) < INT_MAX);
 
-  if (!p_video->is_ula_clock_fast) {
+  is_1MHz = !p_video->is_ula_clock_fast;
+  /* TODO: now we're iterating always at 2MHz, can we get rid of this? */
+  if (is_1MHz) {
     /* If we're advancing from an odd clock, pretend to start 1 cycle sooner in
      * order to get aligned to 1MHz.
      */
     ticks &= ~1ull;
     /* If we're advancing to an odd clock, stop on the 1MHz boundary before. */
     ticks_target &= ~1ull;
-    /* 1MHz mode => CRTC ticks pass at half rate. This double increment also
-     * makes sure we're only advance to an even clock.
-     */
-    ticks_inc = 2;
   }
+  /* TODO: can we get rid of this variable? Why is vsync delayed a 6845 tick? */
+  vsync_ticks = ticks;
 
   start_of_line_state_checks = p_video->start_of_line_state_checks;
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
@@ -679,7 +680,14 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   goto check_r6;
 
   while (ticks < ticks_target) {
-    int r0_hit = (horiz_counter == r0);
+    int r0_hit;
+
+    if (is_1MHz && (ticks & 1)) {
+      ticks++;
+      continue;
+    }
+
+    r0_hit = (horiz_counter == r0);
     if (p_video->is_rendering_active) {
       video_do_rendering_tick(p_video,
                               &is_render_prepared,
@@ -688,7 +696,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                               r9_hit,
                               ticks);
     }
-
 
     if (start_of_line_state_checks) {
       if (start_of_line_state_checks & 8) {
@@ -735,7 +742,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Wraps 0xFF -> 0; uint8_t type. */
     horiz_counter++;
 
-    ticks += ticks_inc;
+    ticks++;
+    vsync_ticks = (ticks + is_1MHz);
 
     if (r7_hit || p_video->is_even_vsync) {
       if (horiz_counter == p_video->half_r0) {
@@ -745,7 +753,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         } else if (p_video->vsync_scanline_counter == 0) {
           p_video->is_even_vsync = 0;
         }
-        video_update_VSYNC(p_video, ticks);
+        video_update_VSYNC(p_video, vsync_ticks);
       }
     }
 
@@ -771,7 +779,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
       if (p_video->vsync_scanline_counter == 0) {
         p_video->is_odd_vsync = 0;
-        video_update_VSYNC(p_video, ticks);
+        video_update_VSYNC(p_video, vsync_ticks);
       }
     }
 
@@ -840,7 +848,7 @@ check_r7:
       if (!p_video->in_vsync) {
         p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
       }
-      video_update_VSYNC(p_video, ticks);
+      video_update_VSYNC(p_video, vsync_ticks);
     }
 
     if (p_video->is_rendering_active) {
