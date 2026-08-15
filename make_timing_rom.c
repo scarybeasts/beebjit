@@ -1247,8 +1247,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFE);
   emit_JMP(p_buf, k_abs, 0xD0C0);
 
-  /* Exit sequence. */
+  /* Test a timer set to 0xFFFF. There was a tricky to debug integer overflow
+   * during recent development.
+   */
   set_new_index(p_buf, 0x10C0);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE44);
+  emit_STA(p_buf, k_abs, 0xFE45);
+  emit_LDA(p_buf, k_imm, 0x88);
+  emit_STA(p_buf, k_abs, 0xFE48);
+  emit_STA(p_buf, k_abs, 0xFE49);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_BIT(p_buf, k_abs, 0xFE4D);
+  emit_BEQ(p_buf, -5);
+  emit_LDA(p_buf, k_imm, 0x88);
+  emit_STA(p_buf, k_abs, 0xFE49);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_BIT(p_buf, k_abs, 0xFE4D);
+  emit_BEQ(p_buf, -5);
+  emit_LDA(p_buf, k_abs, 0xFE4D);
+  emit_AND(p_buf, k_imm, 0x40);
+  emit_REQUIRE_EQ(p_buf, 0x40);
+  emit_JMP(p_buf, k_abs, 0xD100);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x1100);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
