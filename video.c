@@ -195,7 +195,7 @@ struct video_struct {
 
 static inline uint8_t
 video_read_data_byte(struct video_struct* p_video,
-                     uint64_t ticks,
+                     int is_odd_tick,
                      uint32_t address_counter,
                      uint8_t scanline_counter,
                      uint32_t screen_wrap_add) {
@@ -225,7 +225,7 @@ video_read_data_byte(struct video_struct* p_video,
       /* No address xor. */
     } else {
       /* 2MHz, bitmap mode. */
-      if (!(ticks & 1)) {
+      if (!is_odd_tick) {
         address ^= 64;
       }
     }
@@ -504,7 +504,7 @@ video_do_rendering_tick(struct video_struct* p_video,
                         uint8_t horiz_counter,
                         int r0_hit,
                         int r9_hit,
-                        uint64_t ticks) {
+                        int is_odd_tick) {
   uint16_t address_counter;
   int r1_hit;
   uint8_t data;
@@ -587,11 +587,11 @@ video_do_rendering_tick(struct video_struct* p_video,
 
   address_counter = p_video->address_counter;
   data = video_read_data_byte(p_video,
-                              ticks,
+                              is_odd_tick,
                               address_counter,
                               p_video->scanline_counter,
                               p_video->screen_wrap_add);
-  if (!(ticks & 1)) {
+  if (!is_odd_tick) {
     uint8_t data_teletext = data;
     int dispen_teletext = this_external_dispen;
     /* Always crank the teletext data pipeline, because we can flip bitmap ->
@@ -607,7 +607,7 @@ video_do_rendering_tick(struct video_struct* p_video,
     teletext_data(p_video->p_teletext, data_teletext, dispen_teletext);
   }
 
-  render_render(p_video->p_render, data, ticks);
+  render_render(p_video->p_render, data, is_odd_tick);
 
   address_counter++;
   address_counter &= 0x3FFF;
@@ -681,8 +681,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   while (ticks < ticks_target) {
     int r0_hit;
+    int is_odd_tick = (ticks & 1);
 
-    if (is_1MHz && (ticks & 1)) {
+    if (is_1MHz && is_odd_tick) {
       ticks++;
       continue;
     }
@@ -694,7 +695,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                               horiz_counter,
                               r0_hit,
                               r9_hit,
-                              ticks);
+                              is_odd_tick);
     }
 
     if (start_of_line_state_checks) {
