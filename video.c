@@ -498,9 +498,8 @@ video_update_VSYNC(struct video_struct* p_video, uint64_t ticks) {
   }
 }
 
-static void
+static uint8_t
 video_do_rendering_tick(struct video_struct* p_video,
-                        int* p_is_render_prepared,
                         uint8_t horiz_counter,
                         int r0_hit,
                         int r9_hit,
@@ -509,12 +508,6 @@ video_do_rendering_tick(struct video_struct* p_video,
   int r1_hit;
   uint8_t data;
   int this_external_dispen;
-
-  if (!*p_is_render_prepared) {
-    render_prepare(p_video->p_render);
-
-    *p_is_render_prepared = 1;
-  }
 
   r1_hit = (horiz_counter ==
             p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
@@ -607,11 +600,11 @@ video_do_rendering_tick(struct video_struct* p_video,
     teletext_data(p_video->p_teletext, data_teletext, dispen_teletext);
   }
 
-  render_render(p_video->p_render, data, is_odd_tick);
-
   address_counter++;
   address_counter &= 0x3FFF;
   p_video->address_counter = address_counter;
+
+  return data;
 }
 
 void
@@ -673,12 +666,21 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->is_rendering_active &&
         (!is_1MHz || !is_odd_tick)) {
-      video_do_rendering_tick(p_video,
-                              &is_render_prepared,
-                              horiz_counter,
-                              r0_hit,
-                              r9_hit,
-                              is_odd_tick);
+      uint8_t data;
+      struct render_struct* p_render = p_video->p_render;
+
+      if (!is_render_prepared) {
+        render_prepare(p_render);
+        is_render_prepared = 1;
+      }
+
+      data = video_do_rendering_tick(p_video,
+                                     horiz_counter,
+                                     r0_hit,
+                                     r9_hit,
+                                     is_odd_tick);
+
+      render_render(p_render, data, is_odd_tick);
     }
 
     if (is_1MHz && !is_odd_tick) {
