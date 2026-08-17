@@ -394,26 +394,16 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
                                       uint8_t data,
                                       int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
   struct teletext_struct* p_teletext = p_render->p_teletext;
 
   (void) data;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    teletext_render(p_teletext,
-                    is_odd_tick,
-                    (struct render_character_2MHz*) p_render_pos,
-                    (struct render_character_2MHz*) p_next_render_pos);
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-              p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
-  }
+  teletext_render(p_teletext,
+                  is_odd_tick,
+                  (struct render_character_2MHz*) p_render_pos,
+                  (struct render_character_2MHz*) p_next_render_pos);
+  render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
 }
 
 static void
@@ -425,31 +415,19 @@ render_function_teletext_interlaced(struct render_struct* p_render,
 
   (void) data;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    if (p_render->vert_beam_pos & 1) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      teletext_render(p_teletext,
-                      is_odd_tick,
-                      (struct render_character_2MHz*) p_next_render_pos,
-                      NULL);
-      render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
-    } else {
-      teletext_render(p_teletext,
-                      is_odd_tick,
-                      (struct render_character_2MHz*) p_render_pos,
-                      NULL);
-      render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
-    }
-    p_render->p_render_pos += 8;
+  if (p_render->vert_beam_pos & 1) {
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    teletext_render(p_teletext,
+                    is_odd_tick,
+                    (struct render_character_2MHz*) p_next_render_pos,
+                    NULL);
+    render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
   } else {
-    if ((p_render->horiz_beam_pos & ~7) ==
-        p_render->horiz_beam_window_start_pos) {
-      render_reset_render_pos(p_render);
-    } else if (p_render->horiz_beam_pos >= 1536) {
-      render_hsync(p_render, 0);
-    }
+    teletext_render(p_teletext,
+                    is_odd_tick,
+                    (struct render_character_2MHz*) p_render_pos,
+                    NULL);
+    render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
   }
 }
 
@@ -458,27 +436,17 @@ render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
                                        uint8_t data,
                                        int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+  struct render_character_2MHz* p_value;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    struct render_character_2MHz* p_value;
-    if (!is_odd_tick) {
-      p_value = &p_render->p_render_table_1MHz->values[data].first;
-    } else {
-      p_value = &p_render->p_render_table_1MHz->values[data].second;
-    }
-    *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
+  if (!is_odd_tick) {
+    p_value = &p_render->p_render_table_1MHz->values[data].first;
+  } else {
+    p_value = &p_render->p_render_table_1MHz->values[data].second;
   }
+  *(struct render_character_2MHz*) p_render_pos = *p_value;
+  *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+  render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
 }
 
 static void
@@ -486,30 +454,20 @@ render_function_1MHz_data_interlaced(struct render_struct* p_render,
                                      uint8_t data,
                                      int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_value;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value;
-    if (!is_odd_tick) {
-      p_value = &p_render->p_render_table_1MHz->values[data].first;
-    } else {
-      p_value = &p_render->p_render_table_1MHz->values[data].second;
-    }
-    if (p_render->vert_beam_pos & 1) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-      render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
-    } else {
-      *(struct render_character_2MHz*) p_render_pos = *p_value;
-      render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
-    }
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
+  if (!is_odd_tick) {
+    p_value = &p_render->p_render_table_1MHz->values[data].first;
+  } else {
+    p_value = &p_render->p_render_table_1MHz->values[data].second;
+  }
+  if (p_render->vert_beam_pos & 1) {
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
+  } else {
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
   }
 }
 
@@ -518,25 +476,15 @@ render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
                                         uint8_t data,
                                         int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+  struct render_character_2MHz* p_value =
+      &p_render->render_character_2MHz_black;
 
   (void) data;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->render_character_2MHz_black;
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
-  }
+  *(struct render_character_2MHz*) p_render_pos = *p_value;
+  *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+  render_check_cursor(p_render, p_render_pos, p_next_render_pos, is_odd_tick);
 }
 
 static void
@@ -544,28 +492,18 @@ render_function_1MHz_blank_interlaced(struct render_struct* p_render,
                                       uint8_t data,
                                       int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_value =
+      &p_render->render_character_2MHz_black;
 
   (void) data;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->render_character_2MHz_black;
-    if (p_render->vert_beam_pos & 1) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-      render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
-    } else {
-      *(struct render_character_2MHz*) p_render_pos = *p_value;
-      render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
-    }
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
+  if (p_render->vert_beam_pos & 1) {
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_next_render_pos, NULL, is_odd_tick);
+  } else {
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, NULL, is_odd_tick);
   }
 }
 
@@ -574,25 +512,15 @@ render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
                                        uint8_t data,
                                        int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+  struct render_character_2MHz* p_value =
+      &p_render->p_render_table_2MHz->values[data];
 
   (void) is_odd_tick;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->p_render_table_2MHz->values[data];
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 1);
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
-  }
+  *(struct render_character_2MHz*) p_render_pos = *p_value;
+  *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+  render_check_cursor(p_render, p_render_pos, p_next_render_pos, 1);
 }
 
 static void
@@ -600,28 +528,18 @@ render_function_2MHz_data_interlaced(struct render_struct* p_render,
                                      uint8_t data,
                                      int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_value =
+      &p_render->p_render_table_2MHz->values[data];
 
   (void) is_odd_tick;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->p_render_table_2MHz->values[data];
-    if (p_render->vert_beam_pos & 1) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-      render_check_cursor(p_render, p_next_render_pos, NULL, 1);
-    } else {
-      *(struct render_character_2MHz*) p_render_pos = *p_value;
-      render_check_cursor(p_render, p_render_pos, NULL, 1);
-    }
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
+  if (p_render->vert_beam_pos & 1) {
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_next_render_pos, NULL, 1);
+  } else {
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, NULL, 1);
   }
 }
 
@@ -630,26 +548,16 @@ render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
                                         uint8_t data,
                                         int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+  struct render_character_2MHz* p_value =
+      &p_render->render_character_2MHz_black;
 
   (void) data;
   (void) is_odd_tick;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->render_character_2MHz_black;
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-    *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 1);
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
-  }
+  *(struct render_character_2MHz*) p_render_pos = *p_value;
+  *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+  render_check_cursor(p_render, p_render_pos, p_next_render_pos, 1);
 }
 
 static void
@@ -657,29 +565,19 @@ render_function_2MHz_blank_interlaced(struct render_struct* p_render,
                                       uint8_t data,
                                       int is_odd_tick) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_value =
+      &p_render->render_character_2MHz_black;
 
   (void) data;
   (void) is_odd_tick;
 
-  p_render->horiz_beam_pos += 8;
-
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
-    struct render_character_2MHz* p_value =
-        &p_render->render_character_2MHz_black;
-    if (p_render->vert_beam_pos & 1) {
-      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-      render_check_cursor(p_render, p_next_render_pos, NULL, 1);
-    } else {
-      *(struct render_character_2MHz*) p_render_pos = *p_value;
-      render_check_cursor(p_render, p_render_pos, NULL, 1);
-    }
-    p_render->p_render_pos += 8;
-  } else if ((p_render->horiz_beam_pos & ~7) ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
-  } else if (p_render->horiz_beam_pos >= 1536) {
-    render_hsync(p_render, 0);
+  if (p_render->vert_beam_pos & 1) {
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_next_render_pos, NULL, 1);
+  } else {
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, NULL, 1);
   }
 }
 
@@ -1046,7 +944,19 @@ render_prepare(struct render_struct* p_render) {
 
 void
 render_render(struct render_struct* p_render, uint8_t data, int is_odd_tick) {
-  p_render->p_selected_render_func(p_render, data, is_odd_tick);
+  p_render->horiz_beam_pos += 8;
+
+  if (p_render->p_render_pos <= p_render->p_render_pos_row_max) {
+
+    p_render->p_selected_render_func(p_render, data, is_odd_tick);
+
+    p_render->p_render_pos += 8;
+  } else if ((p_render->horiz_beam_pos & ~7) ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
+  } else if (p_render->horiz_beam_pos >= 1536) {
+    render_hsync(p_render, 0);
+  }
 }
 
 void
