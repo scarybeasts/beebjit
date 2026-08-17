@@ -191,6 +191,9 @@ struct video_struct {
   int64_t last_vsync_lower_ticks;
   int32_t cursor_skew_counter;
   int dispen_shifts[4];
+
+  /* Most recent video byte fetched from memory. */
+  uint8_t data_byte;
 };
 
 static inline uint8_t
@@ -664,9 +667,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     int r0_hit = (horiz_counter == r0);
     int is_odd_tick = (ticks & 1);
 
-    if (p_video->is_rendering_active &&
-        (!is_1MHz || !is_odd_tick)) {
-      uint8_t data;
+    if (p_video->is_rendering_active) {
       struct render_struct* p_render = p_video->p_render;
 
       if (!is_render_prepared) {
@@ -674,13 +675,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         is_render_prepared = 1;
       }
 
-      data = video_do_rendering_tick(p_video,
-                                     horiz_counter,
-                                     r0_hit,
-                                     r9_hit,
-                                     is_odd_tick);
+      if (!is_1MHz || !is_odd_tick) {
+        p_video->data_byte  = video_do_rendering_tick(p_video,
+                                                      horiz_counter,
+                                                      r0_hit,
+                                                      r9_hit,
+                                                      is_odd_tick);
+      }
 
-      render_render(p_render, data, is_odd_tick);
+      render_render(p_render, p_video->data_byte, is_odd_tick);
     }
 
     if (is_1MHz && !is_odd_tick) {

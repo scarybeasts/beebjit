@@ -13,7 +13,8 @@ struct render_character_2MHz {
 };
 
 struct render_character_1MHz {
-  uint32_t host_pixels[16];
+  struct render_character_2MHz first;
+  struct render_character_2MHz second;
 };
 
 struct render_table_2MHz {

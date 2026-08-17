@@ -49,7 +49,7 @@ static uint8_t s_teletext_generated_sep_gfx[96 * 16 * 20];
 
 
 struct teletext_struct {
-  struct render_character_1MHz render_character_1MHz_black;
+  struct render_character_2MHz render_character_2MHz_black;
   uint32_t background_color;
   uint8_t data_pipeline[3];
   uint8_t dispen_pipeline[2];
@@ -307,8 +307,8 @@ teletext_generate_black_character(struct teletext_struct* p_teletext) {
   uint32_t i;
   uint32_t rgba = (0xff000000 | p_teletext->background_color);
 
-  for (i = 0; i < 16; ++i) {
-    p_teletext->render_character_1MHz_black.host_pixels[i] = rgba;
+  for (i = 0; i < 8; ++i) {
+    p_teletext->render_character_2MHz_black.host_pixels[i] = rgba;
   }
 
 }
@@ -542,16 +542,17 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data, int is_dispen) {
 
 void
 teletext_render(struct teletext_struct* p_teletext,
-                struct render_character_1MHz* p_out,
-                struct render_character_1MHz* p_next_out) {
+                int is_odd_tick,
+                struct render_character_2MHz* p_out,
+                struct render_character_2MHz* p_next_out) {
   uint32_t i;
   uint32_t src_data_scanline;
   int do_render_rounded_scanline;
   uint8_t* p_src_data = p_teletext->p_render_character;
   uint32_t render_fg_color = p_teletext->render_fg_color;
   uint32_t bg_color = p_teletext->bg_color;
-  struct render_character_1MHz* p_black =
-      &p_teletext->render_character_1MHz_black;
+  struct render_character_2MHz* p_black =
+      &p_teletext->render_character_2MHz_black;
 
   if (!p_teletext->curr_dispen) {
     if (p_out) {
@@ -610,7 +611,11 @@ teletext_render(struct teletext_struct* p_teletext,
   assert(src_data_scanline < 20);
   p_src_data += (src_data_scanline * 16);
 
-  for (i = 0; i < 16; ++i) {
+  if (is_odd_tick) {
+    p_src_data += 8;
+  }
+
+  for (i = 0; i < 8; ++i) {
     uint32_t color;
     uint8_t val = p_src_data[i];
 
@@ -630,7 +635,7 @@ teletext_render(struct teletext_struct* p_teletext,
     p_src_data += 16;
   }
 
-  for (i = 0; i < 16; ++i) {
+  for (i = 0; i < 8; ++i) {
     uint32_t color;
     uint8_t val = p_src_data[i];
 
