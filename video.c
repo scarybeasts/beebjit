@@ -1785,6 +1785,8 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width <<
                                 p_video->clock_tick_shift);
   int is_teletext = (*p_ula_control & k_ula_teletext);
+  int is_1MHz = !p_video->is_ula_clock_fast;
+  uint32_t num_cols_2MHz;
 
   assert(p_video->externally_clocked);
 
@@ -1803,6 +1805,12 @@ video_render_full_frame(struct video_struct* p_video) {
     num_pre_cols = (horiz_total - p_regs[k_crtc_reg_horiz_position]);
   }
 
+  num_cols_2MHz = num_cols;
+  if (is_1MHz) {
+    num_pre_cols *= 2;
+    num_cols_2MHz *= 2;
+  }
+
   render_prepare(p_render);
   render_vsync(p_render);
   render_set_DISPEN(p_render, 0);
@@ -1814,33 +1822,39 @@ video_render_full_frame(struct video_struct* p_video) {
   }
   for (i_rows = 0; i_rows < num_rows; ++i_rows) {
     for (i_lines = 0; i_lines < num_lines; ++i_lines) {
+      uint8_t data = 0;
       render_set_RA(p_render, i_lines);
       crtc_line_address = (crtc_start_address + (i_rows * num_cols));
       for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
-        render_render(p_render, 0x00, 0);
+        render_render(p_render, 0x00, (i_cols & 1));
       }
       render_set_DISPEN(p_render, 1);
-      for (i_cols = 0; i_cols < num_cols; ++i_cols) {
-        uint8_t data;
+      for (i_cols = 0; i_cols < num_cols_2MHz; ++i_cols) {
+        int is_odd_tick = (i_cols & 1);
         crtc_line_address &= 0x3FFF;
-        data = video_read_data_byte(p_video,
-                                    0,
-                                    crtc_line_address,
-                                    i_lines,
-                                    screen_wrap_add);
-        if (is_teletext) {
+        if (!is_1MHz || !is_odd_tick) {
+          data = video_read_data_byte(p_video,
+                                      is_odd_tick,
+                                      crtc_line_address,
+                                      i_lines,
+                                      screen_wrap_add);
           teletext_data(p_teletext, data, 1);
+          crtc_line_address++;
         }
-        render_render(p_render, data, 0);
-        crtc_line_address++;
+        render_render(p_render, data, is_odd_tick);
       }
       if (is_teletext) {
-        /* Send along three extra characters, because the teletext display
+        /* Send along four extra characters, because the teletext display
          * path is pipelined, and three behind.
+         * DISPEN is set for the first, lowered for the remaining because
+         * the DISPEN pipeline is a different depth.
+         * TODO: I don't quite understand why this is the magic that works!
          */
-        for (i_cols = 0; i_cols < 3; ++i_cols) {
-          teletext_data(p_teletext, 0, 0);
-          render_render(p_render, 0x00, 0);
+        for (i_cols = 0; i_cols < 8; ++i_cols) {
+          if (!(i_cols & 1)) {
+            teletext_data(p_teletext, 0, (i_cols == 0));
+          }
+          render_render(p_render, 0x00, (i_cols & 1));
         }
       }
       render_set_DISPEN(p_render, 0);
