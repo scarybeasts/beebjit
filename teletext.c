@@ -527,10 +527,23 @@ teletext_data(struct teletext_struct* p_teletext, uint8_t data, int is_dispen) {
   p_teletext->data_pipeline[1] = p_teletext->data_pipeline[2];
   p_teletext->data_pipeline[2] = data;
 
-  /* The chip increments its scanline counter on the falling edge of display
-   * enable from the 6845.
+  /* The SAA5050 end-of-scanline logic triggers on LOSE going low, which is
+   * connected to the 6845 DISPEN.
+   * The logic is not simple.
+   * For the per-scanline state (colors, graphics mode, etc.) to be reset,
+   * the LOSE pin needs to be low for at least 2 cycles. We model this.
+   * For the scanline counter to increment, there is a complicated interplay
+   * between DEW (wired to hsync) and LOSE. Approximately: DEW resets a
+   * 1/4 speed (1MHz / 4) clock that looks for LOSE being low. If LOSE is
+   * only low briefly, the 1/4 speed clocking might actually miss it! We
+   * do not model this, but if DISPEN is only low for 1 clock, we don't
+   * advance the scanline counter.
+   * We should also hold the scanline state in reset for the duration of LOSE
+   * being low, but we currently only trigger on the negative going edge.
    */
-  if ((is_pipelined_dispen == 0) && (p_teletext->curr_dispen == 1)) {
+  if ((is_pipelined_dispen == 0) &&
+      (p_teletext->dispen_pipeline[1] == 0) &&
+      (p_teletext->curr_dispen == 1)) {
     teletext_reset_scanline_state(p_teletext);
     teletext_advance_scanline(p_teletext);
   }
@@ -661,5 +674,11 @@ teletext_VSYNC_changed(struct teletext_struct* p_teletext, int value) {
    */
   (void) value;
 
+  /* NOTE: the reverse engineered SAA5050 schematic suggests that the scanline
+   * counter is in fact held low while the VSYNC signal is asserted. i.e. it
+   * is level triggered whereas here we are edge triggered.
+   * Practically they are similar because it is unusual to be rendering pixel
+   * output while vsync is active!
+   */
   teletext_new_frame_started(p_teletext);
 }
