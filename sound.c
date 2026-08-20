@@ -61,8 +61,6 @@ struct sound_struct {
 
   /* sn76489 state. */
   int is_write_enabled;
-  int had_write_disabled;
-  uint64_t prev_bus_change_ticks;
   uint16_t counter[k_sound_num_channels];
   uint8_t output[k_sound_num_channels];
   uint16_t noise_rng;
@@ -73,6 +71,9 @@ struct sound_struct {
   /* 1 is white, 0 is periodic. */
   int noise_type;
   uint8_t latched_bits;
+
+  int32_t curr_bus_value;
+  uint64_t write_gate_open_ticks;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -533,8 +534,8 @@ sound_power_on_reset(struct sound_struct* p_sound) {
 
   /* Mirrors initial IC32 state. */
   p_sound->is_write_enabled = 1;
-  p_sound->had_write_disabled = 0;
-  p_sound->prev_bus_change_ticks = 0;
+
+  p_sound->curr_bus_value = -1;
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -681,20 +682,6 @@ sound_tick(struct sound_struct* p_sound, uint64_t curr_time_us) {
   }
 }
 
-void
-sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
-  int is_write_enabled = !(value & 1);
-  if (is_write_enabled == p_sound->is_write_enabled) {
-    return;
-  }
-
-  p_sound->is_write_enabled = is_write_enabled;
-  if (!is_write_enabled) {
-    p_sound->had_write_disabled = 1;
-    p_sound->prev_bus_change_ticks = 0;
-  }
-}
-
 static void
 sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
   uint8_t command;
@@ -748,32 +735,46 @@ sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
 }
 
 void
+sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
+  int is_write_enabled = !(value & 1);
+  if (is_write_enabled == p_sound->is_write_enabled) {
+    return;
+  }
+
+  if (!sound_is_active(p_sound) || !p_sound->synchronous) {
+    p_sound->is_write_enabled = is_write_enabled;
+    return;
+  }
+
+  if (is_write_enabled) {
+    p_sound->write_gate_open_ticks =
+        timing_get_scaled_total_timer_ticks(p_sound->p_timing);
+  } else {
+    sound_advance_sn_timing(p_sound);
+    sound_sn_apply_byte(p_sound, p_sound->curr_bus_value);
+  }
+  p_sound->is_write_enabled = is_write_enabled;
+}
+
+void
 sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
-  uint64_t ticks;
-  uint64_t prev_bus_change_ticks;
+  if (value == p_sound->curr_bus_value) {
+    return;
+  }
+
+  p_sound->curr_bus_value = value;
 
   if (!p_sound->is_write_enabled) {
     return;
   }
 
-  ticks = timing_get_scaled_total_timer_ticks(p_sound->p_timing);
-  prev_bus_change_ticks = p_sound->prev_bus_change_ticks;
-  if ((prev_bus_change_ticks != 0) && p_sound->had_write_disabled) {
-    uint64_t delta = (ticks - prev_bus_change_ticks);
-    if ((delta % 32) != 0) {
-      log_do_log(k_log_audio,
-                 k_log_warning,
-                 "bad bus timing for multiple writes: %"PRIu64", value $%.2X",
-                 delta,
-                 value);
-    }
-  }
-  p_sound->prev_bus_change_ticks = ticks;
-
-  if (sound_is_active(p_sound) && p_sound->synchronous) {
-    sound_advance_sn_timing(p_sound);
+  /* Async mode isn't accurate, so just stuff the byte into the SN state. */
+  if (!sound_is_active(p_sound) || !p_sound->synchronous) {
+    sound_sn_apply_byte(p_sound, value);
+    return;
   }
 
+  sound_advance_sn_timing(p_sound);
   sound_sn_apply_byte(p_sound, value);
 }
 
