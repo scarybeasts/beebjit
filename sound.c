@@ -695,37 +695,11 @@ sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
   }
 }
 
-void
-sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
+static void
+sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
   uint8_t command;
   uint8_t channel;
-  int32_t new_period;
-  uint64_t ticks;
-  uint64_t prev_bus_change_ticks;
-
-  if (!p_sound->is_write_enabled) {
-    return;
-  }
-
-  ticks = timing_get_scaled_total_timer_ticks(p_sound->p_timing);
-  prev_bus_change_ticks = p_sound->prev_bus_change_ticks;
-  if ((prev_bus_change_ticks != 0) && p_sound->had_write_disabled) {
-    uint64_t delta = (ticks - prev_bus_change_ticks);
-    if ((delta % 32) != 0) {
-      log_do_log(k_log_audio,
-                 k_log_warning,
-                 "bad bus timing for multiple writes: %"PRIu64", value $%.2X",
-                 delta,
-                 value);
-    }
-  }
-  p_sound->prev_bus_change_ticks = ticks;
-
-  new_period = -1;
-
-  if (sound_is_active(p_sound) && p_sound->synchronous) {
-    sound_advance_sn_timing(p_sound);
-  }
+  int32_t new_period = -1;
 
   if (value & 0x80) {
     p_sound->latched_bits = (value & 0x70);
@@ -771,6 +745,36 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
       p_sound->period[3] = new_period;
     }
   }
+}
+
+void
+sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
+  uint64_t ticks;
+  uint64_t prev_bus_change_ticks;
+
+  if (!p_sound->is_write_enabled) {
+    return;
+  }
+
+  ticks = timing_get_scaled_total_timer_ticks(p_sound->p_timing);
+  prev_bus_change_ticks = p_sound->prev_bus_change_ticks;
+  if ((prev_bus_change_ticks != 0) && p_sound->had_write_disabled) {
+    uint64_t delta = (ticks - prev_bus_change_ticks);
+    if ((delta % 32) != 0) {
+      log_do_log(k_log_audio,
+                 k_log_warning,
+                 "bad bus timing for multiple writes: %"PRIu64", value $%.2X",
+                 delta,
+                 value);
+    }
+  }
+  p_sound->prev_bus_change_ticks = ticks;
+
+  if (sound_is_active(p_sound) && p_sound->synchronous) {
+    sound_advance_sn_timing(p_sound);
+  }
+
+  sound_sn_apply_byte(p_sound, value);
 }
 
 void
