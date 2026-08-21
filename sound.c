@@ -46,6 +46,7 @@ struct sound_struct {
   uint32_t driver_buffer_index;
   int16_t* p_sn_frames;
   uint32_t log_count_short_write_gate;
+  uint32_t log_count_unstable_bus_value;
 
   /* Resampling. */
   double accumulated_value;
@@ -74,7 +75,8 @@ struct sound_struct {
   uint8_t latched_bits;
 
   int32_t curr_bus_value;
-  int32_t write_gate_open_first_bus_value;
+  int32_t write_cycle_position;
+  int32_t write_cycle_first_bus_value;
   int32_t write_gate_open_bytes_accepted;
 
   /* Timing. */
@@ -381,6 +383,7 @@ sound_create(int synchronous,
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
   p_sound->log_count_short_write_gate = 32;
+  p_sound->log_count_unstable_bus_value = 32;
 
   p_sound->accumulated_value = 0.0;
   p_sound->accumulated_count = 0.0;
@@ -538,9 +541,10 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   /* Mirrors initial IC32 state. */
   p_sound->is_write_enabled = 1;
 
-  p_sound->curr_bus_value = -1;
-  p_sound->write_gate_open_first_bus_value = -1;
-  p_sound->write_gate_open_bytes_accepted = -1;
+  p_sound->curr_bus_value = 0;
+  p_sound->write_cycle_position = 0;
+  p_sound->write_cycle_first_bus_value = -1;
+  p_sound->write_gate_open_bytes_accepted = 0;
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -680,7 +684,8 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   }
 
   if (p_sound->is_write_enabled) {
-    int32_t first = p_sound->write_gate_open_first_bus_value;
+    int32_t position = p_sound->write_cycle_position;
+    int32_t first = p_sound->write_cycle_first_bus_value;
     while (delta_sn_ticks--) {
       sound_fill_sn76489_buffer(p_sound,
                                 1,
@@ -688,15 +693,42 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
                                 &p_sound->period[0],
                                 p_sound->noise_rng,
                                 p_sound->noise_type);
-      if (first == -1) {
+      if (position == 0) {
         first = p_sound->curr_bus_value;
-      } else {
+      } else if (position == 1) {
+        assert(first != -1);
+        if (first != p_sound->curr_bus_value) {
+          /* If the bus value is unstable, deliberately corrupt the byte sent
+           * along to the SN76489.
+           * But how should we corrupt it?
+           * On real hardware, unexpected byte values appear to be applied that
+           * are not an "and" or "or" mix of the two values. For example,
+           * channel pitch values sometimes change, despite us always using
+           * $90 (volume command) as the basis for all writes.
+           * This XOR operation here gives vaguely similar effects, and most
+           * importantly, you will clearly "hear" a problem like on real
+           * hardware!
+           */
+          first ^= p_sound->curr_bus_value;
+          log_do_log_max_count(&p_sound->log_count_unstable_bus_value,
+                               k_log_audio,
+                               k_log_warning,
+                               "bus value unstable, "
+                               "first $%"PRIx8", second $%"PRIx8,
+                               first,
+                               p_sound->curr_bus_value);
+        }
         sound_sn_apply_byte(p_sound, (uint8_t) first);
         p_sound->write_gate_open_bytes_accepted++;
         first = -1;
       }
+      position++;
+      if (position == 4) {
+        position = 0;
+      }
     }
-    p_sound->write_gate_open_first_bus_value = first;
+    p_sound->write_cycle_position = position;
+    p_sound->write_cycle_first_bus_value = first;
   } else {
     sound_fill_sn76489_buffer(p_sound,
                               delta_sn_ticks,
@@ -781,16 +813,22 @@ sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
         timing_get_scaled_total_timer_ticks(p_sound->p_timing);
     /* Round ticks up to 1MHz, which is when VIA effects should take place. */
     curr_system_ticks += (curr_system_ticks & 1);
-    p_sound->write_gate_open_first_bus_value = -1;
+    p_sound->write_cycle_position = 0;
+    p_sound->write_cycle_first_bus_value = -1;
     p_sound->write_gate_open_bytes_accepted = 0;
     /* If the write enable hits an SN edge exactly, count it. This makes our
      * behavior best match real hardware.
      */
     if (!(curr_system_ticks % k_sound_clock_divider)) {
-      p_sound->write_gate_open_first_bus_value = p_sound->curr_bus_value;
+      p_sound->write_cycle_position = 1;
+      p_sound->write_cycle_first_bus_value = p_sound->curr_bus_value;
     }
   } else {
     if (p_sound->write_gate_open_bytes_accepted == 0) {
+      /* We use logic that appears to match real hardware:
+       * After the write gate is open, it needs to stay open for the next two
+       * SN76489 clock edges, otherwise the byte goes missing.
+       */
       log_do_log_max_count(&p_sound->log_count_short_write_gate,
                            k_log_audio,
                            k_log_warning,
@@ -807,20 +845,24 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
     return;
   }
 
-  p_sound->curr_bus_value = value;
-
   if (!p_sound->is_write_enabled) {
+    p_sound->curr_bus_value = value;
     return;
   }
 
   /* Async mode isn't accurate, so just stuff the byte into the SN state. */
   if (!sound_is_active(p_sound) || !p_sound->synchronous) {
+    p_sound->curr_bus_value = value;
     sound_sn_apply_byte(p_sound, value);
     return;
   }
 
+  /* This function pulls bytes off the bus at the appropriate time, to drive
+   * ongoing delivery of bytes to the SN76489 if the write gate is left open.
+   */
   sound_advance_sn_timing(p_sound);
-  sound_sn_apply_byte(p_sound, value);
+
+  p_sound->curr_bus_value = value;
 }
 
 void
