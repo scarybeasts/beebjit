@@ -45,6 +45,7 @@ struct sound_struct {
   int16_t* p_driver_frames;
   uint32_t driver_buffer_index;
   int16_t* p_sn_frames;
+  uint32_t log_count_short_write_gate;
 
   /* Resampling. */
   double accumulated_value;
@@ -73,7 +74,8 @@ struct sound_struct {
   uint8_t latched_bits;
 
   int32_t curr_bus_value;
-  uint64_t write_gate_open_ticks;
+  int32_t write_gate_open_first_bus_value;
+  int32_t write_gate_open_bytes_accepted;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -378,6 +380,7 @@ sound_create(int synchronous,
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
+  p_sound->log_count_short_write_gate = 32;
 
   p_sound->accumulated_value = 0.0;
   p_sound->accumulated_count = 0.0;
@@ -536,6 +539,8 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   p_sound->is_write_enabled = 1;
 
   p_sound->curr_bus_value = -1;
+  p_sound->write_gate_open_first_bus_value = -1;
+  p_sound->write_gate_open_bytes_accepted = -1;
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -598,6 +603,58 @@ sound_is_synchronous(struct sound_struct* p_sound) {
 }
 
 static void
+sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
+  uint8_t command;
+  uint8_t channel;
+  int32_t new_period = -1;
+
+  if (value & 0x80) {
+    p_sound->latched_bits = (value & 0x70);
+    command = (value & 0xF0);
+  } else {
+    command = p_sound->latched_bits;
+  }
+  channel = ((command >> 5) & 0x03);
+
+  if (command & 0x10) {
+    /* Update volume of channel. */
+    uint8_t volume = (value & 0x0f);
+    p_sound->volume[channel] = volume;
+  } else if (channel == 3) {
+    /* For the noise channel, we only ever update the lower bits. */
+    int noise_frequency = (value & 0x03);
+    p_sound->noise_frequency = noise_frequency;
+    if (noise_frequency == 0) {
+      new_period = 0x10;
+    } else if (noise_frequency == 1) {
+      new_period = 0x20;
+    } else if (noise_frequency == 2) {
+      new_period = 0x40;
+    } else {
+      new_period = p_sound->period[2];
+    }
+    p_sound->noise_type = ((value & 0x04) >> 2);
+    p_sound->noise_rng = (1 << 14);
+  } else if (command & 0x80) {
+    /* Period low bits. */
+    uint16_t old_period = p_sound->period[channel];
+    new_period = (value & 0x0f);
+    new_period |= (old_period & 0x3f0);
+  } else {
+    uint16_t old_period = p_sound->period[channel];
+    new_period = ((value & 0x3f) << 4);
+    new_period |= (old_period & 0x0f);
+  }
+
+  if (new_period != -1) {
+    p_sound->period[channel] = new_period;
+    if ((channel == 2) && (p_sound->noise_frequency == 3)) {
+      p_sound->period[3] = new_period;
+    }
+  }
+}
+
+static void
 sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint64_t prev_sn_ticks;
   uint64_t curr_sn_ticks;
@@ -609,6 +666,9 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint32_t sn_frames_per_driver_buffer_size =
       p_sound->sn_frames_per_driver_buffer_size;
 
+  /* Round up to 1MHz, which is when the VIA writes should take effect. */
+  curr_system_ticks += (curr_system_ticks & 1);
+
   prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
   curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
@@ -619,12 +679,32 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
     delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
 
-  sound_fill_sn76489_buffer(p_sound,
-                            delta_sn_ticks,
-                            &p_sound->volume[0],
-                            &p_sound->period[0],
-                            p_sound->noise_rng,
-                            p_sound->noise_type);
+  if (p_sound->is_write_enabled) {
+    int32_t first = p_sound->write_gate_open_first_bus_value;
+    while (delta_sn_ticks--) {
+      sound_fill_sn76489_buffer(p_sound,
+                                1,
+                                &p_sound->volume[0],
+                                &p_sound->period[0],
+                                p_sound->noise_rng,
+                                p_sound->noise_type);
+      if (first == -1) {
+        first = p_sound->curr_bus_value;
+      } else {
+        sound_sn_apply_byte(p_sound, (uint8_t) first);
+        p_sound->write_gate_open_bytes_accepted++;
+        first = -1;
+      }
+    }
+    p_sound->write_gate_open_first_bus_value = first;
+  } else {
+    sound_fill_sn76489_buffer(p_sound,
+                              delta_sn_ticks,
+                              &p_sound->volume[0],
+                              &p_sound->period[0],
+                              p_sound->noise_rng,
+                              p_sound->noise_type);
+  }
 
   p_sound->prev_system_ticks = curr_system_ticks;
 }
@@ -682,58 +762,6 @@ sound_tick(struct sound_struct* p_sound, uint64_t curr_time_us) {
   }
 }
 
-static void
-sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
-  uint8_t command;
-  uint8_t channel;
-  int32_t new_period = -1;
-
-  if (value & 0x80) {
-    p_sound->latched_bits = (value & 0x70);
-    command = (value & 0xF0);
-  } else {
-    command = p_sound->latched_bits;
-  }
-  channel = ((command >> 5) & 0x03);
-
-  if (command & 0x10) {
-    /* Update volume of channel. */
-    uint8_t volume = (value & 0x0f);
-    p_sound->volume[channel] = volume;
-  } else if (channel == 3) {
-    /* For the noise channel, we only ever update the lower bits. */
-    int noise_frequency = (value & 0x03);
-    p_sound->noise_frequency = noise_frequency;
-    if (noise_frequency == 0) {
-      new_period = 0x10;
-    } else if (noise_frequency == 1) {
-      new_period = 0x20;
-    } else if (noise_frequency == 2) {
-      new_period = 0x40;
-    } else {
-      new_period = p_sound->period[2];
-    }
-    p_sound->noise_type = ((value & 0x04) >> 2);
-    p_sound->noise_rng = (1 << 14);
-  } else if (command & 0x80) {
-    /* Period low bits. */
-    uint16_t old_period = p_sound->period[channel];
-    new_period = (value & 0x0f);
-    new_period |= (old_period & 0x3f0);
-  } else {
-    uint16_t old_period = p_sound->period[channel];
-    new_period = ((value & 0x3f) << 4);
-    new_period |= (old_period & 0x0f);
-  }
-
-  if (new_period != -1) {
-    p_sound->period[channel] = new_period;
-    if ((channel == 2) && (p_sound->noise_frequency == 3)) {
-      p_sound->period[3] = new_period;
-    }
-  }
-}
-
 void
 sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
   int is_write_enabled = !(value & 1);
@@ -746,13 +774,30 @@ sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
     return;
   }
 
+  sound_advance_sn_timing(p_sound);
+
   if (is_write_enabled) {
-    p_sound->write_gate_open_ticks =
+    uint64_t curr_system_ticks =
         timing_get_scaled_total_timer_ticks(p_sound->p_timing);
+    /* Round ticks up to 1MHz, which is when VIA effects should take place. */
+    curr_system_ticks += (curr_system_ticks & 1);
+    p_sound->write_gate_open_first_bus_value = -1;
+    p_sound->write_gate_open_bytes_accepted = 0;
+    /* If the write enable hits an SN edge exactly, count it. This makes our
+     * behavior best match real hardware.
+     */
+    if (!(curr_system_ticks % k_sound_clock_divider)) {
+      p_sound->write_gate_open_first_bus_value = p_sound->curr_bus_value;
+    }
   } else {
-    sound_advance_sn_timing(p_sound);
-    sound_sn_apply_byte(p_sound, p_sound->curr_bus_value);
+    if (p_sound->write_gate_open_bytes_accepted == 0) {
+      log_do_log_max_count(&p_sound->log_count_short_write_gate,
+                           k_log_audio,
+                           k_log_warning,
+                           "write gate not open long enough to consume byte");
+    }
   }
+
   p_sound->is_write_enabled = is_write_enabled;
 }
 
