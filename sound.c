@@ -696,6 +696,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
       if (position == 0) {
         first = p_sound->curr_bus_value;
       } else if (position == 1) {
+        uint8_t value = (uint8_t) first;
         assert(first != -1);
         if (first != p_sound->curr_bus_value) {
           /* If the bus value is unstable, deliberately corrupt the byte sent
@@ -709,7 +710,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
            * importantly, you will clearly "hear" a problem like on real
            * hardware!
            */
-          first ^= p_sound->curr_bus_value;
+          value ^= p_sound->curr_bus_value;
           log_do_log_max_count(&p_sound->log_count_unstable_bus_value,
                                k_log_audio,
                                k_log_warning,
@@ -718,7 +719,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
                                first,
                                p_sound->curr_bus_value);
         }
-        sound_sn_apply_byte(p_sound, (uint8_t) first);
+        sound_sn_apply_byte(p_sound, (uint8_t) value);
         p_sound->write_gate_open_bytes_accepted++;
         first = -1;
       }
