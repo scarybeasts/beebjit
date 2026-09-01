@@ -1235,6 +1235,8 @@ via_write_ORB_with_countdown(struct via_struct* p_via,
                              uint8_t flags_ID,
                              uint8_t val,
                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  timing_sync_countdown(p_timing, (countdown + 1));
   via_write_ORB(p_via, val);
   /* Writing ORB can cause peripherals to change the ORA bus value, which
    * in turn can cause an IRQ condition.
@@ -1248,6 +1250,8 @@ via_write_ORA_with_countdown(struct via_struct* p_via,
                              uint8_t flags_ID,
                              uint8_t val,
                              uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  timing_sync_countdown(p_timing, (countdown + 1));
   via_write_ORA(p_via, val);
   /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
   countdown = via_check_new_irq(p_via, flags_ID, countdown);
@@ -1259,6 +1263,8 @@ via_write_DDRA_with_countdown(struct via_struct* p_via,
                               uint8_t flags_ID,
                               uint8_t val,
                               uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  timing_sync_countdown(p_timing, (countdown + 1));
   via_write_DDRA(p_via, val);
   /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
   countdown = via_check_new_irq(p_via, flags_ID, countdown);
@@ -1356,6 +1362,8 @@ via_write_ORAnh_with_countdown(struct via_struct* p_via,
                                uint8_t flags_ID,
                                uint8_t val,
                                uint64_t countdown) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  timing_sync_countdown(p_timing, (countdown + 1));
   via_write_ORAnh(p_via, val);
   /* Changing the ORA bus can cause an IRQ condition in a peripheral. */
   countdown = via_check_new_irq(p_via, flags_ID, countdown);
