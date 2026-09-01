@@ -802,8 +802,11 @@ sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
     return;
   }
 
-  if (!sound_is_active(p_sound) || !p_sound->synchronous) {
+  if (!sound_is_synchronous(p_sound)) {
     p_sound->is_write_enabled = is_write_enabled;
+    if (is_write_enabled) {
+      sound_sn_apply_byte(p_sound, p_sound->curr_bus_value);
+    }
     return;
   }
 
@@ -852,7 +855,7 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
   }
 
   /* Async mode isn't accurate, so just stuff the byte into the SN state. */
-  if (!sound_is_active(p_sound) || !p_sound->synchronous) {
+  if (!sound_is_synchronous(p_sound)) {
     p_sound->curr_bus_value = value;
     sound_sn_apply_byte(p_sound, value);
     return;
