@@ -326,8 +326,7 @@ os_window_create(uint32_t width, uint32_t height) {
      * cache a point-in-time view of the pixel buffer, leading to the screen not
      * updating.
      */
-    CGColorSpaceRef colorSpace =
-        CGColorSpaceCreateWithName(kCGColorSpaceLinearSRGB);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     uint32_t bitmapInfo = (kCGImageByteOrder32Little |
                            kCGImageAlphaPremultipliedFirst);
     CGContextRef context = CGBitmapContextCreate(NULL,
@@ -339,8 +338,8 @@ os_window_create(uint32_t width, uint32_t height) {
                                                  bitmapInfo);
     p_window->context = context;
     CGColorSpaceRelease(colorSpace);
-    assert(CGBitmapContextGetBytesPerRow(context) == (width * 4));
 
+    assert(CGBitmapContextGetBytesPerRow(context) == (width * 4));
     uint8_t* p_buffer = CGBitmapContextGetData(context);
     p_window->p_buffer = (uint32_t*) p_buffer;
   });
