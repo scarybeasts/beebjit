@@ -663,6 +663,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint64_t prev_sn_ticks;
   uint64_t curr_sn_ticks;
   uint64_t delta_sn_ticks;
+  uint64_t render_sn_ticks;
 
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_sound->p_timing);
@@ -676,23 +677,34 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
   curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
-  /* When switching from output disabled (e.g. fast mode) to enabled, the ticks
-   * delta will be insanely huge and needs capping.
+  /* When in accurate + fast mode, the sound buffer is not drained so we have
+   * to handle:
+   * - It being full.
+   * - A huge delta that would overfill it in one go.
    */
-  if ((sn_frames_filled + delta_sn_ticks) > sn_frames_per_driver_buffer_size) {
-    delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
+  render_sn_ticks = delta_sn_ticks;
+  if ((sn_frames_filled + render_sn_ticks) > sn_frames_per_driver_buffer_size) {
+    render_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
 
   if (p_sound->is_write_enabled) {
     int32_t position = p_sound->write_cycle_position;
     int32_t first = p_sound->write_cycle_first_bus_value;
     while (delta_sn_ticks--) {
-      sound_fill_sn76489_buffer(p_sound,
-                                1,
-                                &p_sound->volume[0],
-                                &p_sound->period[0],
-                                p_sound->noise_rng,
-                                p_sound->noise_type);
+      if (render_sn_ticks > 0) {
+        sound_fill_sn76489_buffer(p_sound,
+                                  1,
+                                  &p_sound->volume[0],
+                                  &p_sound->period[0],
+                                  p_sound->noise_rng,
+                                  p_sound->noise_type);
+        render_sn_ticks--;
+      }
+      /* TODO: possible performance issue in fast mode. We iterate every single
+       * SN tick if the write gate is open, which could affect performance.
+       * Instead of iterating every tick, we could just jump to the final
+       * state.
+       */
       if (position == 0) {
         first = p_sound->curr_bus_value;
       } else if (position == 1) {
@@ -724,15 +736,13 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
         first = -1;
       }
       position++;
-      if (position == 4) {
-        position = 0;
-      }
+      position &= 3;
     }
     p_sound->write_cycle_position = position;
     p_sound->write_cycle_first_bus_value = first;
   } else {
     sound_fill_sn76489_buffer(p_sound,
-                              delta_sn_ticks,
+                              render_sn_ticks,
                               &p_sound->volume[0],
                               &p_sound->period[0],
                               p_sound->noise_rng,
