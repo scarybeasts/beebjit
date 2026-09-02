@@ -279,7 +279,6 @@ render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;
   uint32_t window_vert_pos;
   int32_t vert_beam_pos;
-  uint32_t pixels_size;
 
   p_render->p_render_pos = (p_render->p_buffer_end + 1);
   p_render->p_render_pos_row = (p_render->p_buffer_end + 1);
@@ -316,16 +315,10 @@ render_reset_render_pos(struct render_struct* p_render) {
   window_horiz_pos = (p_render->horiz_beam_pos -
                       p_render->horiz_beam_window_start_pos);
 
-  if (!p_render->is_clock_2MHz || (p_render->render_mode == k_render_mode7)) {
-    pixels_size = 16;
-  } else {
-    pixels_size = 8;
-  }
-
   p_render->p_render_pos = p_render->p_render_pos_row;
   p_render->p_render_pos += window_horiz_pos;
   p_render->p_render_pos_row_max =
-      (p_render->p_render_pos_row + p_render->width - pixels_size);
+      (p_render->p_render_pos_row + p_render->width - 8);
 }
 
 static void
