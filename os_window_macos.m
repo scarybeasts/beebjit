@@ -440,7 +440,7 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
      * that beebjit doesn't start drawing in the paint buffer until it has been
      * committed to screen. This is an attempt to paint right away.
      */
-    [view setNeedsLayout:YES];
+    [view setNeedsDisplay:YES];
     [view displayIfNeeded];
   });
 }
