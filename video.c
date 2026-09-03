@@ -421,9 +421,9 @@ video_check_go_active(struct video_struct* p_video) {
    * state.
    */
   if (p_video->is_interlace && !p_video->is_odd_frame) {
-    render_set_horiz_beam_pos(p_render, 512);
+    render_set_beam_pos(p_render, 512, -1);
   } else {
-    render_set_horiz_beam_pos(p_render, 0);
+    render_set_beam_pos(p_render, 0, 0);
   }
   /* NOTE: need to call render_vsync() prior to marking rendering active
    * again, otherwise the flyback callback would attempt to paint.

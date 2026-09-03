@@ -82,6 +82,8 @@ void render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks);
 void render_vsync(struct render_struct* p_render);
 void render_horiz_line(struct render_struct* p_render, uint32_t argb);
 void render_cursor(struct render_struct* p_render);
-void render_set_horiz_beam_pos(struct render_struct* p_render, uint32_t pos);
+void render_set_beam_pos(struct render_struct* p_render,
+                         int32_t horiz,
+                         int32_t vert);
 
 #endif /* BEEBJIT_RENDER_H */

@@ -1121,7 +1121,13 @@ render_cursor(struct render_struct* p_render) {
 }
 
 void
-render_set_horiz_beam_pos(struct render_struct* p_render, uint32_t pos) {
-  p_render->horiz_beam_pos = pos;
+render_set_beam_pos(struct render_struct* p_render,
+                    int32_t horiz,
+                    int32_t vert) {
+  p_render->horiz_beam_pos = horiz;
+  p_render->vert_beam_pos = vert;
+  if (vert <= 0) {
+    p_render->is_crt_grayscale_fakeout = 0;
+  }
   render_reset_render_pos(p_render);
 }

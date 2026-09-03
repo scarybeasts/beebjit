@@ -803,6 +803,39 @@ video_test_inactive_rendering() {
 }
 
 static void
+video_test_inactive_rendering_odd() {
+  /* Tests that state is maintained correctly when skipping rendering some
+   * frames on account of fast mode, starting skipping from an odd frame.
+   */
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_to_vsync_even);
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode7_per_scanline * 2));
+  test_expect_u32(0, g_p_video->is_odd_frame);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_rendering_active);
+  test_expect_u32(3, render_get_vert_pos(g_p_render));
+  /* Rendering will go inactive at VSYNC raise / flyback. */
+  g_test_fast_flag = 1;
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_frame);
+  test_expect_u32(1, g_p_video->is_odd_frame);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  /* Would be 4, but rendering stopped at the vsync. */
+  test_expect_u32(0, render_get_vert_pos(g_p_render));
+
+  /* Rendering will go active next frame. */
+  g_p_video->is_wall_time_vsync_hit = 1;
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_frame);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_rendering_active);
+  test_expect_u32(3, render_get_vert_pos(g_p_render));
+}
+
+static void
 video_test_R6_gt_R7() {
   /* A separate test for an interesting corner case with R6 > R7. The Hitachi
    * data sheet says "don't do that" but it seems to result in a stable picture.
@@ -1427,6 +1460,10 @@ video_test() {
 
   video_test_init();
   video_test_adjust_assert();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_rendering_odd();
   video_test_end();
 
   g_timing_scale_factor = 8;
