@@ -425,10 +425,7 @@ video_check_go_active(struct video_struct* p_video) {
   } else {
     render_set_beam_pos(p_render, 0, 0);
   }
-  /* NOTE: need to call render_vsync() prior to marking rendering active
-   * again, otherwise the flyback callback would attempt to paint.
-   */
-  render_vsync(p_render);
+
   /* We now go active at the VSYNC lower point, but flyback is at the VSYNC
    * raise point. So we need to lower the video beam accordingly.
    */
