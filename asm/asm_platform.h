@@ -39,12 +39,17 @@
 #define K_ASM_TABLE_ADDR                   0x0          /* Unused om ARM64. */
 #endif
 #else
-/* Linux and Windows. */
-#define K_BBC_MEM_RAW_ADDR                 0x0f008000
-#define K_JIT_ADDR                         0x06000000
-#define K_INTURBO_ADDR                     0x07000000
-#define K_ASM_TABLE_ADDR                   0x50000000
-#define K_JIT_TRAMPOLINES_ADDR             0x80000000
+/* Linux and Windows. System mappings (brk heap, ASLR mmap pool) can
+ * extend a long way above the non-PIE binary at 0x400000. Mirror the
+ * macOS x64 layout: place our mappings in the 0x70000000 band where
+ * they sit well above any plausible brk growth, well below the
+ * 0x7f... high-mmap pool, and within the +-2GB disp32 jump range.
+ */
+#define K_BBC_MEM_RAW_ADDR                 0x70008000
+#define K_JIT_ADDR                         0x75000000
+#define K_INTURBO_ADDR                     0x76000000
+#define K_ASM_TABLE_ADDR                   0x77000000
+#define K_JIT_TRAMPOLINES_ADDR             0x77800000
 #endif
 
 #endif /* BEEBJIT_ASM_PLATFORM_H */
