@@ -536,6 +536,7 @@ video_do_rendering_tick(struct video_struct* p_video,
   int r1_hit;
   uint8_t data;
   int this_external_dispen;
+  uint8_t external_RA;
 
   r1_hit = (horiz_counter ==
             p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
@@ -606,11 +607,16 @@ video_do_rendering_tick(struct video_struct* p_video,
     }
   }
 
+  external_RA = p_video->scanline_counter;
+  if (p_video->is_interlace_sync_and_video) {
+    external_RA |= p_video->is_odd_frame;
+  }
+
   address_counter = p_video->address_counter;
   data = video_read_data_byte(p_video,
                               is_odd_tick,
                               address_counter,
-                              p_video->scanline_counter,
+                              external_RA,
                               p_video->screen_wrap_add);
   if (!is_odd_tick) {
     uint8_t data_teletext = data;
@@ -870,29 +876,28 @@ check_r7:
     }
 
     if (p_video->is_rendering_active) {
+      /* NOTE: we don't quite model correctly here. We increment the scanline
+       * counter by 2 in ISV mode, but the chip increments the scanline counter
+       * by 1 always, and shifts the counter left to form the external RA when
+       * in ISV mode.
+       */
+      uint8_t external_RA = p_video->scanline_counter;
+      int do_teletext_deinterlace = 0;
+      if (p_video->is_interlace_sync_and_video) {
+        external_RA |= p_video->is_odd_frame;
+        do_teletext_deinterlace =
+            (p_video->crtc_registers[k_crtc_reg_vert_total] >=
+             p_video->crtc_registers[k_crtc_reg_vert_displayed]);
+      }
+
       if (p_video->scanline_counter == p_video->cursor_start_line) {
         p_video->has_hit_cursor_line_start = 1;
       }
 
-      if (p_video->is_interlace_sync_and_video) {
-        assert(p_video->is_interlace);
-        /* NOTE: it's not clear if the 6845 internally counts interlace odd
-         * frame row addresses as 1..3..5..7.. or not. For now, we still count
-         * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
-         * for interlace odd frames.
-         */
-        teletext_RA_ISV_changed(
-            p_video->p_teletext,
-            p_video->is_odd_frame,
-            (p_video->crtc_registers[k_crtc_reg_vert_total] >=
-             p_video->crtc_registers[k_crtc_reg_vert_displayed]));
-      } else {
-        teletext_RA_ISV_changed(p_video->p_teletext,
-                                p_video->scanline_counter,
-                                0);
-      }
-
-      render_set_RA(p_video->p_render, p_video->scanline_counter);
+      teletext_RA_ISV_changed( p_video->p_teletext,
+          external_RA,
+          do_teletext_deinterlace);
+      render_set_RA(p_video->p_render, external_RA);
     }
 
     r4_hit = (p_video->vert_counter ==
