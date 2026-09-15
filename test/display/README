@@ -10,6 +10,13 @@ Source at https://github.com/scarybeasts/misc/blob/master/misc/andy_hazel_displa
 Sets up a BBC Master to display shadow RAM from CRTC address $0000, which
 will display the ANDY and HAZEL memory regions.
 
+- isv_gfx_mode.ssd
+By scarybeasts.
+Source at https://github.com/scarybeasts/misc/blob/master/misc/isv_gfx_mode.asm
+Sets up interlace sync + video with a graphics mode.
+Locks to the odd frame in order to select only odd scanlines for sequential
+display.
+
 - LinearTTX.ssd
 By VectorEyes.
 Renders an animation in 2MHz bitmapped + linear addressing mode. Requires
