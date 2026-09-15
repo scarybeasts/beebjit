@@ -8,6 +8,13 @@ Plays a low frequency square wave (using sampled sound playback techniques
 because it's too low for the beeb's SN chip). This sound is prone to distortion
 if the resampling isn't spot on.
 
+- play_paradroid.ssd
+By scarybeasts. Extraction from Paradroid 90 to MOD format by Kieran of
+Bitshifters.
+Code: https://github.com/scarybeasts/misc/blob/master/beebmod/build/make_play_paradroid.sh
+Plays 3x 15kHz sample channels by leaving the SN76489 write gate open and using
+careful timing.
+
 - ReetPetite.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/167
 From http://bbcmicro.co.uk/gameimg/discs/1411/ReetPetite.ssd
