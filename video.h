@@ -36,8 +36,9 @@ void video_advance_crtc_timing(struct video_struct* p_video);
 void video_force_paint(struct video_struct* p_video, int do_clear_after_paint);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
-void video_shadow_mode_updated(struct video_struct* p_video,
-                               int is_shadow_displayed);
+void video_mem_mode_updated(struct video_struct* p_video,
+                            uint8_t romsel,
+                            uint8_t acccon);
 
 void video_power_on_reset(struct video_struct* p_video);
 

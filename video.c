@@ -135,7 +135,6 @@ struct video_struct {
   int is_ula_clock_fast;
   uint32_t screen_wrap_add;
   uint32_t clock_tick_shift;
-  int is_shadow_displayed;
   int is_nula;
   int32_t nula_pending_palette;
 
@@ -194,6 +193,11 @@ struct video_struct {
 
   /* Most recent video byte fetched from memory. */
   uint8_t data_byte;
+
+  /* State for memory fetch calculation. */
+  uint8_t* p_mem_base;
+  uint8_t romsel;
+  uint8_t acccon;
 };
 
 static inline uint8_t
@@ -243,9 +247,33 @@ video_read_data_byte(struct video_struct* p_video,
     address &= 0x7FFF;
   }
 
-  if (p_video->is_shadow_displayed) {
-    /* TODO: won't display correctly for ANDY / HAZEL if they are paged in. */
-    return p_video->p_shadow_mem[address];
+  if (p_video->p_shadow_mem != NULL) {
+    uint8_t* p_base = p_video->p_mem_base;
+    /* Bit of a hack -- we have to hunt down where all the screen memory
+     * currently is, because of the way we handle memory paging.
+     */
+    if (address < 0x3000) {
+      uint8_t acccon = p_video->acccon;
+      if (acccon & 0x01) {
+        /* Shadow displaying. */
+        if (address < 0x1000) {
+          /* ANDY */
+          if (p_video->romsel & 0x80) {
+            p_base = (p_video->p_bbc_mem + 0x8000);
+          } else {
+            p_base = p_video->p_shadow_mem;
+          }
+        } else {
+          /* HAZEL */
+          if (acccon & 0x08) {
+            p_base = (p_video->p_bbc_mem + 0xB000);
+          } else {
+            p_base = p_video->p_shadow_mem;
+          }
+        }
+      }
+    }
+    return p_base[address];
   } else {
     return p_video->p_bbc_mem[address];
   }
@@ -1543,12 +1571,19 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
 }
 
 void
-video_shadow_mode_updated(struct video_struct* p_video,
-                          int is_shadow_displayed) {
+video_mem_mode_updated(struct video_struct* p_video,
+                       uint8_t romsel,
+                       uint8_t acccon) {
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
-  p_video->is_shadow_displayed = is_shadow_displayed;
+  if ((acccon & 0x01) ^ ((acccon & 0x04) >> 2)) {
+    p_video->p_mem_base = p_video->p_shadow_mem;
+  } else {
+    p_video->p_mem_base = p_video->p_bbc_mem;
+  }
+  p_video->romsel = romsel;
+  p_video->acccon = acccon;
 }
 
 static void
@@ -1564,7 +1599,9 @@ video_ula_power_on_reset(struct video_struct* p_video) {
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_shift = 1;
-  p_video->is_shadow_displayed = 0;
+  p_video->p_mem_base = p_video->p_bbc_mem;
+  p_video->romsel = 0;
+  p_video->acccon = 0;
   p_video->nula_pending_palette = -1;
 }
 

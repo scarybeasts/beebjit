@@ -122,4 +122,13 @@ echo 'Checking teletext rendering, fast mode.'
     -opt video:paint-start-cycles=3000000 \
     -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 3100000;c;eval '(frame_buffer_crc32==0xd1431641)||bail';q"
 
+# This checks the rendering of ANDY and HAZEL on the BBC Master.
+echo 'Checking teletext data pipeline.'
+./beebjit -0 test/display/andy_hazel_display.ssd \
+    -master \
+    -autoboot \
+    -debug -fast -accurate \
+    -opt video:always-render \
+    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x21c558e5)||bail';q"
+
 echo 'Functional tests OK.'

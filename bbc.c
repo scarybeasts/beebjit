@@ -817,6 +817,9 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
   p_sideways_old += (effective_curr_bank * k_bbc_rom_size);
 
   if (p_bbc->is_master) {
+    /* Paging ANDY in or out complicates video RAM access. */
+    video_mem_mode_updated(p_bbc->p_video, val, p_bbc->acccon);
+
     is_curr_andy = (curr_romsel & k_romsel_andy);
     is_new_andy = (val & k_romsel_andy);
     if (is_curr_andy) {
@@ -861,10 +864,8 @@ static int
 bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   int mos_access_shadow;
   uint8_t curr_acccon = p_bbc->acccon;
-  int is_curr_display_lynne = !!(curr_acccon & k_acccon_display_lynne);
   int is_curr_lynne = !!(curr_acccon & k_acccon_lynne);
   int is_curr_hazel = !!(curr_acccon & k_acccon_hazel);
-  int is_new_display_lynne = !!(new_acccon & k_acccon_display_lynne);
   int is_new_access_lynne_from_os =
       !!(new_acccon & k_acccon_access_lynne_from_os);
   int is_new_lynne = !!(new_acccon & k_acccon_lynne);
@@ -876,17 +877,7 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   /* This needs to happen before we page the RAM around, so that the video
    * rendering can catch up with the current setup.
    */
-  if ((is_new_display_lynne != is_curr_display_lynne) ||
-      (is_new_lynne != is_curr_lynne)) {
-    /* We currently do copying, not paging, of shadow RAM, thanks to Windows
-     * paging limitations.
-     * This means we need to display "shadow" RAM in non-shadow mode, if the
-     * shadow RAM is paged in. This is because in that case, the normal RAM
-     * for normal mode will have been copied / swapped with the shadow RAM.
-     */
-    int is_shadow_display = (is_new_display_lynne ^ is_new_lynne);
-    video_shadow_mode_updated(p_bbc->p_video, is_shadow_display);
-  }
+  video_mem_mode_updated(p_bbc->p_video, p_bbc->romsel, new_acccon);
 
   if (is_curr_lynne ^ is_new_lynne) {
     size_t val;
@@ -1485,7 +1476,7 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE00:
     is_call = 0;
     param_offset = 0xC8;
-    field_offset = 0x126;
+    field_offset = 0x122;
     break;
   case 0xFE01:
     param_offset = 0xC8;

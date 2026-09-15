@@ -4,6 +4,12 @@ tested pretty extensively.
 Copyrights remain with their respective authors.
 
 
+- andy_hazel_display.ssd
+By scarybeasts.
+Source at https://github.com/scarybeasts/misc/blob/master/misc/andy_hazel_display.asm
+Sets up a BBC Master to display shadow RAM from CRTC address $0000, which
+will display the ANDY and HAZEL memory regions.
+
 - LinearTTX.ssd
 By VectorEyes.
 Renders an animation in 2MHz bitmapped + linear addressing mode. Requires
