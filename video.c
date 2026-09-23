@@ -271,6 +271,8 @@ video_read_data_byte(struct video_struct* p_video,
             p_base = p_video->p_shadow_mem;
           }
         }
+      } else {
+        p_base = p_video->p_bbc_mem;
       }
     }
     return p_base[address];
