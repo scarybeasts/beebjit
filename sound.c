@@ -72,12 +72,12 @@ struct sound_struct {
   int noise_frequency;
   /* 1 is white, 0 is periodic. */
   int noise_type;
-  uint8_t latched_bits;
+  uint8_t latched_address;
 
-  int32_t curr_bus_value;
-  int32_t write_cycle_position;
-  int32_t write_cycle_first_bus_value;
-  int32_t write_gate_open_bytes_accepted;
+  uint8_t curr_bus_value;
+  int pending_write_enable;
+  uint64_t write_cycle_position;
+  uint64_t write_gate_open_bytes_accepted;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -542,8 +542,8 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   p_sound->is_write_enabled = 1;
 
   p_sound->curr_bus_value = 0;
+  p_sound->pending_write_enable = 0;
   p_sound->write_cycle_position = 0;
-  p_sound->write_cycle_first_bus_value = -1;
   p_sound->write_gate_open_bytes_accepted = 0;
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
@@ -586,7 +586,7 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   p_sound->noise_frequency = 2;
   p_sound->period[3] = 0x40;
   p_sound->noise_type = 0;
-  p_sound->latched_bits = 0;
+  p_sound->latched_address = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
   p_sound->noise_rng = 0;
 
@@ -607,17 +607,20 @@ sound_is_synchronous(struct sound_struct* p_sound) {
 }
 
 static void
-sound_sn_apply_byte(struct sound_struct* p_sound, uint8_t value) {
+sound_sn_do_address_latch(struct sound_struct* p_sound, uint8_t value) {
+  if (value & 0x80) {
+    p_sound->latched_address = (value & 0x70);
+  }
+}
+
+static void
+sound_sn_do_register_write(struct sound_struct* p_sound, uint8_t value) {
   uint8_t command;
   uint8_t channel;
   int32_t new_period = -1;
 
-  if (value & 0x80) {
-    p_sound->latched_bits = (value & 0x70);
-    command = (value & 0xF0);
-  } else {
-    command = p_sound->latched_bits;
-  }
+  command = p_sound->latched_address;
+  command |= (value & 0x80);
   channel = ((command >> 5) & 0x03);
 
   if (command & 0x10) {
@@ -662,7 +665,6 @@ static void
 sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint64_t prev_sn_ticks;
   uint64_t curr_sn_ticks;
-  uint64_t delta_sn_ticks;
   uint64_t render_sn_ticks;
 
   uint64_t curr_system_ticks =
@@ -671,27 +673,32 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint32_t sn_frames_per_driver_buffer_size =
       p_sound->sn_frames_per_driver_buffer_size;
 
-  /* Round up to 1MHz, which is when the VIA writes should take effect. */
-  curr_system_ticks += (curr_system_ticks & 1);
-
   prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
   curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
-  delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
+  render_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
   /* When in accurate + fast mode, the sound buffer is not drained so we have
    * to handle:
    * - It being full.
    * - A huge delta that would overfill it in one go.
    */
-  render_sn_ticks = delta_sn_ticks;
   if ((sn_frames_filled + render_sn_ticks) > sn_frames_per_driver_buffer_size) {
     render_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
 
-  if (p_sound->is_write_enabled) {
-    int32_t position = p_sound->write_cycle_position;
-    int32_t first = p_sound->write_cycle_first_bus_value;
-    while (delta_sn_ticks--) {
-      if (render_sn_ticks > 0) {
+  if (p_sound->is_write_enabled || p_sound->pending_write_enable) {
+    uint64_t prev_1us_ticks = (p_sound->prev_system_ticks / 2);
+    uint64_t ticks = prev_1us_ticks;
+    uint64_t curr_1us_ticks = (curr_system_ticks / 2);
+    int64_t position = p_sound->write_cycle_position;
+    uint32_t divider = (k_sound_clock_divider / 2);
+
+    /* TODO: possible performance issue in fast mode. We iterate every single
+     * 1us tick if the write gate is open, which could affect performance.
+     * Instead of iterating every tick, we could just jump to the final
+     * state.
+     */
+    while (ticks < curr_1us_ticks) {
+      if ((render_sn_ticks > 0) && ((ticks % divider) == 0)) {
         sound_fill_sn76489_buffer(p_sound,
                                   1,
                                   &p_sound->volume[0],
@@ -700,54 +707,69 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
                                   p_sound->noise_type);
         render_sn_ticks--;
       }
-      /* TODO: possible performance issue in fast mode. We iterate every single
-       * SN tick if the write gate is open, which could affect performance.
-       * Instead of iterating every tick, we could just jump to the final
-       * state.
-       */
-      if (position == 0) {
-        first = p_sound->curr_bus_value;
-      } else if (position == 1) {
-        uint8_t value = (uint8_t) first;
-        assert(first != -1);
-        if (first != p_sound->curr_bus_value) {
-          /* If the bus value is unstable, deliberately corrupt the byte sent
-           * along to the SN76489.
-           * But how should we corrupt it?
-           * On real hardware, unexpected byte values appear to be applied that
-           * are not an "and" or "or" mix of the two values. For example,
-           * channel pitch values sometimes change, despite us always using
-           * $90 (volume command) as the basis for all writes.
-           * This XOR operation here gives vaguely similar effects, and most
-           * importantly, you will clearly "hear" a problem like on real
-           * hardware!
-           */
-          value ^= p_sound->curr_bus_value;
-          log_do_log_max_count(&p_sound->log_count_unstable_bus_value,
+
+      if (p_sound->pending_write_enable && !p_sound->is_write_enabled) {
+        /* Calculate how many 1us until the next positive 250kHz edge. */
+        /* Gives 0, 1, 2, 3. */
+        position = ((ticks + 1) % divider);
+        /* Make it -4, -3, -2, -1.
+         * We start at -4 because if there's an exact coincidence of WE low
+         * with an SN positive 250kHz edge, the write cycle is missed and
+         * started a full SN cycle later.
+         */
+        position = -(divider - position);
+        /* Subtract one from position for this loop iteration. */
+        position--;
+        p_sound->write_gate_open_bytes_accepted = 0;
+        p_sound->pending_write_enable = 0;
+        p_sound->is_write_enabled = 1;
+      }
+
+      if (position < 0) {
+        /* Nothing: waiting to catch the next positive SN 250kHz clock edge. */
+        position++;
+      } else if (position < 2) {
+        /* 8us cycle, first: transparent address latch open for 2us. */
+        sound_sn_do_address_latch(p_sound, p_sound->curr_bus_value);
+        position++;
+      } else if (position < 4) {
+        /* 8us cycle, second: transparent register latches open for 2us. */
+        sound_sn_do_register_write(p_sound, p_sound->curr_bus_value);
+        p_sound->write_gate_open_bytes_accepted++;
+        position++;
+      } else {
+        /* 8us cycle, third: nothing interesting for 4us. */
+        position++;
+        position &= 7;
+      }
+
+      if (p_sound->pending_write_enable) {
+        /* Must be a pending end of write enable. */
+        if (p_sound->write_gate_open_bytes_accepted == 0) {
+          log_do_log_max_count(&p_sound->log_count_short_write_gate,
                                k_log_audio,
                                k_log_warning,
-                               "bus value unstable, "
-                               "first $%"PRIx8", second $%"PRIx8,
-                               first,
-                               p_sound->curr_bus_value);
+                               "write gate not open long enough for byte");
         }
-        sound_sn_apply_byte(p_sound, (uint8_t) value);
-        p_sound->write_gate_open_bytes_accepted++;
-        first = -1;
+        p_sound->pending_write_enable = 0;
+        p_sound->is_write_enabled = 0;
+        /* Stop apply the write state machine. Some render_sn_ticks may be
+         * left over, which is handled below.
+         */
+        break;
       }
-      position++;
-      position &= 3;
+
+      ticks++;
     }
     p_sound->write_cycle_position = position;
-    p_sound->write_cycle_first_bus_value = first;
-  } else {
-    sound_fill_sn76489_buffer(p_sound,
-                              render_sn_ticks,
-                              &p_sound->volume[0],
-                              &p_sound->period[0],
-                              p_sound->noise_rng,
-                              p_sound->noise_type);
   }
+
+  sound_fill_sn76489_buffer(p_sound,
+                            render_sn_ticks,
+                            &p_sound->volume[0],
+                            &p_sound->period[0],
+                            p_sound->noise_rng,
+                            p_sound->noise_type);
 
   p_sound->prev_system_ticks = curr_system_ticks;
 }
@@ -807,59 +829,34 @@ sound_tick(struct sound_struct* p_sound, uint64_t curr_time_us) {
 
 void
 sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value) {
-  int is_write_enabled = !(value & 1);
-  if (is_write_enabled == p_sound->is_write_enabled) {
-    return;
-  }
+  /* Can't reliably use is_write_enabled here because the change may be
+   * pending (pending_write_enable).
+   */
 
   if (!sound_is_synchronous(p_sound)) {
+    int is_write_enabled = !(value & 1);
     p_sound->is_write_enabled = is_write_enabled;
     if (is_write_enabled) {
-      sound_sn_apply_byte(p_sound, p_sound->curr_bus_value);
+      uint8_t curr_bus_value = p_sound->curr_bus_value;
+      sound_sn_do_address_latch(p_sound, curr_bus_value);
+      sound_sn_do_register_write(p_sound, curr_bus_value);
     }
     return;
   }
 
   sound_advance_sn_timing(p_sound);
 
-  if (is_write_enabled) {
-    uint64_t curr_system_ticks =
-        timing_get_scaled_total_timer_ticks(p_sound->p_timing);
-    /* Round ticks up to 1MHz, which is when VIA effects should take place. */
-    curr_system_ticks += (curr_system_ticks & 1);
-    p_sound->write_cycle_position = 0;
-    p_sound->write_cycle_first_bus_value = -1;
-    p_sound->write_gate_open_bytes_accepted = 0;
-    /* If the write enable hits an SN edge exactly, count it. This makes our
-     * behavior best match real hardware.
-     */
-    if (!(curr_system_ticks % k_sound_clock_divider)) {
-      p_sound->write_cycle_position = 1;
-      p_sound->write_cycle_first_bus_value = p_sound->curr_bus_value;
-    }
-  } else {
-    if (p_sound->write_gate_open_bytes_accepted == 0) {
-      /* We use logic that appears to match real hardware:
-       * After the write gate is open, it needs to stay open for the next two
-       * SN76489 clock edges, otherwise the byte goes missing.
-       */
-      log_do_log_max_count(&p_sound->log_count_short_write_gate,
-                           k_log_audio,
-                           k_log_warning,
-                           "write gate not open long enough to consume byte");
-    }
-  }
+  assert(p_sound->pending_write_enable == 0);
 
-  p_sound->is_write_enabled = is_write_enabled;
+  /* The write enable change triggers in 1us because there's a 1us latency
+   * introduced by the IC32 latch.
+   */
+  p_sound->pending_write_enable = 1;
 }
 
 void
 sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
-  if (value == p_sound->curr_bus_value) {
-    return;
-  }
-
-  if (!p_sound->is_write_enabled) {
+  if (!p_sound->is_write_enabled && !p_sound->pending_write_enable) {
     p_sound->curr_bus_value = value;
     return;
   }
@@ -867,7 +864,8 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
   /* Async mode isn't accurate, so just stuff the byte into the SN state. */
   if (!sound_is_synchronous(p_sound)) {
     p_sound->curr_bus_value = value;
-    sound_sn_apply_byte(p_sound, value);
+    sound_sn_do_address_latch(p_sound, value);
+    sound_sn_do_register_write(p_sound, value);
     return;
   }
 
@@ -875,6 +873,28 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
    * ongoing delivery of bytes to the SN76489 if the write gate is left open.
    */
   sound_advance_sn_timing(p_sound);
+
+  /* The advance might lower write enable becuase of the latch delay, so
+   * it is re-checked below.
+   */
+
+  /* Landing at 0 is ok, the address changes should land because it's a
+   * transparent latch.
+   * Landing at 4 is questionable, because the bus will be changing at the
+   * same time the register transparent latches are closing.
+   */
+  if (p_sound->is_write_enabled &&
+      (p_sound->write_cycle_position > 0) &&
+      (p_sound->write_cycle_position <= 4)) {
+    log_do_log_max_count(&p_sound->log_count_unstable_bus_value,
+                         k_log_audio,
+                         k_log_warning,
+                         "bus value unstable, "
+                         "position %"PRIu32", curr $%"PRIx8" new $%"PRIx8,
+                         (uint32_t) p_sound->write_cycle_position,
+                         p_sound->curr_bus_value,
+                         value);
+  }
 
   p_sound->curr_bus_value = value;
 }
@@ -897,7 +917,7 @@ sound_get_state(struct sound_struct* p_sound,
     p_outputs[i] = p_sound->output[i];
   }
 
-  *p_last_channel = (p_sound->latched_bits >> 5);
+  *p_last_channel = (p_sound->latched_address >> 5);
   *p_noise_type = p_sound->noise_type;
   *p_noise_frequency = p_sound->noise_frequency;
   *p_noise_rng = p_sound->noise_rng;
@@ -921,8 +941,10 @@ sound_set_state(struct sound_struct* p_sound,
     p_sound->output[i] = p_outputs[i];
   }
 
-  p_sound->latched_bits = (last_channel << 5);
+  p_sound->latched_address = (last_channel << 5);
   p_sound->noise_type = noise_type;
   p_sound->noise_frequency = noise_frequency;
   p_sound->noise_rng = noise_rng;
 }
+
+#include "test-sound.c"

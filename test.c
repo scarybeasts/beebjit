@@ -12,6 +12,7 @@ extern void video_test(void);
 extern void jit_test(struct bbc_struct* p_bbc);
 extern void expression_test(void);
 extern void bbc_test(struct bbc_struct* p_bbc);
+extern void sound_test(void);
 
 void
 test_do_tests(struct bbc_struct* p_bbc) {
@@ -19,6 +20,7 @@ test_do_tests(struct bbc_struct* p_bbc) {
   bbc_power_on_reset(p_bbc);
 
   timing_test();
+  sound_test();
   video_test();
   jit_test(p_bbc);
   expression_test();

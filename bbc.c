@@ -2642,6 +2642,7 @@ bbc_get_IC32(struct bbc_struct* p_bbc) {
 
 void
 bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val) {
+  uint8_t oldval = p_bbc->IC32;
   p_bbc->IC32 = val;
 
   /* IC32 is the addressable latch. It selects what peripheral(s) are active on
@@ -2655,12 +2656,18 @@ bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val) {
   video_IC32_updated(p_bbc->p_video, val);
 
   /* The SN76489 needs to see if its write enable line changed. */
-  sound_sn_IC32_updated(p_bbc->p_sound, val);
+  if ((val & 1) != (oldval & 1)) {
+    sound_sn_IC32_updated(p_bbc->p_sound, val);
+  }
 
   /* Selecting or deselecting the keyboard may need to change interrupt and / or
    * bus value status.
+   * Also, the CMOS related bits on Master (these are used for the optional
+   * speech chip in the model B).
    */
-  via_update_port_a(p_bbc->p_system_via);
+  if ((val & (8 | 4 | 2)) != (oldval & (8 | 4 | 2))) {
+    via_update_port_a(p_bbc->p_system_via);
+  }
 }
 
 uint8_t*
