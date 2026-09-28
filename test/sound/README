@@ -20,6 +20,11 @@ From https://github.com/mattgodbolt/jsbeeb/issues/167
 From http://bbcmicro.co.uk/gameimg/discs/1411/ReetPetite.ssd
 Sampled sound playback, uses tone channel period of 4.
 
+- sn_125k_test.ssd
+By scarybeasts.
+Code: https://github.com/scarybeasts/misc/blob/master/misc/sn_125k_test.asm
+Writes to the SN76489 at 125kHz (1 byte per 8us). Works on real hardware!
+
 - Speech.dsd
 From https://github.com/mattgodbolt/jsbeeb/issues/193
 From http://bbcmicro.co.uk/gameimg/discs/1411/Speech.dsd
