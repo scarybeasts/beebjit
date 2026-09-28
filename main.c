@@ -113,6 +113,7 @@ beebjit_main(void) {
   int disc_mutable_flag = 0;
   int terminal_flag = 0;
   int headless_flag = 0;
+  int headless_render_flag = 0;
   int fasttape_flag = 0;
   int convert_hfe_flag = 0;
   int convert_ssd_flag = 0;
@@ -307,6 +308,8 @@ beebjit_main(void) {
       terminal_flag = 1;
     } else if (!strcmp(arg, "-headless")) {
       headless_flag = 1;
+    } else if (!strcmp(arg, "-headless-render")) {
+      headless_render_flag = 1;
     } else if (!strcmp(arg, "-fasttape")) {
       fasttape_flag = 1;
     } else if (!strcmp(arg, "-convert-hfe")) {
@@ -394,6 +397,7 @@ beebjit_main(void) {
 "-max-frames     <m>: max frame images to save, default 1.\n"
 "-exit-on-max-frames: exit the process once max-frames is hit.\n"
 "-frames-dir     <d>: directory for frame files, default '.'.\n"
+"-headless-render   : in -headless mode, allocate a render buffer.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
 "-dfs12             : for a model B with an 8271, load newer DFS v1.2 ROM.\n"
@@ -594,7 +598,7 @@ beebjit_main(void) {
     render_set_buffer(p_render, p_render_buffer);
 
     window_handle = os_window_get_handle(p_window);
-  } else if (frame_cycles > 0) {
+  } else if ((frame_cycles > 0) || headless_render_flag) {
     /* TODO: push this down into video.c. */
     render_create_internal_buffer(p_render);
   }
