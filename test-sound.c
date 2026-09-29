@@ -2,8 +2,6 @@
 
 #include "test.h"
 
-struct bbc_options g_p_options;
-
 void
 sound_test() {
   struct bbc_options options;
