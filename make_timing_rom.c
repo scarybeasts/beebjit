@@ -1271,8 +1271,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x40);
   emit_JMP(p_buf, k_abs, 0xD100);
 
-  /* Exit sequence. */
+  /* Test for assert going from pulse counting to shift mode. */
   set_new_index(p_buf, 0x1100);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_abs, 0xFE4B);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0xFE4B);
+  emit_JMP(p_buf, k_abs, 0xD140);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x1140);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

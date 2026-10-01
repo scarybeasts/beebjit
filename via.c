@@ -1007,8 +1007,22 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
   uint32_t shift_timer_id = p_via->shift_timer_id;
   int is_shift_running = timing_timer_is_running(p_timing, shift_timer_id);
 
+  int was_pulse_counting = !!(p_via->ACR & 0x20);
+  int is_shift_at_T2 = ((val & 0x1C) == 0x10);
+  int is_T2_pulse_counting = !!(val & 0x20);
+  if (is_T2_pulse_counting) {
+    /* Pulse counting + shifting: set up in the frozen state. */
+    is_shift_at_T2 = 0;
+  }
+
   p_via->ACR = val;
   via_update_IRA_cached(p_via);
+
+  if (p_via->externally_clocked) {
+    /* Everything else is timer management, not used when externally clocked. */
+    return;
+  }
+
   /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
    * modes but after some testing on a real beeb, we don't do anything
    * special here.
@@ -1027,7 +1041,7 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
   }
 
   /* Currently only responding to "Shift out free running at T2 rate". */
-  if (((val & 0x1C) == 0x10) && !is_shift_running) {
+  if (is_shift_at_T2 && !is_shift_running) {
     int64_t shift_timer_val;
     uint16_t t2_val = via_get_t2c(p_via);
 
@@ -1037,13 +1051,15 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
     // Convert 1MHz -> 2MHz ticks.
     shift_timer_val <<= 1;
 
-    assert(timing_timer_is_running(p_timing, t2_timer_id));
-    (void) timing_stop_timer(p_timing, t2_timer_id);
+    if (!was_pulse_counting) {
+      assert(timing_timer_is_running(p_timing, t2_timer_id));
+      (void) timing_stop_timer(p_timing, t2_timer_id);
+    }
     (void) timing_start_timer_with_value(p_timing,
                                          shift_timer_id,
                                          shift_timer_val);
     is_shift_running = 1;
-  } else if (((val & 0x1C) != 0x10) && is_shift_running) {
+  } else if (!is_shift_at_T2 && is_shift_running) {
     uint16_t t2_val = via_get_t2c(p_via);
 
     assert(!timing_timer_is_running(p_timing, t2_timer_id));
@@ -1056,24 +1072,22 @@ via_write_ACR(struct via_struct* p_via, uint8_t val) {
     is_shift_running = 0;
   }
 
-  /* TODO: really unclear how to resolve shift timer vs. pulse counting. */
-  if (!p_via->externally_clocked && !is_shift_running) {
-    if (val & 0x20) {
-      /* Stop T2 if that bit is set. */
-      if (timing_timer_is_running(p_timing, t2_timer_id)) {
-        uint16_t t2_val = via_get_t2c(p_via);
-        /* The value freezes after ticking one more time. */
-        via_set_t2c(p_via, (t2_val - 1), 0);
-        (void) timing_stop_timer(p_timing, t2_timer_id);
-      }
-    } else {
-      /* Otherwise start it. */
-      if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
-        uint16_t t2_val = via_get_t2c(p_via);
-        /* The value starts ticking next cycle. */
-        via_set_t2c(p_via, t2_val, 1);
-        (void) timing_start_timer(p_timing, t2_timer_id);
-      }
+  if (is_T2_pulse_counting) {
+    assert(!is_shift_running);
+    /* Stop T2 if that bit is set. */
+    if (timing_timer_is_running(p_timing, t2_timer_id)) {
+      uint16_t t2_val = via_get_t2c(p_via);
+      /* The value freezes after ticking one more time. */
+      via_set_t2c(p_via, (t2_val - 1), 0);
+      (void) timing_stop_timer(p_timing, t2_timer_id);
+    }
+  } else if (!is_shift_running) {
+    /* Otherwise start it. */
+    if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
+      uint16_t t2_val = via_get_t2c(p_via);
+      /* The value starts ticking next cycle. */
+      via_set_t2c(p_via, t2_val, 1);
+      (void) timing_start_timer(p_timing, t2_timer_id);
     }
   }
 }
