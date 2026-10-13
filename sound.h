@@ -43,6 +43,22 @@ void sound_set_state(struct sound_struct* p_sound,
                      uint8_t noise_frequency,
                      uint16_t noise_rng);
 
+/* The sn76489 bus side, to carry on exactly after a state save and load. It
+ * is stored in state files as is, so a change to it needs a new state
+ * version.
+ */
+struct sound_bus_state {
+  int64_t write_cycle_position;
+  uint8_t latched_address;
+  uint8_t bus_value;
+  uint8_t is_write_enabled;
+  uint8_t is_write_enable_pending;
+};
+void sound_get_bus_state(struct sound_struct* p_sound,
+                         struct sound_bus_state* p_state);
+void sound_set_bus_state(struct sound_struct* p_sound,
+                         const struct sound_bus_state* p_state);
+
 void sound_sn_IC32_updated(struct sound_struct* p_sound, uint8_t value);
 void sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value);
 

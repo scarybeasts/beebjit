@@ -2125,6 +2125,53 @@ video_update_cursor_disabled(struct video_struct* p_video) {
   p_video->cursor_disabled = cursor_disabled;
 }
 
+static void
+video_crtc_update_derived(struct video_struct* p_video, uint8_t reg) {
+  uint8_t val = p_video->crtc_registers[reg];
+
+  switch (reg) {
+  case k_crtc_reg_horiz_total:
+    p_video->half_r0 = ((val + 1) / 2);
+    break;
+  case k_crtc_reg_sync_width:
+    p_video->hsync_pulse_width = (val & 0xF);
+    p_video->vsync_pulse_width = (val >> 4);
+    if (p_video->vsync_pulse_width == 0) {
+      p_video->vsync_pulse_width = 16;
+    }
+    break;
+  case k_crtc_reg_interlace:
+    p_video->is_interlace = (val & 0x1);
+    p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
+    /* "master display off", selected by skew bitfield of 0x30, is handled by
+     * indexing into dispen_shifts[] to a DISPEN value that is always 0.
+     */
+    p_video->skew_dispen_index = ((val & 0x30) >> 4);
+    p_video->cursor_skew = ((val & 0xC0) >> 6);
+    if (p_video->is_interlace_sync_and_video) {
+      p_video->scanline_stride = 2;
+      p_video->scanline_mask = 0x1E;
+    } else {
+      p_video->scanline_stride = 1;
+      p_video->scanline_mask = 0x1F;
+    }
+    video_update_cursor_disabled(p_video);
+    break;
+  case k_crtc_reg_cursor_start:
+    p_video->cursor_flashing = !!(val & 0x40);
+    if (val & 0x20) {
+      p_video->cursor_flash_mask = 0x10;
+    } else {
+      p_video->cursor_flash_mask = 0x08;
+    }
+    p_video->cursor_start_line = (val & 0x1F);
+    video_update_cursor_disabled(p_video);
+    break;
+  default:
+    break;
+  }
+}
+
 void
 video_crtc_write_address(struct video_struct* p_video,
                          uint8_t addr,
@@ -2247,46 +2294,10 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
 
   p_video->crtc_registers[reg] = (val & mask);
 
-  switch (reg) {
-  case k_crtc_reg_horiz_total:
-    p_video->half_r0 = ((p_video->crtc_registers[k_crtc_reg_horiz_total] + 1) /
-                        2);
-    break;
-  case k_crtc_reg_sync_width:
-    p_video->hsync_pulse_width = hsync_pulse_width;
-    p_video->vsync_pulse_width = vsync_pulse_width;
-    break;
-  case k_crtc_reg_interlace:
-    p_video->is_interlace = (val & 0x1);
-    p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
-    /* "master display off", selected by skew bitfield of 0x30, is handled by
-     * indexing into dispen_shifts[] to a DISPEN value that is always 0.
-     */
-    p_video->skew_dispen_index = ((val & 0x30) >> 4);
-    p_video->cursor_skew = ((val & 0xC0) >> 6);
-    if (p_video->is_interlace_sync_and_video) {
-      p_video->scanline_stride = 2;
-      p_video->scanline_mask = 0x1E;
-    } else {
-      p_video->scanline_stride = 1;
-      p_video->scanline_mask = 0x1F;
-    }
-    video_update_cursor_disabled(p_video);
+  video_crtc_update_derived(p_video, reg);
+  if (reg == k_crtc_reg_interlace) {
     ticks = timing_get_scaled_total_timer_ticks(p_video->p_timing);
     video_update_VSYNC(p_video, ticks);
-    break;
-  case k_crtc_reg_cursor_start:
-    p_video->cursor_flashing = !!(val & 0x40);
-    if (val & 0x20) {
-      p_video->cursor_flash_mask = 0x10;
-    } else {
-      p_video->cursor_flash_mask = 0x08;
-    }
-    p_video->cursor_start_line = (val & 0x1F);
-    video_update_cursor_disabled(p_video);
-    break;
-  default:
-    break;
   }
 
   if (p_video->is_interlace_sync_and_video) {
@@ -2390,6 +2401,10 @@ video_set_crtc_registers(struct video_struct* p_video,
   for (i = 0; i < k_video_crtc_num_registers; ++i) {
     p_video->crtc_registers[i] = p_values[i];
   }
+  for (i = 0; i < k_video_crtc_num_registers; ++i) {
+    video_crtc_update_derived(p_video, i);
+  }
+  video_recalculate_framing_sanity(p_video);
 }
 
 void
@@ -2410,6 +2425,98 @@ video_get_crtc_state(struct video_struct* p_video,
   *p_crtc_frames = p_video->crtc_frames;
   *p_is_in_vert_adjust = p_video->is_in_vert_adjust;
   *p_is_in_dummy_raster = p_video->in_dummy_raster;
+}
+
+void
+video_get_state(struct video_struct* p_video, struct video_state* p_state) {
+  uint32_t i;
+
+  video_advance_crtc_timing(p_video);
+
+  p_state->crtc_frames = p_video->crtc_frames;
+  p_state->last_vsync_raise_ticks = p_video->last_vsync_raise_ticks;
+  p_state->last_vsync_lower_ticks = p_video->last_vsync_lower_ticks;
+  p_state->address_counter = p_video->address_counter;
+  p_state->address_counter_saved = p_video->address_counter_saved;
+  p_state->display_enable_bits = p_video->display_enable_bits;
+  p_state->start_of_line_state_checks = p_video->start_of_line_state_checks;
+  p_state->cursor_skew_counter = p_video->cursor_skew_counter;
+  p_state->via_ca1_irq_level = p_video->via_ca1_irq_level;
+  p_state->crtc_address_register = p_video->crtc_address_register;
+  p_state->horiz_counter = p_video->horiz_counter;
+  p_state->scanline_counter = p_video->scanline_counter;
+  p_state->vert_counter = p_video->vert_counter;
+  p_state->vert_adjust_counter = p_video->vert_adjust_counter;
+  p_state->vsync_scanline_counter = p_video->vsync_scanline_counter;
+  p_state->hsync_tick_counter = p_video->hsync_tick_counter;
+  p_state->is_odd_frame = p_video->is_odd_frame;
+  p_state->is_vert_adjust_pending = p_video->is_vert_adjust_pending;
+  p_state->is_in_vert_adjust = p_video->is_in_vert_adjust;
+  p_state->in_vsync = p_video->in_vsync;
+  p_state->is_even_vsync = p_video->is_even_vsync;
+  p_state->is_odd_vsync = p_video->is_odd_vsync;
+  p_state->in_hsync = p_video->in_hsync;
+  p_state->in_dummy_raster = p_video->in_dummy_raster;
+  p_state->had_odd_vsync_this_row = p_video->had_odd_vsync_this_row;
+  p_state->had_even_vsync_this_row = p_video->had_even_vsync_this_row;
+  p_state->has_hit_cursor_line_start = p_video->has_hit_cursor_line_start;
+  p_state->has_hit_cursor_line_end = p_video->has_hit_cursor_line_end;
+  p_state->is_end_of_main_latched = p_video->is_end_of_main_latched;
+  p_state->is_end_of_vert_adjust_latched =
+      p_video->is_end_of_vert_adjust_latched;
+  p_state->is_end_of_frame_latched = p_video->is_end_of_frame_latched;
+  p_state->is_first_frame_scanline = p_video->is_first_frame_scanline;
+  for (i = 0; i < 3; ++i) {
+    p_state->dispen_shifts[i] = p_video->dispen_shifts[i];
+  }
+}
+
+void
+video_set_state(struct video_struct* p_video,
+                const struct video_state* p_state) {
+  uint32_t i;
+
+  p_video->crtc_frames = p_state->crtc_frames;
+  p_video->last_vsync_raise_ticks = p_state->last_vsync_raise_ticks;
+  p_video->last_vsync_lower_ticks = p_state->last_vsync_lower_ticks;
+  p_video->address_counter = p_state->address_counter;
+  p_video->address_counter_saved = p_state->address_counter_saved;
+  p_video->display_enable_bits = p_state->display_enable_bits;
+  p_video->start_of_line_state_checks = p_state->start_of_line_state_checks;
+  p_video->cursor_skew_counter = p_state->cursor_skew_counter;
+  p_video->via_ca1_irq_level = p_state->via_ca1_irq_level;
+  p_video->crtc_address_register = p_state->crtc_address_register;
+  p_video->horiz_counter = p_state->horiz_counter;
+  p_video->scanline_counter = p_state->scanline_counter;
+  p_video->vert_counter = p_state->vert_counter;
+  p_video->vert_adjust_counter = p_state->vert_adjust_counter;
+  p_video->vsync_scanline_counter = p_state->vsync_scanline_counter;
+  p_video->hsync_tick_counter = p_state->hsync_tick_counter;
+  p_video->is_odd_frame = p_state->is_odd_frame;
+  p_video->is_vert_adjust_pending = p_state->is_vert_adjust_pending;
+  p_video->is_in_vert_adjust = p_state->is_in_vert_adjust;
+  p_video->in_vsync = p_state->in_vsync;
+  p_video->is_even_vsync = p_state->is_even_vsync;
+  p_video->is_odd_vsync = p_state->is_odd_vsync;
+  p_video->in_hsync = p_state->in_hsync;
+  p_video->in_dummy_raster = p_state->in_dummy_raster;
+  p_video->had_odd_vsync_this_row = p_state->had_odd_vsync_this_row;
+  p_video->had_even_vsync_this_row = p_state->had_even_vsync_this_row;
+  p_video->has_hit_cursor_line_start = p_state->has_hit_cursor_line_start;
+  p_video->has_hit_cursor_line_end = p_state->has_hit_cursor_line_end;
+  p_video->is_end_of_main_latched = p_state->is_end_of_main_latched;
+  p_video->is_end_of_vert_adjust_latched =
+      p_state->is_end_of_vert_adjust_latched;
+  p_video->is_end_of_frame_latched = p_state->is_end_of_frame_latched;
+  p_video->is_first_frame_scanline = p_state->is_first_frame_scanline;
+  for (i = 0; i < 3; ++i) {
+    p_video->dispen_shifts[i] = p_state->dispen_shifts[i];
+  }
+
+  /* The state is as of now, so advance from here and time the next event. */
+  p_video->prev_system_ticks =
+      timing_get_scaled_total_timer_ticks(p_video->p_timing);
+  video_update_timer(p_video);
 }
 
 #include "test-video.c"

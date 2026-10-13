@@ -61,6 +61,28 @@ echo 'Checking RVI rendering.'
     -opt video:always-render \
     -commands "breakat 6500000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x16d251fe)||bail';q"
 
+echo 'Checking state save and load.'
+# This repeats the raster-c.ssd RVI check above across a save and a load. RVI
+# only renders correctly if timing is exact, so this checks that a load carries
+# on exactly as the saved machine would have. The save is taken once the demo
+# has loaded from disc.
+TMP_STATE=$(mktemp)
+./beebjit -0 test/display/raster-c.ssd \
+    -mode interp \
+    -autoboot \
+    -headless -fast -accurate -debug \
+    -commands "breakat 10000000;c;ss $TMP_STATE;q" \
+    > /dev/null
+for MODE in interp jit; do
+  ./beebjit -load "$TMP_STATE" \
+      -mode $MODE \
+      -fast -accurate -debug \
+      -opt video:always-render \
+      -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
+      || { rm -f "$TMP_STATE"; exit 1; }
+done
+rm -f "$TMP_STATE"
+
 # This checks the display accuracy of a gnarly MODE1 + MODE7 test case that
 # hits corner cases with 2MHz teletext operation, non-rounded teletext
 # rendering, teletext line tracking, and more.

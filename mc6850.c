@@ -458,3 +458,41 @@ mc6850_write(struct mc6850_struct* p_serial, uint8_t reg, uint8_t val) {
 
   mc6850_update_irq_and_status_read(p_serial);
 }
+
+void
+mc6850_get_state(struct mc6850_struct* p_serial,
+                 struct mc6850_state* p_state) {
+  p_state->receive_sr_count = p_serial->acia_receive_sr_count;
+  p_state->clock_divide_counter = p_serial->clock_divide_counter;
+  p_state->status = p_serial->acia_status;
+  p_state->control = p_serial->acia_control;
+  p_state->receive = p_serial->acia_receive;
+  p_state->transmit = p_serial->acia_transmit;
+  p_state->receive_state = p_serial->state;
+  p_state->receive_sr = p_serial->acia_receive_sr;
+  p_state->parity_accumulator = p_serial->parity_accumulator;
+  p_state->is_sr_parity_error = p_serial->is_sr_parity_error;
+  p_state->is_sr_framing_error = p_serial->is_sr_framing_error;
+  p_state->is_sr_overflow = p_serial->is_sr_overflow;
+  p_state->is_DCD = p_serial->is_DCD;
+}
+
+void
+mc6850_set_state(struct mc6850_struct* p_serial,
+                 const struct mc6850_state* p_state) {
+  p_serial->acia_receive_sr_count = p_state->receive_sr_count;
+  p_serial->clock_divide_counter = p_state->clock_divide_counter;
+  p_serial->acia_status = p_state->status;
+  p_serial->acia_control = p_state->control;
+  p_serial->acia_receive = p_state->receive;
+  p_serial->acia_transmit = p_state->transmit;
+  p_serial->state = p_state->receive_state;
+  p_serial->acia_receive_sr = p_state->receive_sr;
+  p_serial->parity_accumulator = p_state->parity_accumulator;
+  p_serial->is_sr_parity_error = p_state->is_sr_parity_error;
+  p_serial->is_sr_framing_error = p_state->is_sr_framing_error;
+  p_serial->is_sr_overflow = p_state->is_sr_overflow;
+  p_serial->is_DCD = p_state->is_DCD;
+
+  mc6850_update_irq_and_status_read(p_serial);
+}

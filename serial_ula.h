@@ -34,4 +34,22 @@ void serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
 
 void serial_ula_tick(struct serial_ula_struct* p_serial_ula);
 
+/* To carry on exactly after a state save and load. It is stored in state
+ * files as is, so a change to it needs a new state version.
+ */
+struct serial_ula_state {
+  uint64_t tape_carrier_count;
+  uint8_t is_rs423_selected;
+  uint8_t is_motor_on;
+  uint8_t is_tape_DCD;
+};
+
+void serial_ula_get_state(struct serial_ula_struct* p_serial_ula,
+                          struct serial_ula_state* p_state);
+/* Switches the tape motor as a write would. The tape position isn't part of
+ * the state.
+ */
+void serial_ula_set_state(struct serial_ula_struct* p_serial_ula,
+                          const struct serial_ula_state* p_state);
+
 #endif /* BEEBJIT_SERIAL_ULA__H */

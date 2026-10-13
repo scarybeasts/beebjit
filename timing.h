@@ -11,6 +11,9 @@ void timing_destroy(struct timing_struct* p_timing);
 void timing_set_log_expiries(struct timing_struct* p_timing, int log_expiries);
 
 void timing_reset_total_timer_ticks(struct timing_struct* p_timing);
+/* For state load: carry on from the tick count the state was saved at. */
+void timing_set_total_timer_ticks(struct timing_struct* p_timing,
+                                  uint64_t ticks);
 
 uint64_t timing_get_total_timer_ticks(struct timing_struct* p_timing);
 uint64_t timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing);

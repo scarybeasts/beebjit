@@ -1173,6 +1173,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+  /* A state load can start where an interrupt was already committed to. */
+  do_irq = state_6502_take_irq_at_entry(p_state_6502);
 
   if (p_interp->debug_subsystem_active) {
     special_checks |= k_interp_special_debug;

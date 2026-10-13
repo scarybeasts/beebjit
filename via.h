@@ -165,4 +165,46 @@ void via_set_registers(struct via_struct* p_via,
                        uint8_t t2_oneshot_fired,
                        uint8_t t1_pb7);
 
+/* Everything needed to carry on exactly, for state save and load. It is
+ * stored in state files as is, so a change to it needs a new state version.
+ */
+struct via_state {
+  uint64_t t1_last_fire_ticks;
+  uint64_t t2_last_fire_ticks;
+  uint64_t t2_shift_last_fire_ticks;
+  int32_t T1C_raw;
+  int32_t T2C_raw;
+  int32_t shift_timer_raw;
+  int32_t shift_counter;
+  uint16_t T1L;
+  uint16_t T2L;
+  uint8_t IRA;
+  uint8_t IRB;
+  uint8_t ORB;
+  uint8_t ORA;
+  uint8_t DDRB;
+  uint8_t DDRA;
+  uint8_t SR;
+  uint8_t ACR;
+  uint8_t PCR;
+  uint8_t IFR;
+  uint8_t IER;
+  uint8_t peripheral_b;
+  uint8_t peripheral_a;
+  uint8_t t1_pb7;
+  uint8_t bus_value_a;
+  uint8_t IRA_cached;
+  uint8_t CA1;
+  uint8_t CA2;
+  uint8_t CB1;
+  uint8_t CB2;
+  uint8_t is_t1_firing;
+  uint8_t is_t2_firing;
+  uint8_t is_t2_running;
+  uint8_t is_shift_running;
+};
+
+void via_get_state(struct via_struct* p_via, struct via_state* p_state);
+void via_set_state(struct via_struct* p_via, const struct via_state* p_state);
+
 #endif /* BEEBJIT_VIA_H */

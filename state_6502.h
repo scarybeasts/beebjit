@@ -45,6 +45,7 @@ struct state_6502 {
   struct {
     uint32_t irq_high;
     uint64_t ticks_baseline;
+    int is_irq_at_entry;
   } state;
 };
 
@@ -94,5 +95,12 @@ int state_6502_has_irq_high(struct state_6502* p_state_6502);
 int state_6502_has_nmi_high(struct state_6502* p_state_6502);
 
 void state_6502_fire_irq_timer(struct state_6502* p_state_6502);
+
+/* A state save can be taken at an instruction boundary where the CPU has
+ * already committed to taking an interrupt. A load sets this, and the CPU
+ * starts with the interrupt.
+ */
+void state_6502_set_irq_at_entry(struct state_6502* p_state_6502, int is_irq);
+int state_6502_take_irq_at_entry(struct state_6502* p_state_6502);
 
 #endif /* BEEBJIT_STATE_6502_H */

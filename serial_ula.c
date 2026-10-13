@@ -296,3 +296,30 @@ serial_ula_tick(struct serial_ula_struct* p_serial_ula) {
     (void) os_terminal_handle_write_byte(handle_output, val);
   }
 }
+
+void
+serial_ula_get_state(struct serial_ula_struct* p_serial_ula,
+                     struct serial_ula_state* p_state) {
+  p_state->tape_carrier_count = p_serial_ula->tape_carrier_count;
+  p_state->is_rs423_selected = p_serial_ula->is_rs423_selected;
+  p_state->is_motor_on = p_serial_ula->is_motor_on;
+  p_state->is_tape_DCD = p_serial_ula->is_tape_DCD;
+}
+
+void
+serial_ula_set_state(struct serial_ula_struct* p_serial_ula,
+                     const struct serial_ula_state* p_state) {
+  uint8_t val = 0;
+
+  p_serial_ula->tape_carrier_count = p_state->tape_carrier_count;
+  p_serial_ula->is_tape_DCD = p_state->is_tape_DCD;
+
+  if (p_state->is_rs423_selected) {
+    val |= k_serial_ula_rs423;
+  }
+  if (p_state->is_motor_on) {
+    val |= k_serial_ula_motor;
+  }
+  /* This also sets the ACIA's CTS and DCD lines. */
+  serial_ula_write(p_serial_ula, val);
+}

@@ -947,4 +947,32 @@ sound_set_state(struct sound_struct* p_sound,
   p_sound->noise_rng = noise_rng;
 }
 
+void
+sound_get_bus_state(struct sound_struct* p_sound,
+                    struct sound_bus_state* p_state) {
+  /* Catch up first, so that this and the sn76489 state are as of now. */
+  if (sound_is_synchronous(p_sound)) {
+    sound_advance_sn_timing(p_sound);
+  }
+
+  p_state->write_cycle_position = p_sound->write_cycle_position;
+  p_state->latched_address = p_sound->latched_address;
+  p_state->bus_value = p_sound->curr_bus_value;
+  p_state->is_write_enabled = p_sound->is_write_enabled;
+  p_state->is_write_enable_pending = p_sound->pending_write_enable;
+}
+
+void
+sound_set_bus_state(struct sound_struct* p_sound,
+                    const struct sound_bus_state* p_state) {
+  p_sound->write_cycle_position = p_state->write_cycle_position;
+  p_sound->latched_address = p_state->latched_address;
+  p_sound->curr_bus_value = p_state->bus_value;
+  p_sound->is_write_enabled = p_state->is_write_enabled;
+  p_sound->pending_write_enable = p_state->is_write_enable_pending;
+  /* The save caught up to the tick it was taken at, which is now. */
+  p_sound->prev_system_ticks =
+      timing_get_scaled_total_timer_ticks(p_sound->p_timing);
+}
+
 #include "test-sound.c"

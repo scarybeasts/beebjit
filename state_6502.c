@@ -228,3 +228,19 @@ state_6502_fire_irq_timer(struct state_6502* p_state_6502) {
                                        p_state_6502->timer_id,
                                        0);
 }
+
+void
+state_6502_set_irq_at_entry(struct state_6502* p_state_6502, int is_irq) {
+  p_state_6502->state.is_irq_at_entry = is_irq;
+  if (is_irq) {
+    /* Bring the CPU driver into the interpreter, which takes it. */
+    state_6502_fire_irq_timer(p_state_6502);
+  }
+}
+
+int
+state_6502_take_irq_at_entry(struct state_6502* p_state_6502) {
+  int is_irq = p_state_6502->state.is_irq_at_entry;
+  p_state_6502->state.is_irq_at_entry = 0;
+  return is_irq;
+}

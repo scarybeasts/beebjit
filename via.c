@@ -1573,3 +1573,109 @@ void via_set_registers(struct via_struct* p_via,
   (void) timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);
   p_via->t1_pb7 = t1_pb7;
 }
+
+void
+via_get_state(struct via_struct* p_via, struct via_state* p_state) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
+
+  p_state->t1_last_fire_ticks = p_via->t1_last_fire_cycles;
+  p_state->t2_last_fire_ticks = p_via->t2_last_fire_cycles;
+  p_state->t2_shift_last_fire_ticks = p_via->t2_shift_last_fire_cycles;
+  p_state->T1C_raw = via_get_t1c_raw(p_via);
+  p_state->T2C_raw = via_get_t2c_raw(p_via);
+  p_state->shift_timer_raw = timing_get_timer_value(p_timing, shift_timer_id);
+  p_state->shift_counter = p_via->shift_counter;
+  p_state->T1L = p_via->T1L;
+  p_state->T2L = p_via->T2L;
+  p_state->IRA = p_via->IRA;
+  p_state->IRB = p_via->IRB;
+  p_state->ORB = p_via->ORB;
+  p_state->ORA = p_via->ORA;
+  p_state->DDRB = p_via->DDRB;
+  p_state->DDRA = p_via->DDRA;
+  p_state->SR = p_via->SR;
+  p_state->ACR = p_via->ACR;
+  p_state->PCR = p_via->PCR;
+  p_state->IFR = p_via->IFR;
+  p_state->IER = p_via->IER;
+  p_state->peripheral_b = p_via->peripheral_b;
+  p_state->peripheral_a = p_via->peripheral_a;
+  p_state->t1_pb7 = p_via->t1_pb7;
+  p_state->bus_value_a = p_via->bus_value_a;
+  p_state->IRA_cached = p_via->IRA_cached;
+  p_state->CA1 = p_via->CA1;
+  p_state->CA2 = p_via->CA2;
+  p_state->CB1 = p_via->CB1;
+  p_state->CB2 = p_via->CB2;
+  p_state->is_t1_firing = timing_get_firing(p_timing, p_via->t1_timer_id);
+  p_state->is_t2_firing = timing_get_firing(p_timing, p_via->t2_timer_id);
+  p_state->is_t2_running = timing_timer_is_running(p_timing,
+                                                   p_via->t2_timer_id);
+  p_state->is_shift_running = timing_timer_is_running(p_timing,
+                                                      shift_timer_id);
+}
+
+void
+via_set_state(struct via_struct* p_via, const struct via_state* p_state) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t t1_timer_id = p_via->t1_timer_id;
+  uint32_t t2_timer_id = p_via->t2_timer_id;
+  uint32_t shift_timer_id = p_via->shift_timer_id;
+
+  p_via->t1_last_fire_cycles = p_state->t1_last_fire_ticks;
+  p_via->t2_last_fire_cycles = p_state->t2_last_fire_ticks;
+  p_via->t2_shift_last_fire_cycles = p_state->t2_shift_last_fire_ticks;
+  p_via->shift_counter = p_state->shift_counter;
+  p_via->T1L = p_state->T1L;
+  p_via->T2L = p_state->T2L;
+  p_via->IRA = p_state->IRA;
+  p_via->IRB = p_state->IRB;
+  p_via->ORB = p_state->ORB;
+  p_via->ORA = p_state->ORA;
+  p_via->DDRB = p_state->DDRB;
+  p_via->DDRA = p_state->DDRA;
+  p_via->SR = p_state->SR;
+  p_via->ACR = p_state->ACR;
+  p_via->PCR = p_state->PCR;
+  p_via->IFR = p_state->IFR;
+  p_via->IER = p_state->IER;
+  p_via->peripheral_b = p_state->peripheral_b;
+  p_via->peripheral_a = p_state->peripheral_a;
+  p_via->t1_pb7 = p_state->t1_pb7;
+  p_via->bus_value_a = p_state->bus_value_a;
+  p_via->IRA_cached = p_state->IRA_cached;
+  p_via->CA1 = p_state->CA1;
+  p_via->CA2 = p_state->CA2;
+  p_via->CB1 = p_state->CB1;
+  p_via->CB2 = p_state->CB2;
+
+  /* T2 stops for pulse counting, and the shift register takes over its
+   * timing when shifting at the T2 rate.
+   */
+  if (!p_via->externally_clocked) {
+    if (p_state->is_t2_running &&
+        !timing_timer_is_running(p_timing, t2_timer_id)) {
+      (void) timing_start_timer(p_timing, t2_timer_id);
+    } else if (!p_state->is_t2_running &&
+               timing_timer_is_running(p_timing, t2_timer_id)) {
+      (void) timing_stop_timer(p_timing, t2_timer_id);
+    }
+    if (p_state->is_shift_running &&
+        !timing_timer_is_running(p_timing, shift_timer_id)) {
+      (void) timing_start_timer(p_timing, shift_timer_id);
+    } else if (!p_state->is_shift_running &&
+               timing_timer_is_running(p_timing, shift_timer_id)) {
+      (void) timing_stop_timer(p_timing, shift_timer_id);
+    }
+  }
+  via_set_t1c_raw(p_via, p_state->T1C_raw);
+  via_set_t2c_raw(p_via, p_state->T2C_raw);
+  (void) timing_set_timer_value(p_timing,
+                                shift_timer_id,
+                                p_state->shift_timer_raw);
+  (void) timing_set_firing(p_timing, t1_timer_id, p_state->is_t1_firing);
+  (void) timing_set_firing(p_timing, t2_timer_id, p_state->is_t2_firing);
+
+  via_check_interrupt(p_via);
+}

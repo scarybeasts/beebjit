@@ -2361,7 +2361,7 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_hex_int3 < 65536)) {
       debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
     } else if (!strcmp(p_command, "ss")) {
-      state_save(p_bbc, p_param_1_str);
+      state_save(p_bbc, p_param_1_str, do_irq);
     } else if (!strcmp(p_command, "d")) {
       if (parse_hex_int == -1) {
         parse_hex_int = p_debug->reg_pc;

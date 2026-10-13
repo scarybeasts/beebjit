@@ -80,6 +80,13 @@ timing_reset_total_timer_ticks(struct timing_struct* p_timing) {
   p_timing->total_timer_ticks = 0;
 }
 
+void
+timing_set_total_timer_ticks(struct timing_struct* p_timing, uint64_t ticks) {
+  p_timing->total_timer_ticks = ticks;
+  /* Keep the odd / even tracking in step with the new tick count. */
+  timing_set_countdown(p_timing, p_timing->countdown);
+}
+
 static inline uint64_t
 timing_get_countdown_adjustment(struct timing_struct* p_timing) {
   assert(p_timing->next_timer_expiry >= p_timing->countdown);

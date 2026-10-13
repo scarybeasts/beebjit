@@ -27,4 +27,20 @@ void adc_set_channel_value(struct adc_struct* p_adc,
                            uint32_t channel,
                            uint16_t value);
 
+/* To carry on exactly after a state save and load. It is stored in state
+ * files as is, so a change to it needs a new state version.
+ */
+struct adc_state {
+  int64_t conversion_ticks_left;
+  uint16_t channel_value[4];
+  uint8_t current_channel;
+  uint8_t is_input_flag;
+  uint8_t is_12bit_mode;
+  uint8_t is_busy;
+  uint8_t is_result_ready;
+};
+
+void adc_get_state(struct adc_struct* p_adc, struct adc_state* p_state);
+void adc_set_state(struct adc_struct* p_adc, const struct adc_state* p_state);
+
 #endif /* BEEBJIT_ADC_H */

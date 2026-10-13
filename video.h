@@ -95,4 +95,49 @@ void video_get_crtc_state(struct video_struct* p_video,
                           int* p_is_in_vert_adjust,
                           int* p_is_in_dummy_raster);
 
+/* The 6845 state besides its registers, to carry on exactly after a state
+ * save and load. It is stored in state files as is, so a change to it needs
+ * a new state version.
+ */
+struct video_state {
+  uint64_t crtc_frames;
+  int64_t last_vsync_raise_ticks;
+  int64_t last_vsync_lower_ticks;
+  uint32_t address_counter;
+  uint32_t address_counter_saved;
+  uint32_t display_enable_bits;
+  uint32_t start_of_line_state_checks;
+  int32_t cursor_skew_counter;
+  int32_t via_ca1_irq_level;
+  uint8_t crtc_address_register;
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint8_t vert_adjust_counter;
+  uint8_t vsync_scanline_counter;
+  uint8_t hsync_tick_counter;
+  uint8_t is_odd_frame;
+  uint8_t is_vert_adjust_pending;
+  uint8_t is_in_vert_adjust;
+  uint8_t in_vsync;
+  uint8_t is_even_vsync;
+  uint8_t is_odd_vsync;
+  uint8_t in_hsync;
+  uint8_t in_dummy_raster;
+  uint8_t had_odd_vsync_this_row;
+  uint8_t had_even_vsync_this_row;
+  uint8_t has_hit_cursor_line_start;
+  uint8_t has_hit_cursor_line_end;
+  uint8_t is_end_of_main_latched;
+  uint8_t is_end_of_vert_adjust_latched;
+  uint8_t is_end_of_frame_latched;
+  uint8_t is_first_frame_scanline;
+  uint8_t dispen_shifts[3];
+};
+
+void video_get_state(struct video_struct* p_video, struct video_state* p_state);
+/* Also reschedules the next video event, from the restored state. */
+void video_set_state(struct video_struct* p_video,
+                     const struct video_state* p_state);
+
 #endif /* BEEBJIT_VIDEO_H */

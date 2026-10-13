@@ -1,19 +1,25 @@
 #include "state.h"
 
+#include "adc.h"
 #include "bbc.h"
 #include "log.h"
+#include "mc6850.h"
+#include "serial_ula.h"
 #include "sound.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
 
 #include <assert.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <string.h>
 
 enum {
   k_snapshot_size = 327885,
+  k_state_beebjit_ram_offset = 0x8000,
 };
 
 struct bem_v2x {
@@ -106,6 +112,69 @@ struct bem_v2x {
   uint16_t sn_shift;
 } __attribute__((packed));
 
+/* What the B-em fields can't hold, so that a load carries on exactly where the
+ * save was taken. It goes in the second half of the 64k RAM field: B-em and
+ * jsbeeb load that into RAM a model B never maps, and older beebjit reads only
+ * the first 32k, so the file stays a B-em 2.x snapshot.
+ * The signature carries the version: change it if anything in here changes.
+ */
+struct state_beebjit {
+  uint8_t signature[8];
+  uint32_t size;
+  uint32_t crc32;
+  uint64_t ticks;
+  uint64_t cycles;
+  struct via_state sysvia;
+  struct via_state uservia;
+  struct video_state video;
+  struct adc_state adc;
+  struct sound_bus_state sound;
+  struct mc6850_state serial;
+  struct serial_ula_state serial_ula;
+  uint8_t is_irq_next;
+};
+
+static const char* k_p_state_beebjit_signature = "BEEBJIT1";
+
+static uint32_t
+state_beebjit_crc32(struct bem_v2x* p_bem, struct state_beebjit* p_beebjit) {
+  uint8_t* p_bem_bytes = (uint8_t*) p_bem;
+  size_t ram_offset = offsetof(struct bem_v2x, ram);
+  size_t chips_offset = offsetof(struct bem_v2x, sysvia_ora);
+  size_t data_offset = offsetof(struct state_beebjit, ticks);
+  uint32_t crc = util_crc32_init();
+
+  /* Include the B-em fields this refines, so that it is ignored if something
+   * else changed them.
+   */
+  crc = util_crc32_add(crc, (p_bem_bytes + 8), (ram_offset - 8));
+  crc = util_crc32_add(crc,
+                       (p_bem_bytes + chips_offset),
+                       (k_snapshot_size - chips_offset));
+  crc = util_crc32_add(crc,
+                       ((uint8_t*) p_beebjit + data_offset),
+                       (sizeof(struct state_beebjit) - data_offset));
+  return util_crc32_finish(crc);
+}
+
+static int
+state_beebjit_read(struct state_beebjit* p_beebjit, struct bem_v2x* p_bem) {
+  (void) memcpy(p_beebjit,
+                &p_bem->ram[k_state_beebjit_ram_offset],
+                sizeof(struct state_beebjit));
+  if (memcmp(p_beebjit->signature, k_p_state_beebjit_signature, 8) != 0) {
+    return 0;
+  }
+  if ((p_beebjit->size != sizeof(struct state_beebjit)) ||
+      (p_beebjit->crc32 != state_beebjit_crc32(p_bem, p_beebjit))) {
+    log_do_log(k_log_misc,
+               k_log_warning,
+               "beebjit state doesn't match, loading B-em fields only");
+    return 0;
+  }
+  return 1;
+}
+
 static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
@@ -142,6 +211,8 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   uint8_t last_channel;
   uint8_t t1_pb7;
   size_t i;
+  struct state_beebjit beebjit;
+  int has_beebjit;
 
   struct sound_struct* p_sound = bbc_get_sound(p_bbc);
   struct video_struct* p_video = bbc_get_video(p_bbc);
@@ -152,6 +223,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   state_read(snapshot, p_file_name);
 
   p_bem = (struct bem_v2x*) snapshot;
+  has_beebjit = state_beebjit_read(&beebjit, p_bem);
 
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
@@ -211,7 +283,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->sysvia_ifr,
                     p_bem->sysvia_ier,
                     0,
-                    p_bem->sysvia_IC32,
+                    0xFF,
                     p_bem->sysvia_t1c,
                     p_bem->sysvia_t1l,
                     p_bem->sysvia_t2c,
@@ -232,7 +304,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->uservia_ifr,
                     p_bem->uservia_ier,
                     0,
-                    0,
+                    0xFF,
                     p_bem->uservia_t1c,
                     p_bem->uservia_t1l,
                     p_bem->uservia_t2c,
@@ -240,6 +312,9 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->uservia_t1hit,
                     p_bem->uservia_t2hit,
                     t1_pb7);
+
+  /* Selects the screen wrap, the keyboard and the sn76489 write enable. */
+  bbc_set_IC32(p_bbc, p_bem->sysvia_IC32);
 
   /* b-em stores channels in the inverse order: channel 0 is noise. We use
    * channel 3 is noise, matching the raw registers.
@@ -276,12 +351,34 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                   ((p_bem->sn_noise & 0x04) >> 2),
                   (p_bem->sn_noise & 0x03),
                   p_bem->sn_shift);
+
+  if (!has_beebjit) {
+    return;
+  }
+
+  /* Carry on from the tick the state was saved at, with every timer and the
+   * next video event where they were.
+   */
+  timing_set_total_timer_ticks(bbc_get_timing(p_bbc), beebjit.ticks);
+  state_6502_set_cycles(p_state_6502, beebjit.cycles);
+  video_set_state(p_video, &beebjit.video);
+  via_set_state(p_system_via, &beebjit.sysvia);
+  via_set_state(p_user_via, &beebjit.uservia);
+  adc_set_state(bbc_get_adc(p_bbc), &beebjit.adc);
+  sound_set_bus_state(p_sound, &beebjit.sound);
+  /* The serial ULA sets the ACIA's lines, then the ACIA takes its own state. */
+  serial_ula_set_state(bbc_get_serial_ula(p_bbc), &beebjit.serial_ula);
+  mc6850_set_state(bbc_get_serial(p_bbc), &beebjit.serial);
+  state_6502_set_irq_at_entry(p_state_6502, beebjit.is_irq_next);
 }
 
 void
-state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
+state_save(struct bbc_struct* p_bbc,
+           const char* p_file_name,
+           int is_irq_next) {
   struct bem_v2x* p_bem;
   uint8_t snapshot[k_snapshot_size];
+  struct state_beebjit beebjit;
   uint8_t unused_u8;
   uint8_t volumes[4];
   uint16_t periods[4];
@@ -352,7 +449,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_ifr,
                     &p_bem->sysvia_ier,
                     &unused_u8,
-                    &p_bem->sysvia_IC32,
+                    &unused_u8,
                     &p_bem->sysvia_t1c,
                     &p_bem->sysvia_t1l,
                     &p_bem->sysvia_t2c,
@@ -397,6 +494,40 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->uservia_t1l <<= 1;
   p_bem->uservia_t2l <<= 1;
 
+  p_bem->sysvia_IC32 = bbc_get_IC32(p_bbc);
+
+  (void) memset(&beebjit, '\0', sizeof(beebjit));
+  (void) memcpy(beebjit.signature, k_p_state_beebjit_signature, 8);
+  beebjit.size = sizeof(struct state_beebjit);
+  beebjit.ticks = timing_get_total_timer_ticks(bbc_get_timing(p_bbc));
+  beebjit.cycles = state_6502_get_cycles(p_state_6502);
+  video_get_state(p_video, &beebjit.video);
+  via_get_state(p_system_via, &beebjit.sysvia);
+  via_get_state(p_user_via, &beebjit.uservia);
+  adc_get_state(bbc_get_adc(p_bbc), &beebjit.adc);
+  /* This also brings the sn76489 up to date for its b-em fields below. */
+  sound_get_bus_state(p_sound, &beebjit.sound);
+  mc6850_get_state(bbc_get_serial(p_bbc), &beebjit.serial);
+  serial_ula_get_state(bbc_get_serial_ula(p_bbc), &beebjit.serial_ula);
+  beebjit.is_irq_next = is_irq_next;
+
+  /* Fill in the B-em fields that the above makes available. */
+  p_bem->sysvia_ira = beebjit.sysvia.IRA;
+  p_bem->sysvia_irb = beebjit.sysvia.IRB;
+  p_bem->sysvia_ca1 = beebjit.sysvia.CA1;
+  p_bem->sysvia_ca2 = beebjit.sysvia.CA2;
+  p_bem->uservia_ira = beebjit.uservia.IRA;
+  p_bem->uservia_irb = beebjit.uservia.IRB;
+  p_bem->uservia_ca1 = beebjit.uservia.CA1;
+  p_bem->uservia_ca2 = beebjit.uservia.CA2;
+  p_bem->crtc_vc = beebjit.video.vert_counter;
+  p_bem->crtc_sc = beebjit.video.scanline_counter;
+  p_bem->crtc_hc = beebjit.video.horiz_counter;
+  p_bem->crtc_ma_low = (beebjit.video.address_counter & 0xFF);
+  p_bem->crtc_ma_high = (beebjit.video.address_counter >> 8);
+  p_bem->crtc_maback_low = (beebjit.video.address_counter_saved & 0xFF);
+  p_bem->crtc_maback_high = (beebjit.video.address_counter_saved >> 8);
+
   sound_get_state(p_sound,
                   &volumes[0],
                   &periods[0],
@@ -427,6 +558,11 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->sn_noise = (noise_type << 2);
   p_bem->sn_noise |= noise_frequency;
   p_bem->sn_shift = noise_rng;
+
+  beebjit.crc32 = state_beebjit_crc32(p_bem, &beebjit);
+  (void) memcpy(&p_bem->ram[k_state_beebjit_ram_offset],
+                &beebjit,
+                sizeof(beebjit));
 
   util_file_write_fully(p_file_name, snapshot, k_snapshot_size);
 }

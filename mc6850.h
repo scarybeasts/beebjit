@@ -33,4 +33,28 @@ void mc6850_receive_bit(struct mc6850_struct* p_serial, int bit);
 int mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte);
 uint8_t mc6850_transmit(struct mc6850_struct* p_serial);
 
+/* To carry on exactly after a state save and load. It is stored in state
+ * files as is, so a change to it needs a new state version.
+ */
+struct mc6850_state {
+  uint32_t receive_sr_count;
+  uint32_t clock_divide_counter;
+  uint8_t status;
+  uint8_t control;
+  uint8_t receive;
+  uint8_t transmit;
+  uint8_t receive_state;
+  uint8_t receive_sr;
+  uint8_t parity_accumulator;
+  uint8_t is_sr_parity_error;
+  uint8_t is_sr_framing_error;
+  uint8_t is_sr_overflow;
+  uint8_t is_DCD;
+};
+
+void mc6850_get_state(struct mc6850_struct* p_serial,
+                      struct mc6850_state* p_state);
+void mc6850_set_state(struct mc6850_struct* p_serial,
+                      const struct mc6850_state* p_state);
+
 #endif /* BEEBJIT_MC6850_H */

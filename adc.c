@@ -260,3 +260,56 @@ adc_set_channel_value(struct adc_struct* p_adc,
 
   adc_recalculate_read(p_adc);
 }
+
+void
+adc_get_state(struct adc_struct* p_adc, struct adc_state* p_state) {
+  uint32_t i;
+  int64_t ticks_left = 0;
+
+  if (p_adc->state.is_busy) {
+    if (!p_adc->is_externally_clocked) {
+      ticks_left = timing_get_timer_value(p_adc->p_timing, p_adc->timer_id);
+    } else {
+      ticks_left = (p_adc->state.wall_time_wakeup - p_adc->state.wall_time);
+      ticks_left *= 2;
+    }
+  }
+  p_state->conversion_ticks_left = ticks_left;
+  for (i = 0; i < k_adc_num_channels; ++i) {
+    p_state->channel_value[i] = p_adc->state.channel_value[i];
+  }
+  p_state->current_channel = p_adc->state.current_channel;
+  p_state->is_input_flag = p_adc->state.is_input_flag;
+  p_state->is_12bit_mode = p_adc->state.is_12bit_mode;
+  p_state->is_busy = p_adc->state.is_busy;
+  p_state->is_result_ready = p_adc->state.is_result_ready;
+}
+
+void
+adc_set_state(struct adc_struct* p_adc, const struct adc_state* p_state) {
+  uint32_t i;
+
+  adc_stop_if_busy(p_adc);
+
+  for (i = 0; i < k_adc_num_channels; ++i) {
+    p_adc->state.channel_value[i] = p_state->channel_value[i];
+  }
+  p_adc->state.current_channel = (p_state->current_channel & 3);
+  p_adc->state.is_input_flag = p_state->is_input_flag;
+  p_adc->state.is_12bit_mode = p_state->is_12bit_mode;
+  p_adc->state.is_result_ready = p_state->is_result_ready;
+  /* A conversion in progress finishes when it would have. */
+  if (p_state->is_busy) {
+    if (!p_adc->is_externally_clocked) {
+      (void) timing_start_timer_with_value(p_adc->p_timing,
+                                           p_adc->timer_id,
+                                           p_state->conversion_ticks_left);
+    } else {
+      p_adc->state.wall_time_wakeup = p_adc->state.wall_time;
+      p_adc->state.wall_time_wakeup += (p_state->conversion_ticks_left / 2);
+    }
+    p_adc->state.is_busy = 1;
+  }
+
+  adc_recalculate_read(p_adc);
+}
