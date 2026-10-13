@@ -18,6 +18,13 @@ echo 'Checking E00 DFS ROM in sideways RAM.'
     -autoboot \
     -commands 'b 1900;c;q'
 
+echo 'Checking debugger PC change.'
+# This stops at the RESET entry, a 2 byte LDA #, points PC at a NOP at $2000
+# and steps once. The NOP must run, leaving PC at $2001.
+./beebjit -headless -debug -mode interp \
+    -commands "writem 2000 ea;eval pc=0x2000;s;eval '(pc==0x2001)||bail';q" \
+    > /dev/null
+
 echo 'Checking 6502 instruction timings (with cycle stretch).'
 # The test itself writes the number of failures to $FCD0, so breakpoint
 # expressions are used to trap and consider the write.
