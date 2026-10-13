@@ -172,4 +172,12 @@ fi
     > /dev/null
 rm -f "$TMP_MEM"
 
+# This checks that a key pressed in the debugger reaches the keyboard before
+# the next instruction. At the BASIC prompt the keyboard is in auto-scan, so
+# the key shows at once as a CA2 interrupt flag in the system VIA.
+echo 'Checking debugger keydown.'
+./beebjit -headless -fast -debug \
+    -commands "breakat 2000000;c;keydown 90;eval '(sysvia_r[13]&1)||bail';q" \
+    > /dev/null
+
 echo 'Functional tests OK.'
