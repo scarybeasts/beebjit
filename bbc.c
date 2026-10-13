@@ -2686,6 +2686,13 @@ bbc_set_memory_block(struct bbc_struct* p_bbc,
                      uint32_t len,
                      uint8_t* p_src_mem) {
   size_t count = 0;
+  /* Integer overflow check. */
+  if ((addr + len) < addr) {
+    len = k_6502_addr_space_size;
+  }
+  if ((addr + len) > k_6502_addr_space_size) {
+    len = (k_6502_addr_space_size - addr);
+  }
   while (count < len) {
     bbc_memory_write(p_bbc, addr, p_src_mem[count]);
     count++;

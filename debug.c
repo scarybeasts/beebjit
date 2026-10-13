@@ -1096,6 +1096,10 @@ debug_load_raw(struct debug_struct* p_debug,
   len = util_file_read(p_file, buf, sizeof(buf));
   util_file_close(p_file);
 
+  /* Integer overflow check. */
+  if ((addr_6502 + len) < addr_6502) {
+    len = k_6502_addr_space_size;
+  }
   if ((addr_6502 + len) > k_6502_addr_space_size) {
     len = (k_6502_addr_space_size - addr_6502);
   }
@@ -1111,6 +1115,10 @@ debug_save_raw(struct debug_struct* p_debug,
   struct util_file* p_file;
   uint8_t* p_mem_read = p_debug->p_mem_read;
 
+  /* Integer overflow check. */
+  if ((addr_6502 + length) < addr_6502) {
+    length = k_6502_addr_space_size;
+  }
   if ((addr_6502 + length) > k_6502_addr_space_size) {
     length = (k_6502_addr_space_size - addr_6502);
   }
@@ -2352,17 +2360,18 @@ debug_callback_common(struct debug_struct* p_debug,
       }
     } else if (!strcmp(p_command, "inv") &&
                (parse_int >= 0) &&
-               (parse_int < 65536)) {
+               (parse_int < k_6502_addr_space_size)) {
+      /* Invalidate a memory location by writing to it. Used for JIT testing. */
       bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
     } else if (!strcmp(p_command, "loadmem") &&
                (parse_hex_int2 >= 0) &&
-               (parse_hex_int2 < 65536)) {
+               (parse_hex_int2 < k_6502_addr_space_size)) {
       debug_load_raw(p_debug, p_param_1_str, parse_hex_int2);
     } else if (!strcmp(p_command, "savemem") &&
                (parse_hex_int2 >= 0) &&
-               (parse_hex_int2 < 65536) &&
+               (parse_hex_int2 < k_6502_addr_space_size) &&
                (parse_hex_int3 >= 0) &&
-               (parse_hex_int3 <= 65536)) {
+               (parse_hex_int3 <= k_6502_addr_space_size)) {
       debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
     } else if (!strcmp(p_command, "ss")) {
       state_save(p_bbc, p_param_1_str);
