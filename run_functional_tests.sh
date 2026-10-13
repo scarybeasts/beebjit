@@ -106,7 +106,7 @@ echo 'Checking NuLA palette.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q" \
+    -commands "breakat 22000000;c;keydown 90;breakat 23960000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q" \
     > /dev/null
 
 # This checks a replay of a 100% Nightworld run.
