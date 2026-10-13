@@ -7,7 +7,8 @@ echo 'Checking Nightshade protection.'
 ./beebjit -0 test/misc/protection.ssd \
     -mode jit \
     -headless -fast -accurate -debug \
-    -commands 'breakat 1000000;c;writem 03e0 43 48 2e 22 42 2e 4e 49 47 48 54 53 48 22 0d;writem 02e1 ef;b e00;c;q'
+    -commands 'breakat 1000000;c;writem 03e0 43 48 2e 22 42 2e 4e 49 47 48 54 53 48 22 0d;writem 02e1 ef;b e00;c;q' \
+    > /dev/null
 
 echo 'Checking E00 DFS ROM in sideways RAM.'
 # This uses raster-c.ssd for convenience because it has a !BOOT and cleanly
@@ -16,7 +17,8 @@ echo 'Checking E00 DFS ROM in sideways RAM.'
     -mode jit \
     -headless -fast -accurate -debug \
     -autoboot \
-    -commands 'b 1900;c;q'
+    -commands 'b 1900;c;q' \
+    > /dev/null
 
 echo 'Checking 6502 instruction timings (with cycle stretch).'
 # The test itself writes the number of failures to $FCD0, so breakpoint
@@ -25,7 +27,8 @@ echo 'Checking 6502 instruction timings (with cycle stretch).'
     -mode jit \
     -headless -fast -accurate -debug \
     -autoboot \
-    -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
+    -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c" \
+    > /dev/null
 
 echo 'Checking 65C12 instruction timings (with cycle stretch).'
 ./beebjit -0 test/misc/65C12timing1M.ssd \
@@ -33,7 +36,8 @@ echo 'Checking 65C12 instruction timings (with cycle stretch).'
     -mode interp \
     -headless -fast -accurate -debug \
     -autoboot \
-    -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
+    -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c" \
+    > /dev/null
 
 echo 'Checking RVI rendering.'
 # This checks the framebuffer looks as expected, once the Bitshifters RVI
@@ -44,13 +48,15 @@ echo 'Checking RVI rendering.'
     -autoboot \
     -fast -accurate -debug \
     -opt video:always-render \
-    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q"
+    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
+    > /dev/null
 ./beebjit -0 test/display/raster-c.ssd \
     -mode jit \
     -autoboot \
     -fast -accurate -debug \
     -opt video:always-render \
-    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q"
+    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
+    > /dev/null
 
 # This checks the framebuffer looks as expected, in an RVI test case that uses
 # teletext output to implement pre-line blanking.
@@ -59,7 +65,8 @@ echo 'Checking RVI rendering.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 6500000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x16d251fe)||bail';q"
+    -commands "breakat 6500000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x16d251fe)||bail';q" \
+    > /dev/null
 
 # This checks the display accuracy of a gnarly MODE1 + MODE7 test case that
 # hits corner cases with 2MHz teletext operation, non-rounded teletext
@@ -68,7 +75,8 @@ echo 'Checking RVI rendering.'
     -mode interp \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x646f907a)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x646f907a)||bail';q" \
+    > /dev/null
 
 # This checks some teletext state machine corner cases.
 echo 'Checking teletext rendering.'
@@ -76,7 +84,8 @@ echo 'Checking teletext rendering.'
     -mode jit \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2550000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd1431641)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2550000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd1431641)||bail';q" \
+    > /dev/null
 
 # This checks some 6845 end-of-frame logic that can render an unexpected
 # blank scanline.
@@ -86,7 +95,8 @@ echo 'Checking unexpected scanline.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 9000000;c;b expr 'render_y == 621';c;eval '(frame_buffer_crc32==0xe5a2ca70)||bail';q"
+    -commands "breakat 9000000;c;b expr 'render_y == 621';c;eval '(frame_buffer_crc32==0xe5a2ca70)||bail';q" \
+    > /dev/null
 
 # This checks the simple NuLA support.
 echo 'Checking NuLA palette.'
@@ -96,14 +106,16 @@ echo 'Checking NuLA palette.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q"
+    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q" \
+    > /dev/null
 
 # This checks a replay of a 100% Nightworld run.
 # It breaks at the time the game is writing the "G" of "GAME END".
 ./beebjit -0 test/games/Disc012-Nightworld.ssd \
     -replay test/caps/nw16.cap \
     -fast -accurate -mode jit \
-    -commands "breakat 2110319378;c;eval '(pc==0xCFB7)||bail';eval '(a==0xE8)||bail';q"
+    -commands "breakat 2110319378;c;eval '(pc==0xCFB7)||bail';eval '(a==0xE8)||bail';q" \
+    > /dev/null
 
 # This checks that the teletext data pipeline is still fed in bitmapped modes.
 echo 'Checking teletext data pipeline.'
@@ -112,7 +124,8 @@ echo 'Checking teletext data pipeline.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 2000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x3156b9d1)||bail';q"
+    -commands "breakat 2000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x3156b9d1)||bail';q" \
+    > /dev/null
 
 # Check teletext in fast mode because it gets broken all the time.
 echo 'Checking teletext rendering, fast mode.'
@@ -120,7 +133,8 @@ echo 'Checking teletext rendering, fast mode.'
     -mode jit \
     -debug -fast \
     -opt video:paint-start-cycles=3000000 \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 3100000;c;eval '(frame_buffer_crc32==0xd1431641)||bail';q"
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 3100000;c;eval '(frame_buffer_crc32==0xd1431641)||bail';q" \
+    > /dev/null
 
 # This checks the rendering of ANDY and HAZEL on the BBC Master.
 echo 'Checking ANDY / HAZEL render.'
@@ -129,7 +143,8 @@ echo 'Checking ANDY / HAZEL render.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x21c558e5)||bail';q"
+    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x21c558e5)||bail';q" \
+    > /dev/null
 
 echo 'Checking ANDY / HAZEL non-render.'
 ./beebjit -0 test/display/shadow_paged_not_displayed.ssd \
@@ -137,7 +152,8 @@ echo 'Checking ANDY / HAZEL non-render.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x9cd725cd)||bail';q"
+    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x9cd725cd)||bail';q" \
+    > /dev/null
 
 # This checks that all 64k of memory saves in one go and loads back.
 echo 'Checking savemem / loadmem of 64k.'
@@ -148,7 +164,7 @@ TMP_MEM=$(mktemp)
 SAVEMEM_SIZE=$(wc -c < "$TMP_MEM")
 if [ "$SAVEMEM_SIZE" -ne 65536 ]; then
   rm -f "$TMP_MEM"
-  echo "savemem file size $SAVEMEM_SIZE, expected 65536"
+  echo "FAIL: savemem file size $SAVEMEM_SIZE, expected 65536"
   exit 1
 fi
 ./beebjit -headless -debug \
