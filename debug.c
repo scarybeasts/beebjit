@@ -2506,9 +2506,12 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "keydown")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_pressed(p_keyboard, (uint8_t) parse_int);
+      /* Apply the key now, so that the next instruction sees it. */
+      keyboard_read_queue(p_keyboard);
     } else if (!strcmp(p_command, "keyup")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_released(p_keyboard, (uint8_t) parse_int);
+      keyboard_read_queue(p_keyboard);
     } else if (!strcmp(p_command, "?") ||
                !strcmp(p_command, "help") ||
                !strcmp(p_command, "h")) {

@@ -96,7 +96,15 @@ echo 'Checking NuLA palette.'
     -autoboot \
     -debug -fast -accurate \
     -opt video:always-render \
-    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q"
+    -commands "breakat 22000000;c;keydown 90;breakat 24000000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0xbccf4422)||bail';q"
+
+# This checks that a key pressed in the debugger reaches the keyboard before
+# the next instruction. At the BASIC prompt the keyboard is in auto-scan, so
+# the key shows at once as a CA2 interrupt flag in the system VIA.
+echo 'Checking debugger keydown.'
+./beebjit -headless -fast -debug \
+    -commands "breakat 2000000;c;keydown 90;eval '(sysvia_r[13]&1)||bail';q" \
+    > /dev/null
 
 # This checks a replay of a 100% Nightworld run.
 # It breaks at the time the game is writing the "G" of "GAME END".
