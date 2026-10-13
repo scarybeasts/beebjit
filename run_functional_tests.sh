@@ -35,6 +35,20 @@ echo 'Checking 65C12 instruction timings (with cycle stretch).'
     -autoboot \
     -commands "b expr 'addr==0xfcd0 && is_write && a!=0' commands 'bail';b expr 'addr==0xfcd0 && is_write && a==0' commands 'q';c"
 
+# This checks that savecounts writes every address run during boot, which is
+# far more than the 256 that ds shows. $D9CF is run once, early in RESET.
+echo 'Checking savecounts.'
+TMP_COUNTS=$(mktemp)
+./beebjit -headless -fast -debug \
+    -commands "stats;breakat 2000000;c;savecounts $TMP_COUNTS;q" > /dev/null
+COUNTS_LINES=$(wc -l < "$TMP_COUNTS")
+if [ "$COUNTS_LINES" -le 256 ] || ! grep -q '^D9CF: 1$' "$TMP_COUNTS"; then
+  rm -f "$TMP_COUNTS"
+  echo "savecounts wrote $COUNTS_LINES lines, expected every address run"
+  exit 1
+fi
+rm -f "$TMP_COUNTS"
+
 echo 'Checking RVI rendering.'
 # This checks the framebuffer looks as expected, once the Bitshifters RVI
 # technique is loaded and running.

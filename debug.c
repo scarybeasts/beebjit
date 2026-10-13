@@ -1078,6 +1078,35 @@ debug_check_unusual(struct debug_struct* p_debug,
 }
 
 static void
+debug_save_counts(struct debug_struct* p_debug, const char* p_file_name) {
+  struct util_file* p_file;
+  size_t i;
+
+  p_file = util_file_try_open(p_file_name, 1, 1);
+  if (p_file == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "cannot open file %s", p_file_name);
+    return;
+  }
+
+  /* Every address executed while stats were on, in address order. */
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    char buf[32];
+    uint64_t count = p_debug->count_addr[i];
+    if (!count) {
+      continue;
+    }
+    (void) snprintf(buf,
+                    sizeof(buf),
+                    "%.4"PRIX16": %"PRIu64"\n",
+                    (uint16_t) i,
+                    count);
+    util_file_write(p_file, buf, strlen(buf));
+  }
+
+  util_file_close(p_file);
+}
+
+static void
 debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
@@ -2354,6 +2383,9 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_hex_int2 >= 0) &&
                (parse_hex_int2 < 65536)) {
       debug_load_raw(p_debug, p_param_1_str, parse_hex_int2);
+    } else if (!strcmp(p_command, "savecounts") &&
+               (p_param_1_str != NULL)) {
+      debug_save_counts(p_debug, p_param_1_str);
     } else if (!strcmp(p_command, "savemem") &&
                (parse_hex_int2 >= 0) &&
                (parse_hex_int2 < 65536) &&
@@ -2528,6 +2560,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "writem <a> <v>     : write <v> to memory address <a>\n"
   "find <a> <l> ...   : find a byte sequence, starting at <a>, length <l>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
+  "savecounts <f>     : save stats address counts to <f> as \"ADDR: n\" lines\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
   "sys                : show system VIA registers\n"
   "user               : show user VIA registers\n"
