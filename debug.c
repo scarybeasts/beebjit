@@ -1096,6 +1096,10 @@ debug_load_raw(struct debug_struct* p_debug,
   len = util_file_read(p_file, buf, sizeof(buf));
   util_file_close(p_file);
 
+  if ((addr_6502 + len) > k_6502_addr_space_size) {
+    len = (k_6502_addr_space_size - addr_6502);
+  }
+
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }
 
@@ -1103,7 +1107,7 @@ static void
 debug_save_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502,
-               uint16_t length) {
+               uint32_t length) {
   struct util_file* p_file;
   uint8_t* p_mem_read = p_debug->p_mem_read;
 
@@ -2358,7 +2362,7 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_hex_int2 >= 0) &&
                (parse_hex_int2 < 65536) &&
                (parse_hex_int3 >= 0) &&
-               (parse_hex_int3 < 65536)) {
+               (parse_hex_int3 <= 65536)) {
       debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
     } else if (!strcmp(p_command, "ss")) {
       state_save(p_bbc, p_param_1_str);
