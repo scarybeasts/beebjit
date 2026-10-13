@@ -2683,7 +2683,7 @@ bbc_get_mem_write(struct bbc_struct* p_bbc) {
 void
 bbc_set_memory_block(struct bbc_struct* p_bbc,
                      uint16_t addr,
-                     uint16_t len,
+                     uint32_t len,
                      uint8_t* p_src_mem) {
   size_t count = 0;
   while (count < len) {
