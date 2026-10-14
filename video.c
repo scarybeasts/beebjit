@@ -113,7 +113,6 @@ struct video_struct {
   uint32_t frame_skip_counter;
   int opt_is_always_clear_frame_buffer;
   int opt_is_show_frame_boundaries;
-  int opt_is_hack_legacy_quest_cap;
   int opt_is_hack_legacy_shift_mode7;
   int opt_is_always_render;
 
@@ -489,14 +488,6 @@ video_update_VSYNC(struct video_struct* p_video, uint64_t ticks) {
     is_new_vsync = p_video->is_even_vsync;
   } else {
     is_new_vsync = p_video->is_odd_vsync;
-  }
-
-  if (p_video->opt_is_hack_legacy_quest_cap) {
-    if (p_video->is_interlace && (p_video->crtc_frames & 1)) {
-      is_new_vsync = p_video->is_even_vsync;
-    } else {
-      is_new_vsync = p_video->is_odd_vsync;
-    }
   }
 
   if (is_new_vsync == p_video->in_vsync) {
@@ -1473,8 +1464,6 @@ video_create(uint8_t* p_bbc_mem,
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
   p_video->opt_is_show_frame_boundaries = util_has_option(
       p_options->p_opt_flags, "video:frame-boundaries");
-  p_video->opt_is_hack_legacy_quest_cap = util_has_option(
-      p_options->p_opt_flags, "video:hack-legacy-quest-cap");
   p_video->opt_is_hack_legacy_shift_mode7 = util_has_option(
       p_options->p_opt_flags, "video:hack-legacy-shift-mode7");
   p_video->opt_is_always_render = util_has_option(
