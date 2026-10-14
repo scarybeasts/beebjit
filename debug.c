@@ -852,8 +852,9 @@ debug_clear_stats(struct debug_struct* p_debug) {
 }
 
 static void
-debug_dump_stats(struct debug_struct* p_debug) {
+debug_dump_stats(struct debug_struct* p_debug, int is_full) {
   size_t i;
+  uint32_t addrs_start;
   uint8_t sorted_opcodes[k_6502_op_num_opcodes];
   uint16_t sorted_addrs[k_6502_addr_space_size];
 
@@ -890,8 +891,12 @@ debug_dump_stats(struct debug_struct* p_debug) {
         k_6502_addr_space_size,
         sizeof(uint16_t),
         debug_sort_addrs);
+  addrs_start = (k_6502_addr_space_size - 256);
+  if (is_full) {
+    addrs_start = 0;
+  }
   (void) printf("=== Addrs ===\n");
-  for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
+  for (i = addrs_start; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
     uint64_t count = p_debug->count_addr[addr];
     if (!count) {
@@ -2192,7 +2197,8 @@ debug_callback_common(struct debug_struct* p_debug,
       p_debug->stats = !p_debug->stats;
       (void) printf("stats now: %d\n", p_debug->stats);
     } else if (!strcmp(p_command, "ds")) {
-      debug_dump_stats(p_debug);
+      int is_full = (parse_int >= 1);
+      debug_dump_stats(p_debug, is_full);
     } else if (!strcmp(p_command, "cs")) {
       debug_clear_stats(p_debug);
     } else if (!strcmp(p_command, "s") || !strcmp(p_command, "step")) {
