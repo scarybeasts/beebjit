@@ -1476,7 +1476,7 @@ bbc_get_write_jit_encoding(void* p,
   case 0xFE00:
     is_call = 0;
     param_offset = 0xC8;
-    field_offset = 0x122;
+    field_offset = 0x11A;
     break;
   case 0xFE01:
     param_offset = 0xC8;
