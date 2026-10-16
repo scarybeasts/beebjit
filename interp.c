@@ -1201,6 +1201,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
        * be visible as stack and timing artifacts. b2 looks likely to be
        * correct as it is a much more low level 6502 emulation.
        */
+      assert(!(special_checks & k_interp_special_KIL));
       temp_u8 = 0;
       addr = k_6502_vector_irq;
       if (!do_irq) {
