@@ -2969,7 +2969,9 @@ check_irq:
                             cpu_driver_flags);
           state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
           interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+
           do_irq = 0;
+          special_checks &= ~(k_interp_special_KIL | k_interp_special_poll_irq);
 
           countdown = timing_get_countdown(p_timing);
         }
