@@ -17,8 +17,7 @@ static const char* k_capture_header = "beebjit-capture";
 
 enum {
   k_keyboard_state_flag_down = 1,
-  k_keyboard_state_flag_pressed_not_released = 2,
-  k_keyboard_state_flag_unconsumed_press = 4,
+  k_keyboard_state_flag_unconsumed_press = 2,
 };
 
 enum {
@@ -387,22 +386,18 @@ keyboard_key_pressed(struct keyboard_state* p_state, uint8_t key) {
   int32_t row;
   int32_t col;
 
-  p_state->key_state[key] |= k_keyboard_state_flag_down;
-  if (!(p_state->key_state[key] & k_keyboard_state_flag_pressed_not_released)) {
-    p_state->key_state[key] |= (k_keyboard_state_flag_pressed_not_released |
-                                k_keyboard_state_flag_unconsumed_press);
+  if (!(p_state->key_state[key] & k_keyboard_state_flag_down)) {
+    p_state->key_state[key] |= k_keyboard_state_flag_unconsumed_press;
   }
+  p_state->key_state[key] |= k_keyboard_state_flag_down;
 
   if (p_state->key_state[k_keyboard_key_alt_left] &
       k_keyboard_state_flag_down) {
     /* Alt + key combos are for the emulator shell only, not the BBC. */
-    p_state->alt_key_state[key] |= k_keyboard_state_flag_down;
-    if (!(p_state->alt_key_state[key] &
-          k_keyboard_state_flag_pressed_not_released)) {
-      p_state->alt_key_state[key] |=
-          (k_keyboard_state_flag_pressed_not_released |
-           k_keyboard_state_flag_unconsumed_press);
+    if (!(p_state->alt_key_state[key] & k_keyboard_state_flag_down)) {
+      p_state->alt_key_state[key] |= k_keyboard_state_flag_unconsumed_press;
     }
+    p_state->alt_key_state[key] |= k_keyboard_state_flag_down;
     return;
   }
 
@@ -431,11 +426,8 @@ keyboard_key_released(struct keyboard_state* p_state, uint8_t key) {
   int32_t col;
   int was_pressed;
 
-  p_state->key_state[key] &= ~(k_keyboard_state_flag_down |
-                               k_keyboard_state_flag_pressed_not_released);
-  p_state->alt_key_state[key] &=
-      ~(k_keyboard_state_flag_down |
-        k_keyboard_state_flag_pressed_not_released);
+  p_state->key_state[key] &= ~k_keyboard_state_flag_down;
+  p_state->alt_key_state[key] &= ~k_keyboard_state_flag_down;
 
   keyboard_bbc_key_to_rowcol(key, &row, &col);
   if ((row < 0) || (col < 0)) {
