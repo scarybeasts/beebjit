@@ -599,6 +599,16 @@ beebjit_main(void) {
     render_create_internal_buffer(p_render);
   }
 
+  /* Links need to be set before bbc_power_on_reset(). */
+  if (keyboard_links != -1) {
+    keyboard_set_links(p_keyboard, keyboard_links);
+  }
+  for (i = 0; i < keyboard_num_remaps; i++) {
+    keyboard_add_remap(p_keyboard,
+                       keyboard_remap_from[i],
+                       keyboard_remap_to[i]);
+  }
+
   /* Do the power on reset before any of the below options that change state:
    * - Loading a state file.
    * - Setting the PC.
@@ -639,14 +649,6 @@ beebjit_main(void) {
       log_do_log(k_log_misc, k_log_info, "replay: compatability for pre-0.9.9");
       bbc_set_compat_old_1MHz_cycles(p_bbc);
     }
-  }
-  if (keyboard_links != -1) {
-    keyboard_set_links(p_keyboard, keyboard_links);
-  }
-  for (i = 0; i < keyboard_num_remaps; i++) {
-    keyboard_add_remap(p_keyboard,
-                       keyboard_remap_from[i],
-                       keyboard_remap_to[i]);
   }
 
   p_poller = os_poller_create();
