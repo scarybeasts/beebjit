@@ -1036,6 +1036,18 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   keyboard_put_key_in_queue(p_keyboard, key, 0);
 }
 
+void
+keyboard_beeb_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
+  keyboard_key_pressed(p_keyboard->p_active, key);
+  keyboard_virtual_updated(p_keyboard);
+}
+
+void
+keyboard_beeb_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
+  keyboard_key_released(p_keyboard->p_active, key);
+  keyboard_virtual_updated(p_keyboard);
+}
+
 static int
 keyboard_is_emulator_internal_key(struct keyboard_state* p_state, uint8_t key) {
   (void) p_state;
