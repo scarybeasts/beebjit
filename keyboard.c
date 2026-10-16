@@ -485,9 +485,10 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
                       uint8_t* p_keys,
                       uint8_t* p_is_downs) {
   uint64_t ticks;
-  uint64_t skip_for_keys_write;
   uint8_t total_num_keys;
-  uint64_t curr_file_pos;
+  uint8_t merged_keys[256];
+  uint8_t merged_is_downs[256];
+  uint32_t i;
   struct util_file* p_capture_file = p_keyboard->p_capture_file;
 
   if (num_keys == 0) {
@@ -503,16 +504,37 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
   /* Merge records with zero delta time since the last record.
    * This can happen in the debugger with keydown / keyup commands.
    */
-  total_num_keys = num_keys;
-  skip_for_keys_write = 0;
+  total_num_keys = 0;
   if ((p_keyboard->capture_record_pos != 0) &&
       (ticks == p_keyboard->capture_record_ticks)) {
-    util_file_seek(p_capture_file, p_keyboard->capture_record_pos);
-    if ((num_keys + p_keyboard->capture_record_num_keys) > 255) {
+    uint64_t ret;
+    uint8_t num_existing_keys = p_keyboard->capture_record_num_keys;
+    util_file_seek(p_capture_file,
+                   (p_keyboard->capture_record_pos +
+                    sizeof(ticks) +
+                    sizeof(total_num_keys)));
+    if ((num_keys + num_existing_keys) > 255) {
       util_bail("replay: too many keys when merging records");
     }
-    skip_for_keys_write = (p_keyboard->capture_record_num_keys * 2);
-    total_num_keys += p_keyboard->capture_record_num_keys;
+    ret = util_file_read(p_capture_file, &merged_keys[0], num_existing_keys);
+    if (ret != num_existing_keys) {
+      util_bail("replay: cannot read existing record");
+    }
+    ret = util_file_read(p_capture_file,
+                         &merged_is_downs[0],
+                         num_existing_keys);
+    if (ret != num_existing_keys) {
+      util_bail("replay: cannot read existing record");
+    }
+    total_num_keys = num_existing_keys;
+
+    util_file_seek(p_capture_file, p_keyboard->capture_record_pos);
+  }
+
+  for (i = 0; i < num_keys; ++i) {
+    merged_keys[total_num_keys] = p_keys[i];
+    merged_is_downs[total_num_keys] = p_is_downs[i];
+    total_num_keys++;
   }
 
   p_keyboard->capture_record_pos = util_file_get_pos(p_capture_file);
@@ -521,10 +543,8 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
 
   util_file_write(p_capture_file, &ticks, sizeof(ticks));
   util_file_write(p_capture_file, &total_num_keys, sizeof(total_num_keys));
-  curr_file_pos = util_file_get_pos(p_capture_file);
-  util_file_seek(p_capture_file, (curr_file_pos + skip_for_keys_write));
-  util_file_write(p_capture_file, p_keys, num_keys);
-  util_file_write(p_capture_file, p_is_downs, num_keys);
+  util_file_write(p_capture_file, &merged_keys[0], total_num_keys);
+  util_file_write(p_capture_file, &merged_is_downs[0], total_num_keys);
   util_file_flush(p_capture_file);
 
   if (p_keyboard->log_replay) {
@@ -539,6 +559,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
   uint64_t delta_time;
   uint8_t num_keys;
   uint64_t curr_file_pos;
+  uint32_t i;
 
   struct util_file* p_file = p_keyboard->p_replay_file;
   struct timing_struct* p_timing = p_keyboard->p_timing;
@@ -575,6 +596,12 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
   ret += util_file_read(p_file, &p_keyboard->replay_next_isdown[0], num_keys);
   if (ret != (num_keys * 2)) {
     util_bail("replay: file truncated reading keys");
+  }
+  for (i = 0; i < num_keys; ++i) {
+    uint8_t is_down = p_keyboard->replay_next_isdown[i];
+    if (is_down > 1) {
+      util_bail("replay: bad isdown value");
+    }
   }
 
   assert(timing_get_timer_value(p_timing, replay_timer_id) == 0);

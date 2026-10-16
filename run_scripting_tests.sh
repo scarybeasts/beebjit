@@ -58,10 +58,10 @@ echo 'Checking early replay event bug.'
 TMP_CAP=$(mktemp)
 ./beebjit -mode interp -headless -fast -accurate -capture $TMP_CAP \
     -commands "keydown 65;c" \
-    -cycles 1000
+    -cycles 1000 \
     > /dev/null
 ./beebjit -mode interp -headless -fast -accurate -replay $TMP_CAP \
-    -cycles 1000
+    -cycles 1000 \
     > /dev/null
 rm -f "$TMP_CAP"
 
