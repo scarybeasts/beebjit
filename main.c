@@ -654,7 +654,7 @@ beebjit_main(void) {
     util_bail("os_poller_create failed");
   }
 
-  if (!headless_flag && !util_has_option(p_opt_flags, "sound:off")) {
+  if (!util_has_option(p_opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
     uint32_t sound_sample_rate = os_sound_get_default_sample_rate();
