@@ -249,10 +249,21 @@ wd_fdc_command_done_timer(struct wd_fdc_struct* p_fdc) {
 }
 
 static void
+wd_fdc_do_settle(struct wd_fdc_struct* p_fdc) {
+  uint32_t settle_ms = k_wd_fdc_1770_settle_ms;
+  if (p_fdc->is_1772) {
+    settle_ms /= 2;
+  }
+  wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, (settle_ms * 1000));
+}
+
+static void
 wd_fdc_check_verify(struct wd_fdc_struct* p_fdc) {
   if (p_fdc->is_command_verify) {
-    p_fdc->index_pulse_count = 0;
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    /* Verify (an option on a seek) implies settle first.
+     * Confirmed on a real 1772.
+     */
+    wd_fdc_do_settle(p_fdc);
   } else {
     wd_fdc_command_done(p_fdc, 1);
   }
@@ -308,6 +319,12 @@ wd_fdc_dispatch_command(struct wd_fdc_struct* p_fdc) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
   assert(p_current_drive != NULL);
+
+  if (p_fdc->is_command_settle) {
+    wd_fdc_do_settle(p_fdc);
+    p_fdc->is_command_settle = 0;
+    return;
+  }
 
   if (p_fdc->is_command_write && disc_drive_is_write_protect(p_current_drive)) {
     p_fdc->status_register |= k_wd_fdc_status_write_protected;
@@ -369,7 +386,13 @@ wd_fdc_timer_fired(void* p) {
 
   switch (timer_state) {
   case k_wd_fdc_timer_settle:
-    wd_fdc_dispatch_command(p_fdc);
+    if (p_fdc->command_type == 1) {
+      /* For seeks, settle comes after the command as part of verify. */
+      p_fdc->index_pulse_count = 0;
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    } else {
+      wd_fdc_dispatch_command(p_fdc);
+    }
     assert(p_fdc->state != k_wd_fdc_state_timer_wait);
     break;
   case k_wd_fdc_timer_seek:
@@ -1014,6 +1037,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       break;
     }
     if (command_type == 1) {
+      /* We get here for seek commands with the verify option set. */
       wd_fdc_command_done(p_fdc, 1);
     } else if (p_fdc->is_command_write) {
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_delay);
@@ -1339,15 +1363,7 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
     if (p_fdc->command_type == 1) {
       p_fdc->status_register |= k_wd_fdc_status_type_I_spin_up_done;
     }
-    if (p_fdc->is_command_settle) {
-      uint32_t settle_ms = k_wd_fdc_1770_settle_ms;
-      if (p_fdc->is_1772) {
-        settle_ms /= 2;
-      }
-      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, (settle_ms * 1000));
-    } else {
-      wd_fdc_dispatch_command(p_fdc);
-    }
+    wd_fdc_dispatch_command(p_fdc);
     break;
   case k_wd_fdc_state_wait_index:
     if (!is_index_pulse_positive_edge) {
