@@ -1778,8 +1778,9 @@ bbc_virtual_keyboard_updated_callback(void* p) {
   (void) via_update_port_a(p_bbc->p_system_via);
 
   /* Check for BREAK key. */
-  if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12) ||
-      keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_delete)) {
+  if (keyboard_bbc_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12) ||
+      keyboard_bbc_consume_key_press(p_bbc->p_keyboard,
+                                     k_keyboard_key_delete)) {
     /* We're in the middle of some timer callback. Let the CPU driver initiate
      * the actual reset at a safe time.
      */
@@ -2896,32 +2897,32 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
-  if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_home)) {
+  if (keyboard_system_consume_alt_key_press(p_keyboard, 'D')) {
     /* Trigger debugger. */
     volatile int* p_debug_interrupt = debug_get_interrupt(p_bbc->p_debug);
     *p_debug_interrupt = 1;
   }
 
-  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
+  if (keyboard_system_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
     bbc_set_fast_flag(p_bbc, !p_bbc->fast_flag);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
     if (keyboard_is_replaying(p_keyboard)) {
       keyboard_end_replay(p_keyboard);
     }
-  } else if (keyboard_consume_alt_key_press(p_keyboard, '0')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, '0')) {
     disc_drive_cycle_disc(p_bbc->p_drive_0);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, '1')) {
     disc_drive_cycle_disc(p_bbc->p_drive_1);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'T')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, 'T')) {
     tape_cycle_tape(p_bbc->p_tape);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'R')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, 'R')) {
     /* We're in the middle of some timer callback. Let the CPU driver initiate
      * the actual reset at a safe time.
      */
     p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
+  } else if (keyboard_system_consume_alt_key_press(p_keyboard, 'Z')) {
     int64_t seek_target = timing_get_total_timer_ticks(p_bbc->p_timing);
     /* "undo" -- go back 5 seconds if there is a current capture or replay. */
     /* TODO: not correct for non-2MHz tick rates. */

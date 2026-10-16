@@ -56,11 +56,11 @@ joystick_tick(struct joystick_struct* p_joystick) {
   p_keyboard = p_joystick->p_keyboard;
   p_adc = p_joystick->p_adc;
 
-  is_fire = keyboard_is_key_down(p_keyboard, k_keyboard_key_page_down);
-  is_left = keyboard_is_key_down(p_keyboard, k_keyboard_key_arrow_left);
-  is_right = keyboard_is_key_down(p_keyboard, k_keyboard_key_arrow_right);
-  is_up = keyboard_is_key_down(p_keyboard, k_keyboard_key_arrow_up);
-  is_down = keyboard_is_key_down(p_keyboard, k_keyboard_key_arrow_down);
+  is_fire = keyboard_bbc_is_key_down(p_keyboard, k_keyboard_key_page_down);
+  is_left = keyboard_bbc_is_key_down(p_keyboard, k_keyboard_key_arrow_left);
+  is_right = keyboard_bbc_is_key_down(p_keyboard, k_keyboard_key_arrow_right);
+  is_up = keyboard_bbc_is_key_down(p_keyboard, k_keyboard_key_arrow_up);
+  is_down = keyboard_bbc_is_key_down(p_keyboard, k_keyboard_key_arrow_down);
   via_val = 0xFF;
   if (is_fire) {
     via_val &= ~0x10;
