@@ -54,6 +54,9 @@ struct keyboard_struct {
   uint32_t queue_pos;
 
   struct util_file* p_capture_file;
+  uint64_t capture_record_pos;
+  uint64_t capture_record_ticks;
+  uint8_t capture_record_num_keys;
   struct util_file* p_replay_file;
   char* p_capture_file_name;
   char* p_replay_file_name;
@@ -481,18 +484,45 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
                       uint8_t num_keys,
                       uint8_t* p_keys,
                       uint8_t* p_is_downs) {
-  uint64_t time;
+  uint64_t ticks;
+  uint64_t skip_for_keys_write;
+  uint8_t total_num_keys;
+  uint64_t curr_file_pos;
   struct util_file* p_capture_file = p_keyboard->p_capture_file;
 
-  assert(num_keys > 0);
+  if (num_keys == 0) {
+    util_bail("zero keys in keyboard_capture_keys");
+  }
 
   if (!keyboard_is_capturing(p_keyboard)) {
     return;
   }
 
-  time = timing_get_total_timer_ticks(p_keyboard->p_timing);
-  util_file_write(p_capture_file, &time, sizeof(time));
-  util_file_write(p_capture_file, &num_keys, sizeof(num_keys));
+  ticks = timing_get_total_timer_ticks(p_keyboard->p_timing);
+
+  /* Merge records with zero delta time since the last record.
+   * This can happen in the debugger with keydown / keyup commands.
+   */
+  total_num_keys = num_keys;
+  skip_for_keys_write = 0;
+  if ((p_keyboard->capture_record_pos != 0) &&
+      (ticks == p_keyboard->capture_record_ticks)) {
+    util_file_seek(p_capture_file, p_keyboard->capture_record_pos);
+    if ((num_keys + p_keyboard->capture_record_num_keys) > 255) {
+      util_bail("replay: too many keys when merging records");
+    }
+    skip_for_keys_write = (p_keyboard->capture_record_num_keys * 2);
+    total_num_keys += p_keyboard->capture_record_num_keys;
+  }
+
+  p_keyboard->capture_record_pos = util_file_get_pos(p_capture_file);
+  p_keyboard->capture_record_ticks = ticks;
+  p_keyboard->capture_record_num_keys = total_num_keys;
+
+  util_file_write(p_capture_file, &ticks, sizeof(ticks));
+  util_file_write(p_capture_file, &total_num_keys, sizeof(total_num_keys));
+  curr_file_pos = util_file_get_pos(p_capture_file);
+  util_file_seek(p_capture_file, (curr_file_pos + skip_for_keys_write));
   util_file_write(p_capture_file, p_keys, num_keys);
   util_file_write(p_capture_file, p_is_downs, num_keys);
   util_file_flush(p_capture_file);
@@ -546,6 +576,9 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
 
   assert(timing_get_timer_value(p_timing, replay_timer_id) == 0);
   delta_time = (replay_next_time - time);
+  if (delta_time == 0) {
+    util_bail("replay: zero delta time");
+  }
   (void) timing_set_timer_value(p_timing, replay_timer_id, delta_time);
 }
 
@@ -745,6 +778,10 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                 BEEBJIT_VERSION,
                 strlen(BEEBJIT_VERSION));
   util_file_write(p_keyboard->p_capture_file, buf, sizeof(buf));
+
+  p_keyboard->capture_record_pos = 0;
+  p_keyboard->capture_record_ticks = 0;
+  p_keyboard->capture_record_num_keys = 0;
 }
 
 static void

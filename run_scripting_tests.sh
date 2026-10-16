@@ -37,7 +37,7 @@ echo 'Checking debugger initiated IRQs fire correctly.'
 TMP_CAP=$(mktemp)
 TMP_CAP2=$(mktemp)
 ./beebjit -mode interp -headless -fast -accurate -debug -capture $TMP_CAP \
-    -commands "b ffe0;c;keydown 65;s;s;eval '(pc==0xDC1C)||bail';q" \
+    -commands "b ffe0;c;keyup 65;keydown 65;s;s;eval '(pc==0xDC1C)||bail';q" \
     > /dev/null
 
 echo 'Checking replay and capture.'
