@@ -51,8 +51,18 @@ echo 'Checking replay and capture.'
 ./beebjit -mode interp -headless -fast -accurate -debug -replay $TMP_CAP2 \
     -commands "b ffe0;c;s;s;eval '(pc==0xDC1C)||bail';q" \
     > /dev/null
-
 rm -f "$TMP_CAP"
 rm -f "$TMP_CAP2"
+
+echo 'Checking early replay event bug.'
+TMP_CAP=$(mktemp)
+./beebjit -mode interp -headless -fast -accurate -capture $TMP_CAP \
+    -commands "keydown 65;c" \
+    -cycles 1000
+    > /dev/null
+./beebjit -mode interp -headless -fast -accurate -replay $TMP_CAP \
+    -cycles 1000
+    > /dev/null
+rm -f "$TMP_CAP"
 
 echo 'Scripting tests OK.'

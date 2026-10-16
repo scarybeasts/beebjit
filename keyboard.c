@@ -538,12 +538,15 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
   uint64_t replay_next_time;
   uint64_t delta_time;
   uint8_t num_keys;
+  uint64_t curr_file_pos;
 
   struct util_file* p_file = p_keyboard->p_replay_file;
   struct timing_struct* p_timing = p_keyboard->p_timing;
   uint32_t replay_timer_id = p_keyboard->replay_timer_id;
   uint64_t time = timing_get_total_timer_ticks(p_timing);
   assert(p_file != NULL);
+
+  curr_file_pos = util_file_get_pos(p_file);
 
   ret = util_file_read(p_file, &replay_next_time, sizeof(replay_next_time));
   if (ret == 0) {
@@ -576,7 +579,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
 
   assert(timing_get_timer_value(p_timing, replay_timer_id) == 0);
   delta_time = (replay_next_time - time);
-  if (delta_time == 0) {
+  if ((delta_time == 0) && (curr_file_pos != k_capture_header_size)) {
     util_bail("replay: zero delta time");
   }
   (void) timing_set_timer_value(p_timing, replay_timer_id, delta_time);
