@@ -1080,12 +1080,12 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3200);
 #if defined(__x86_64__)
-  /* mov    r9b, BYTE PTR [r13+0x12017ffa]
+  /* mov    r9b, BYTE PTR [r13+0x73017ffa]
    * shr    r14b, 1
    * adc    al, 0x1
    * adc    al, BYTE PTR [rbp-0x3e]
    */
-  p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x12"
+  p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x73"
              "\x41\xd0\xee"
              "\x14\x01"
              "\x12\x45\xc2";
@@ -1131,13 +1131,13 @@ jit_test_compile_binary(void) {
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x10]
    * mov    dh, BYTE PTR [rbp-0x0f]
-   * xor    al, BYTE PTR [rdx+rcx*1+0x10008000]
-   * mov    BYTE PTR [rdx+rcx*1+0x11008000], al
+   * xor    al, BYTE PTR [rdx+rcx*1+0x71008000]
+   * mov    BYTE PTR [rdx+rcx*1+0x72008000], al
    */
   p_expect = "\x0f\xb6\x55\xf0"
              "\x8a\x75\xf1"
-             "\x32\x84\x0a\x00\x80\x00\x10"
-             "\x88\x84\x0a\x00\x80\x00\x11";
+             "\x32\x84\x0a\x00\x80\x00\x71"
+             "\x88\x84\x0a\x00\x80\x00\x72";
   expect_len = 21;
 #elif defined(__aarch64__)
   /* TODO: the second add y / addr check can also be eliminated. */
@@ -1244,11 +1244,11 @@ jit_test_compile_binary(void) {
 #if defined(__x86_64__)
   /* movzx  edx,BYTE PTR [rbp+0x3481]
    * mov    dh,BYTE PTR [rbp+0x3482]
-   * movzx  eax,BYTE PTR [rdx+rbx*1+0x10008000]
+   * movzx  eax,BYTE PTR [rdx+rbx*1+0x71008000]
    */
   p_expect = "\x0f\xb6\x95\x81\x34\x00\x00"
              "\x8a\xb5\x82\x34\x00\x00"
-             "\x0f\xb6\x84\x1a\x00\x80\x00\x10";
+             "\x0f\xb6\x84\x1a\x00\x80\x00\x71";
   expect_len = 21;
 #elif defined(__aarch64__)
   /* mov   x21, #0x3501
@@ -1336,7 +1336,7 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3700);
 #if defined(__x86_64__)
-  /* mov    r9b, BYTE PTR [r13+0x12017ffa]
+  /* mov    r9b, BYTE PTR [r13+0x73017ffa]
    * sub    al, BYTE PTR [rbp-0x40]
    * sbb    al, BYTE PTR [rbp-0x3f]
    * cmc
@@ -1345,7 +1345,7 @@ jit_test_compile_binary(void) {
   /* Uses the longer-form countdown check, so fix up p_binary. */
   p_binary -= 6;
   p_binary += 11;
-  p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x12"
+  p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x73"
              "\x2a\x45\xc0"
              "\x1a\x45\xc1"
              "\xf5"
