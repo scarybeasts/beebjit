@@ -83,16 +83,18 @@ interp_set_memory_written_callback(struct cpu_driver* p_cpu_driver,
   p_interp->p_memory_written_callback_object = p_memory_written_callback_object;
 }
 
+static inline int
+interp_is_irq(struct state_6502* p_state_6502, uint8_t intf) {
+  return (p_state_6502->abi_state.irq_fire &&
+          (!intf ||
+           state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)));
+}
+
 static inline void
 interp_poll_irq_now(int* p_do_irq,
                     struct state_6502* p_state_6502,
                     uint8_t intf) {
-  if (!p_state_6502->abi_state.irq_fire) {
-    return;
-  }
-
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-      !intf) {
+  if (interp_is_irq(p_state_6502, intf)) {
     *p_do_irq = 1;
   }
 }
@@ -2946,9 +2948,7 @@ check_irq:
        * (including at the instruction boundary). If an IRQ is asserted,
        * make sure to check the next poll point to see if it needs to fire.
        */
-      if (p_state_6502->abi_state.irq_fire &&
-          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-           !intf)) {
+      if (interp_is_irq(p_state_6502, intf)) {
         special_checks |= k_interp_special_poll_irq;
       }
     }
@@ -3011,15 +3011,6 @@ check_irq:
 
     special_checks &= ~k_interp_special_entry;
 
-    if (do_irq) {
-      opcode = 0x00;
-    } else {
-      /* TODO: opcode fetch doesn't consider hardware register access,
-       * i.e. JMP $FE6A will have incorrect timings.
-       */
-      opcode = p_mem_read[pc];
-    }
-
     /* The debug callout fires before the next instruction executes. */
     if (p_interp->debug_subsystem_active || *p_debug_interrupt) {
       INTERP_TIMING_ADVANCE(0);
@@ -3038,10 +3029,22 @@ check_irq:
                            do_irq);
       /* A debug command might have changed state that affected countdown. */
       countdown = timing_get_countdown(p_timing);
-      /* Or it might have changed PC, or the memory at PC. */
-      if (!do_irq) {
-        opcode = p_mem_read[pc];
+      /* The debugger may have raised interrupt flags. */
+      if (!do_irq && interp_is_irq(p_state_6502, intf)) {
+        special_checks |= k_interp_special_poll_irq;
       }
+    }
+
+    /* Do the opcode fetch after the debug call, in case the debugger changes
+     * what will execute next.
+     */
+    if (do_irq) {
+      opcode = 0x00;
+    } else {
+      /* TODO: opcode fetch doesn't consider hardware register access,
+       * i.e. JMP $FE6A will have incorrect timings.
+       */
+      opcode = p_mem_read[pc];
     }
   }
 

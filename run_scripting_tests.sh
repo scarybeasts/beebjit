@@ -29,8 +29,13 @@ rm -f "$TMP_MEM"
 # the next instruction. At the BASIC prompt the keyboard is in auto-scan, so
 # the key shows at once as a CA2 interrupt flag in the system VIA.
 echo 'Checking debugger keydown.'
-./beebjit -headless -fast -debug \
+./beebjit -headless -fast -accurate -debug \
     -commands "breakat 2000000;c;keydown 90;eval '(sysvia_r[13]&1)||bail';q" \
+    > /dev/null
+
+echo 'Checking debugger initiated IRQs fire correctly.'
+./beebjit -mode interp -headless -fast -accurate -debug \
+    -commands "b ffe0;c;keydown 65;s;s;eval '(pc==0xDC1C)||bail';q" \
     > /dev/null
 
 echo 'Scripting tests OK.'
