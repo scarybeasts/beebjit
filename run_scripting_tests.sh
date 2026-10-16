@@ -34,8 +34,25 @@ echo 'Checking debugger keydown.'
     > /dev/null
 
 echo 'Checking debugger initiated IRQs fire correctly.'
-./beebjit -mode interp -headless -fast -accurate -debug \
+TMP_CAP=$(mktemp)
+TMP_CAP2=$(mktemp)
+./beebjit -mode interp -headless -fast -accurate -debug -capture $TMP_CAP \
     -commands "b ffe0;c;keydown 65;s;s;eval '(pc==0xDC1C)||bail';q" \
     > /dev/null
+
+echo 'Checking replay and capture.'
+./beebjit -mode interp -headless -fast -accurate -debug -replay $TMP_CAP \
+    -commands "b ffe0;c;s;s;eval '(pc==0xDC1C)||bail';q" \
+    > /dev/null
+./beebjit -mode interp -headless -fast -accurate \
+    -replay $TMP_CAP -capture $TMP_CAP2 \
+    -cycles 755000 \
+    > /dev/null
+./beebjit -mode interp -headless -fast -accurate -debug -replay $TMP_CAP2 \
+    -commands "b ffe0;c;s;s;eval '(pc==0xDC1C)||bail';q" \
+    > /dev/null
+
+rm -f "$TMP_CAP"
+rm -f "$TMP_CAP2"
 
 echo 'Scripting tests OK.'

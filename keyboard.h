@@ -72,9 +72,8 @@ void keyboard_rewind(struct keyboard_struct* p_keyboard, uint64_t stop_cycles);
 
 void keyboard_read_queue(struct keyboard_struct* p_keyboard);
 
-void keyboard_beeb_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key);
-void keyboard_beeb_key_released(struct keyboard_struct* p_keyboard,
-                                uint8_t key);
+void keyboard_bbc_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key);
+void keyboard_bbc_key_released(struct keyboard_struct* p_keyboard, uint8_t key);
 
 int keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
                                 uint8_t row,

@@ -479,7 +479,7 @@ keyboard_log_keys(struct keyboard_struct* p_keyboard,
 
 static void
 keyboard_capture_keys(struct keyboard_struct* p_keyboard,
-                      int is_replay,
+                      int is_physical,
                       uint8_t num_keys,
                       uint8_t* p_keys,
                       uint8_t* p_is_downs) {
@@ -494,12 +494,8 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
   }
 
   /* If we're replaying, don't capture physical keyboard. */
-  if ((p_replay_file != NULL) && !is_replay) {
+  if ((p_replay_file != NULL) && is_physical) {
     return;
-  }
-
-  if (is_replay) {
-    assert(p_replay_file != NULL);
   }
 
   time = timing_get_total_timer_ticks(p_keyboard->p_timing);
@@ -570,11 +566,35 @@ keyboard_virtual_updated(struct keyboard_struct* p_keyboard) {
 }
 
 static void
-keyboard_replay_timer_tick(void* p) {
-  uint8_t i;
+keyboard_apply_bbc_keys(struct keyboard_struct* p_keyboard,
+                        uint32_t num_keys,
+                        uint8_t* p_keys,
+                        uint8_t* p_isdowns) {
+  uint32_t i;
+  struct keyboard_state* p_state = p_keyboard->p_active;
 
+  for (i = 0; i < num_keys; ++i) {
+    uint8_t key = p_keys[i];
+    uint8_t isdown = p_isdowns[i];
+    if (isdown) {
+      keyboard_key_pressed(p_state, key);
+    } else {
+      keyboard_key_released(p_state, key);
+    }
+  }
+
+  keyboard_virtual_updated(p_keyboard);
+
+  keyboard_capture_keys(p_keyboard,
+                        0,
+                        num_keys,
+                        p_keys,
+                        p_isdowns);
+}
+
+static void
+keyboard_replay_timer_tick(void* p) {
   struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
-  struct keyboard_state* p_state = p_keyboard->p_virtual_keyboard;
   uint8_t num_keys = p_keyboard->replay_next_num_keys;
 
   assert(p_keyboard->p_replay_file != NULL);
@@ -585,16 +605,6 @@ keyboard_replay_timer_tick(void* p) {
     util_bail("replay: too many keys");
   }
 
-  for (i = 0; i < num_keys; ++i) {
-    uint8_t key = p_keyboard->replay_next_keys[i];
-    uint8_t isdown = p_keyboard->replay_next_isdown[i];
-    if (isdown) {
-      keyboard_key_pressed(p_state, key);
-    } else {
-      keyboard_key_released(p_state, key);
-    }
-  }
-
   if (p_keyboard->log_replay) {
     keyboard_log_keys(p_keyboard,
                       "replay",
@@ -603,13 +613,10 @@ keyboard_replay_timer_tick(void* p) {
                       &p_keyboard->replay_next_isdown[0]);
   }
 
-  keyboard_virtual_updated(p_keyboard);
-
-  keyboard_capture_keys(p_keyboard,
-                        1,
-                        num_keys,
-                        &p_keyboard->replay_next_keys[0],
-                        &p_keyboard->replay_next_isdown[0]);
+  keyboard_apply_bbc_keys(p_keyboard,
+                          num_keys,
+                          &p_keyboard->replay_next_keys[0],
+                          &p_keyboard->replay_next_isdown[0]);
 
   /* This finishes with the replay handle if we're at the end. */
   keyboard_read_replay_frame(p_keyboard);
@@ -1029,15 +1036,15 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
 }
 
 void
-keyboard_beeb_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
-  keyboard_key_pressed(p_keyboard->p_active, key);
-  keyboard_virtual_updated(p_keyboard);
+keyboard_bbc_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
+  uint8_t is_down = 1;
+  keyboard_apply_bbc_keys(p_keyboard, 1, &key, &is_down);
 }
 
 void
-keyboard_beeb_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
-  keyboard_key_released(p_keyboard->p_active, key);
-  keyboard_virtual_updated(p_keyboard);
+keyboard_bbc_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
+  uint8_t is_down = 0;
+  keyboard_apply_bbc_keys(p_keyboard, 1, &key, &is_down);
 }
 
 static int
@@ -1096,7 +1103,7 @@ keyboard_apply_physical_keys(struct keyboard_struct* p_keyboard,
   }
 
   keyboard_capture_keys(p_keyboard,
-                        0,
+                        1,
                         num_keys_filtered,
                         filtered_keys,
                         filtered_is_downs);

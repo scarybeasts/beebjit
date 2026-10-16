@@ -2524,10 +2524,10 @@ debug_callback_common(struct debug_struct* p_debug,
       disc_tool_write_fm_data(p_tool, NULL, &disc_data[0], sequence_len);
     } else if (!strcmp(p_command, "keydown")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
-      keyboard_beeb_key_pressed(p_keyboard, (uint8_t) parse_int);
+      keyboard_bbc_key_pressed(p_keyboard, (uint8_t) parse_int);
     } else if (!strcmp(p_command, "keyup")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
-      keyboard_beeb_key_released(p_keyboard, (uint8_t) parse_int);
+      keyboard_bbc_key_released(p_keyboard, (uint8_t) parse_int);
     } else if (!strcmp(p_command, "?") ||
                !strcmp(p_command, "help") ||
                !strcmp(p_command, "h")) {
