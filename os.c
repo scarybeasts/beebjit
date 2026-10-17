@@ -49,11 +49,16 @@
 #include "os_channel_windows.c"
 #include "os_fault_windows.c"
 #include "os_poller_windows.c"
-#include "os_sound_windows.c"
 #include "os_terminal_windows.c"
 #include "os_thread_windows.c"
 #include "os_time_windows.c"
+#if defined(BEEBJIT_HEADLESS)
+#include "os_sound_null.c"
+#include "os_window_null.c"
+#else
+#include "os_sound_windows.c"
 #include "os_window_windows.c"
+#endif
 
 #else
 
