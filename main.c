@@ -353,6 +353,8 @@ beebjit_main(void) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
       log_set_do_log_to_stdout(0);
+    } else if (!strcmp(arg, "-log-stderr")) {
+      log_set_log_to_stderr();
     } else if (!strcmp(arg, "-nula")) {
       nula_flag = 1;
     } else if (!strcmp(arg, "-version") ||
@@ -380,6 +382,8 @@ beebjit_main(void) {
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
 "-accurate          : run accurately; only does anything with -fast.\n"
 "-log-file       <f>: log to file <f> as well as stdout.\n"
+"-log-stderr        : send log output to stderr rather than default stdout.\n"
+"                     Ignored if -no-log-stdout is set.\n"
 "-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
 "-mos35             : set up a Master 128 with MOS 3.50.\n"
