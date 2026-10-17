@@ -2508,6 +2508,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   }
 
   timing_reset_total_timer_ticks(p_timing);
+  video_power_on_reset(p_bbc->p_video);
   bbc_power_on_memory_reset(p_bbc);
   /* Includes IC32. */
   bbc_power_on_other_reset(p_bbc);
@@ -2540,7 +2541,6 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   }
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
-  video_power_on_reset(p_bbc->p_video);
   adc_power_on_reset(p_bbc->p_adc);
 
   /* Not reset: teletext, render. They don't affect execution (only display) and
