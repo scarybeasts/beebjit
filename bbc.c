@@ -2509,11 +2509,19 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
 
   timing_reset_total_timer_ticks(p_timing);
   bbc_power_on_memory_reset(p_bbc);
+  /* Includes IC32. */
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
   assert(p_bbc->acccon == 0);
   assert(!p_bbc->is_acccon_usr_mos_different);
   assert(p_bbc->is_romsel_invalidated == 0);
+  if (p_bbc->p_cmos != NULL) {
+    cmos_power_on_reset(p_bbc->p_cmos);
+  }
+  keyboard_power_on_reset(p_keyboard);
+  /* Do these after the CMOS and keyboard because they reset the bus value,
+   * which may depend on who is driving it.
+   */
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
   /* For our virtual printer to indicate ready. */
@@ -2532,7 +2540,6 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   }
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
-  keyboard_power_on_reset(p_keyboard);
   video_power_on_reset(p_bbc->p_video);
   adc_power_on_reset(p_bbc->p_adc);
 

@@ -44,16 +44,20 @@ cmos_create(struct bbc_options* p_options) {
 
   p_cmos->log = util_has_option(p_options->p_log_flags, "cmos:all");
 
+  return p_cmos;
+}
+
+void
+cmos_destroy(struct cmos_struct* p_cmos) {
+  util_free(p_cmos);
+}
+
+void
+cmos_power_on_reset(struct cmos_struct* p_cmos) {
   p_cmos->enabled = 0;
   p_cmos->address_strobe = 0;
   p_cmos->data = 0;
   p_cmos->read = 0;
-
-  return p_cmos;
-}
-
-void cmos_destroy(struct cmos_struct* p_cmos) {
-  util_free(p_cmos);
 }
 
 uint8_t
