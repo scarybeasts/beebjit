@@ -875,6 +875,10 @@ keyboard_end_replay(struct keyboard_struct* p_keyboard) {
   char* p_replay_file_name = p_keyboard->p_replay_file_name;
   struct timing_struct* p_timing = p_keyboard->p_timing;
 
+  if (!keyboard_is_replaying(p_keyboard)) {
+    return;
+  }
+
   assert(p_replay_file != NULL);
   assert(p_replay_file_name != NULL);
 

@@ -2915,9 +2915,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
     bbc_set_fast_flag(p_bbc, !p_bbc->fast_flag);
   } else if (keyboard_system_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
-    if (keyboard_is_replaying(p_keyboard)) {
-      keyboard_end_replay(p_keyboard);
-    }
+    keyboard_end_replay(p_keyboard);
   } else if (keyboard_system_consume_alt_key_press(p_keyboard, '0')) {
     disc_drive_cycle_disc(p_bbc->p_drive_0);
   } else if (keyboard_system_consume_alt_key_press(p_keyboard, '1')) {
