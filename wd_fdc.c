@@ -195,13 +195,18 @@ wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
     return;
   }
 
-  p_fdc->status_register &=
-      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+  p_fdc->status_register &= ~(k_wd_fdc_status_type_I_track_0 |
+                              k_wd_fdc_status_type_I_index |
+                              k_wd_fdc_status_write_protected);
   if (disc_drive_get_track(p_current_drive) == 0) {
     p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
   }
   if (disc_drive_is_index_pulse(p_current_drive)) {
     p_fdc->status_register |= k_wd_fdc_status_type_I_index;
+  }
+  /* This later addition confirmed by testing on a real 1772. */
+  if (disc_drive_is_write_protect(p_current_drive)) {
+    p_fdc->status_register |= k_wd_fdc_status_write_protected;
   }
 }
 
@@ -1348,8 +1353,9 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
        * cleared on spindown.
        */
       if (p_fdc->command_type == 1) {
-        p_fdc->status_register &=
-            ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+        p_fdc->status_register &= ~(k_wd_fdc_status_type_I_track_0 |
+                                    k_wd_fdc_status_type_I_index |
+                                    k_wd_fdc_status_write_protected);
       }
     }
     break;
