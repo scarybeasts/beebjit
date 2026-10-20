@@ -751,6 +751,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->index_pulse_count = 0;
   if (p_fdc->status_register & k_wd_fdc_status_motor_on) {
     /* Short circuit spin-up if motor is on. */
+    if (p_fdc->command_type == 1) {
+      p_fdc->status_register |= k_wd_fdc_status_type_I_spin_up_done;
+    }
     wd_fdc_dispatch_command(p_fdc);
   } else {
     p_fdc->status_register |= k_wd_fdc_status_motor_on;
