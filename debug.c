@@ -2585,6 +2585,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
   "fast               : toggle fast mode on/off\n"
   "seek <s>           : seek a replay file to <s> seconds\n"
+  "stop               : exit any in progress replay\n"
   "bail               : exit emulator with failure code\n"
   "sn                 : dump SN76489 state\n"
   );
