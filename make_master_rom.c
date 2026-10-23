@@ -379,8 +379,18 @@ main(int argc, const char* argv[]) {
   emit_CLI(p_buf);
   emit_JMP(p_buf, k_abs, 0xC540);
 
-  /* Exit sequence. */
+  /* Test that BIT imm doesn't affect C/V flags. */
   set_new_index(p_buf, 0x0540);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_BIT(p_buf, k_imm, 0xC0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC580);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0580);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */

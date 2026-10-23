@@ -2149,7 +2149,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
     case 0x89: /* NOP imm */ /* Undocumented. */ /* BIT imm */
       if (is_65c12) {
         v = p_mem_read[pc + 1];
-        INTERP_INSTR_BIT();
+        /* BIT imm is special, it only affects the Z flag. */
+        zf = !(a & v);
         pc += 2;
         cycles_this_instruction = 2;
       } else {
