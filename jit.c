@@ -258,18 +258,6 @@ jit_set_memory_written_callback(struct cpu_driver* p_cpu_driver,
       p_memory_written_callback_object);
 }
 
-static void
-jit_apply_flags(struct cpu_driver* p_cpu_driver,
-                uint32_t flags_set,
-                uint32_t flags_clear) {
-  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
-
-  p_interp_driver->p_funcs->apply_flags(p_interp_driver,
-                                        flags_set,
-                                        flags_clear);
-}
-
 static uint32_t
 jit_get_flags(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -344,6 +332,21 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   asm_jit_finish_code_updates(p_jit->p_asm);
 
   jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr_6502, len);
+}
+
+static void
+jit_apply_flags(struct cpu_driver* p_cpu_driver,
+                uint32_t flags_set,
+                uint32_t flags_clear) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  p_interp_driver->p_funcs->apply_flags(p_interp_driver,
+                                        flags_set,
+                                        flags_clear);
+  if (flags_set & k_cpu_flag_hard_reset) {
+    jit_memory_range_invalidate(p_cpu_driver, 0, k_6502_addr_space_size);
+  }
 }
 
 static char*

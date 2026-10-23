@@ -65,4 +65,9 @@ TMP_CAP=$(mktemp)
     > /dev/null
 rm -f "$TMP_CAP"
 
+echo 'Checking JIT crash after hard reset.'
+./beebjit -headless -mode jit -fast -accurate -debug \
+    -commands 'b 8003;c;hard;c;q' \
+    > /dev/null
+
 echo 'Scripting tests OK.'

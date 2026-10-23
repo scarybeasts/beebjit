@@ -879,8 +879,13 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
 
   if (!(p_compiler->addr_flags[addr_6502] & k_addr_flag_has_history)) {
+    uint32_t i;
     p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_history;
-    p_history->ring_buffer_index = 0;
+    for (i = 0; i < k_opcode_history_length; ++i) {
+      p_history->opcodes[i] = -1;
+    }
+    /* Will increment to get to slot 0 below. */
+    p_history->ring_buffer_index = (k_opcode_history_length - 1);
   }
 
   ring_buffer_index = p_history->ring_buffer_index;
