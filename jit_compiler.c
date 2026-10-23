@@ -32,7 +32,6 @@ struct jit_compile_history {
   int32_t opcodes[k_opcode_history_length];
   uint8_t was_self_modified[k_opcode_history_length];
   uint32_t ring_buffer_index;
-  int32_t opcode;
 };
 
 enum {
@@ -878,8 +877,6 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
                          uint64_t ticks) {
   uint32_t ring_buffer_index;
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
-
-  p_history->opcode = opcode_6502;
 
   if (!(p_compiler->addr_flags[addr_6502] & k_addr_flag_has_history)) {
     p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_history;
