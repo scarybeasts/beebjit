@@ -2263,6 +2263,10 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "stop")) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_end_replay(p_keyboard);
+    } else if (!strcmp(p_command, "hard")) {
+      p_cpu_driver->p_funcs->apply_flags(p_cpu_driver,
+                                         k_cpu_flag_hard_reset,
+                                         0);
     } else if (!strcmp(p_command, "b") || !strcmp(p_command, "break")) {
       debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bm")) {
@@ -2586,6 +2590,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "fast               : toggle fast mode on/off\n"
   "seek <s>           : seek a replay file to <s> seconds\n"
   "stop               : exit any in progress replay\n"
+  "hard               : hard reset to power on state\n"
   "bail               : exit emulator with failure code\n"
   "sn                 : dump SN76489 state\n"
   );
