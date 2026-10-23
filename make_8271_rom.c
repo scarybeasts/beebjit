@@ -200,8 +200,51 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xC280);
 
-  /* Exit sequence. */
+  /* Check for a bug where we would spin down during a long seek. */
   set_new_index(p_buf, 0x0280);
+  /* 50ms per seek step. */
+  emit_LDA(p_buf, k_imm, 0x0D);
+  emit_LDX(p_buf, k_imm, 0x19);
+  emit_JSR(p_buf, 0xE0C0);
+  /* Standard settle / 12 revs head unload. */
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_LDX(p_buf, k_imm, 0x0A);
+  emit_JSR(p_buf, 0xE0C0);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_LDX(p_buf, k_imm, 0xC8);
+  emit_JSR(p_buf, 0xE0C0);
+  /* Go ready. */
+  emit_JSR(p_buf, 0xE200);
+  /* Seek to 0. */
+  emit_LDA(p_buf, k_imm, 0);
+  emit_JSR(p_buf, 0xE140);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Seek to 40. */
+  emit_LDA(p_buf, k_imm, 40);
+  emit_JSR(p_buf, 0xE140);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Seek to 79. */
+  emit_LDA(p_buf, k_imm, 79);
+  emit_JSR(p_buf, 0xE140);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Read T0 S0. Huge seek back to 0. */
+  emit_LDA(p_buf, k_imm, 0);
+  emit_LDX(p_buf, k_imm, 0);
+  emit_LDY(p_buf, k_imm, 0x21);
+  emit_JSR(p_buf, 0xE380);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC300);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0300);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */

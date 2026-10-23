@@ -797,6 +797,13 @@ intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
   uint32_t step_rate;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
+  /* The seek stop does not yield, so any old pulse callback (such as a
+   * spin down check) can not and must not fire.
+   * Clear the callback here. It will be set again when transitioning out of
+   * the seek state.
+   */
+  p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
+
   if (intel_fdc_get_TRK0(p_fdc) &&
       (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
     /* Seek to 0 done, TRK0 detected. */
