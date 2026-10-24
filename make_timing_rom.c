@@ -659,9 +659,11 @@ main(int argc, const char* argv[]) {
   set_new_index(p_buf, 0x0900);
   emit_LDY(p_buf, k_imm, 0x10);
   emit_JSR(p_buf, 0x3000);
-  emit_INC(p_buf, k_abs, 0x3001);
+  emit_INC(p_buf, k_abs, 0x3002);
   emit_DEY(p_buf);
   emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x90);
+  emit_STA(p_buf, k_abs, 0x3001);
   emit_LDX(p_buf, k_imm, 0x6F);     /* No abx page crossing. */
   emit_CYCLES_RESET(p_buf);
   emit_JSR(p_buf, 0x3000);
@@ -842,9 +844,11 @@ main(int argc, const char* argv[]) {
   set_new_index(p_buf, 0x0BC0);
   emit_LDY(p_buf, k_imm, 0x10);
   emit_JSR(p_buf, 0x3020);
-  emit_INC(p_buf, k_abs, 0x3021);
+  emit_INC(p_buf, k_abs, 0x3022);
   emit_DEY(p_buf);
   emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x90);
+  emit_STA(p_buf, k_abs, 0x3021);
   emit_LDY(p_buf, k_imm, 0x6F);     /* No aby page crossing. */
   emit_CYCLES_RESET(p_buf);
   emit_JSR(p_buf, 0x3020);
@@ -1288,7 +1292,7 @@ main(int argc, const char* argv[]) {
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
   /* For testing dynamic operand of abx mode. */
   set_new_index(p_buf, 0x2000);
-  emit_LDA(p_buf, k_abx, 0x0080);
+  emit_LDA(p_buf, k_abx, 0x1000);
   emit_RTS(p_buf);
 
   /* For testing compile of invalidate opcode. */
@@ -1300,7 +1304,7 @@ main(int argc, const char* argv[]) {
 
   /* For testing dynamic operand of aby mode. */
   set_new_index(p_buf, 0x2020);
-  emit_LDA(p_buf, k_aby, 0x0080);
+  emit_LDA(p_buf, k_aby, 0x1000);
   emit_RTS(p_buf);
 
   /* Routine to arrange for an TIMER1 based IRQ at a specific time. */

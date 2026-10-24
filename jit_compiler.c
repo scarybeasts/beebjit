@@ -834,9 +834,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Accurate timings for page crossing cycles. */
-  if (p_compiler->option_accurate_timings &&
-      (opmem == k_opmem_read_flag) &&
-      could_page_cross) {
+  if (p_compiler->option_accurate_timings && (opmem == k_opmem_read_flag)) {
     /* NOTE: must do page crossing cycles fixup after the main uop, because it
      * may fault (e.g. for hardware register access) and then fixup. We're
      * only guaranteed that the JIT handled the uop if we get here.
@@ -844,11 +842,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     switch (opmode) {
     case k_abx:
       asm_make_uop0(p_uop, k_opcode_check_page_crossing_x);
+      if (!could_page_cross) {
+        p_uop->is_eliminated = 1;
+      }
       p_uop++;
       break;
     case k_aby:
     case k_idy:
       asm_make_uop0(p_uop, k_opcode_check_page_crossing_y);
+      if (!could_page_cross) {
+        p_uop->is_eliminated = 1;
+      }
       p_uop++;
       break;
     default:
@@ -1041,6 +1045,28 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     }
     p_uop = jit_opcode_insert_uop(p_opcode, index);
     asm_make_uop1(p_uop, k_opcode_addr_check, addr);
+    /* Always have to check page crossings for abx and aby reads. We may have
+     * eliminated the check if the operand is $xx00.
+     */
+    if (opmode == k_abx) {
+      p_uop = jit_opcode_find_uop(p_opcode,
+                                  &index,
+                                  k_opcode_check_page_crossing_x);
+      if ((p_uop != NULL) && (p_uop->is_eliminated)) {
+        p_uop->is_eliminated = 0;
+        assert(p_opcode->max_cycles == 4);
+        p_opcode->max_cycles = 5;
+      }
+    } else if (opmode == k_aby) {
+      p_uop = jit_opcode_find_uop(p_opcode,
+                                  &index,
+                                  k_opcode_check_page_crossing_y);
+      if ((p_uop != NULL) && (p_uop->is_eliminated)) {
+        p_uop->is_eliminated = 0;
+        assert(p_opcode->max_cycles == 4);
+        p_opcode->max_cycles = 5;
+      }
+    }
     break;
   case k_zpg:
     if (optype == k_bit) {
