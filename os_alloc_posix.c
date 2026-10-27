@@ -108,6 +108,14 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
     if (p_map == MAP_FAILED) {
       map_flags &= ~MAP_HUGETLB;
       p_map = mmap(p_addr, size, map_prot, map_flags, handle, offset);
+      /* MAP_HUGETLB needs pre-reserved pages (vm.nr_hugepages), which most
+       * systems don't have. Ask for transparent huge pages instead.
+       */
+      if (p_map != MAP_FAILED) {
+        if (madvise(p_map, size, MADV_HUGEPAGE) == 0) {
+          log_do_log(k_log_misc, k_log_info, "used MADV_HUGEPAGE");
+        }
+      }
     } else {
       log_do_log(k_log_misc, k_log_info, "used MAP_HUGETLB");
     }
