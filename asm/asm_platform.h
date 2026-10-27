@@ -9,12 +9,13 @@
 
 #if defined(__x86_64__)
 /* NOTE: this affects performance significantly.
- * Smaller is generally faster, which I believe is an L1 icache effect.
- * We can get to 6 on x64, which is 64 byte blocks, aligning nicely
- * with he L1 icache cacheline size. Currently unclear if that would be faster
- * than the current 7.
+ * Going from 128 bytes to 64 bytes recently:
+ * Measured with hardware counters, CLOCKSP runs ~10% faster (uop cache misses
+ * -12x), games 0-1.5%, Exile (which does miss L1i) ~1%. The budget is 64 host
+ * bytes per 6502 byte; the tightest case seen is a landing-point RTS with
+ * -debug at 57 bytes.
  */
-#define K_JIT_BYTES_SHIFT                  7
+#define K_JIT_BYTES_SHIFT                  6
 #else
 #define K_JIT_BYTES_SHIFT                  7
 #endif

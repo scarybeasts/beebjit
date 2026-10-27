@@ -1434,8 +1434,11 @@ jit_test_compile_binary(void) {
   /* Uses the longer-form countdown check, so fix up p_binary. */
   p_binary -= 6;
   p_binary += 11;
-  /* 64-byte blocks: "\x0f\x84\xaf\x00\x00\x00" "\x4d\x8d\x7f\xfe"; */
+#if K_JIT_BYTES_SHIFT == 6
+  p_expect = "\x0f\x84\xaf\x00\x00\x00" "\x4d\x8d\x7f\xfe";
+#else
   p_expect = "\x0f\x84\x6f\x01\x00\x00" "\x4d\x8d\x7f\xfe";
+#endif
   expect_len = 10;
 #elif defined(__aarch64__)
   /* b.eq  0x61d0180
@@ -1469,9 +1472,13 @@ jit_test_compile_binary(void) {
    * setae  r14b
    * jb     0x60ec1c0
    */
-  /* 64-byte blocks: "\x0f\x82\xaa\x01\x00\x00" */
+#if K_JIT_BYTES_SHIFT == 6
+  p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
+             "\x0f\x82\xaa\x01\x00\x00";
+#else
   p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
              "\x0f\x82\x6a\x03\x00\x00";
+#endif
   expect_len = 16;
 #elif defined(__aarch64__)
   /* ldrb  w0, [x27, #69]
