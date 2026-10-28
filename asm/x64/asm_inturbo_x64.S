@@ -208,7 +208,8 @@ ASM_SYM(asm_inturbo_do_write_invalidation):
   # our context object.
   mov REG_SCRATCH2, [REG_CONTEXT]
   mov REG_SCRATCH1_32, [REG_SCRATCH2 + REG_SCRATCH1 * 4]
-  mov WORD PTR [REG_SCRATCH1], 0x17ff
+  # 0x17ff via register: a 16-bit immediate store is a length-changing prefix.
+  mov WORD PTR [REG_SCRATCH1], REG_JIT_INV_MARKER_16
 
 ASM_SYM(asm_inturbo_do_write_invalidation_END):
   ret
@@ -240,6 +241,8 @@ ASM_SYM(asm_inturbo_call_interp):
 
   call ASM_SYM(asm_inturbo_do_call_interp)
 
+  # JIT invalidation marker (r11 is caller saved).
+  mov REG_JIT_INV_MARKER_32, 0x17ff
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
   lahf
   shl REG_SCRATCH3_32, K_INTURBO_OPCODE_SHIFT
@@ -253,6 +256,8 @@ ASM_SYM(asm_inturbo_call_interp_and_ret):
 
   call ASM_SYM(asm_inturbo_do_call_interp)
 
+  # JIT invalidation marker (r11 is caller saved).
+  mov REG_JIT_INV_MARKER_32, 0x17ff
   ret
 
 

@@ -68,6 +68,8 @@ ASM_SYM(asm_jit_compile_trampoline):
   sahf
   lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
 
+  mov REG_JIT_INV_MARKER_32, 0x17ff
+
   # We're jumping out of a call so pop the return address.
   pop REG_SCRATCH2
 
@@ -125,6 +127,7 @@ not_exiting:
   shl REG_6502_PC, K_JIT_BYTES_SHIFT
   sahf
   lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
+  mov REG_JIT_INV_MARKER_32, 0x17ff
 
   jmp REG_6502_PC
 
@@ -391,6 +394,7 @@ ASM_SYM(asm_jit_call_scratch_param_call):
 ASM_SYM(asm_jit_call_scratch_param_call_END):
 ASM_SYM(asm_jit_call_scratch_param_stack_add):
   add rsp, 32
+  mov REG_JIT_INV_MARKER_32, 0x17ff
 ASM_SYM(asm_jit_call_scratch_param_stack_add_END):
 
   ret
@@ -1077,7 +1081,8 @@ ASM_SYM(asm_jit_sync_even_cycle_END):
 .globl ASM_SYM(asm_jit_write_inv_commit)
 .globl ASM_SYM(asm_jit_write_inv_commit_END)
 ASM_SYM(asm_jit_write_inv_commit):
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
+  # 0x17ff via register: a 16-bit immediate store is a length changing prefix.
+  mov WORD PTR [REG_SCRATCH2], REG_JIT_INV_MARKER_16
 
 ASM_SYM(asm_jit_write_inv_commit_END):
   ret

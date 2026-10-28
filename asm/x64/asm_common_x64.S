@@ -62,6 +62,8 @@ ASM_SYM(asm_enter_common):
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
   lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
+  # JIT invalidation marker constant.
+  mov REG_JIT_INV_MARKER_32, 0x17ff
 
   pop REG_SCRATCH1
   # At this point: stack aligned to 8 bytes, not 16.
@@ -542,6 +544,8 @@ ASM_SYM(asm_debug):
   pop REG_ADDR
   popf
 
+  # JIT invalidation marker (r11 is caller saved).
+  mov REG_JIT_INV_MARKER_32, 0x17ff
   ret
 
 ASM_SYM(asm_debug_END):

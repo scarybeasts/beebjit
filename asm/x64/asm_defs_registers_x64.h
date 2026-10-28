@@ -50,6 +50,11 @@
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_16    r9w
 #define REG_SCRATCH3_32    r9d
-/* NOTE: r11 is unassigned. */
+/* r11 holds the constant 0x17ff ("call [rdi]" bytes) used to invalidate JIT
+ * code on writes. It is caller saved in the ABI, so every path from C back
+ * into JIT or inturbo code reloads it.
+ */
+#define REG_JIT_INV_MARKER_16  r11w
+#define REG_JIT_INV_MARKER_32  r11d
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_X64_H */
