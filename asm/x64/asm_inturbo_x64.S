@@ -1018,9 +1018,9 @@ ASM_SYM(asm_instruction_ORA_scratch_interp_END):
 ASM_SYM(asm_instruction_ROL_acc_interp):
 
   shr REG_6502_CF_64, 1
-  rcl REG_6502_A
+  # adc instead of rcl, which sets NZ flags too.
+  adc REG_6502_A, REG_6502_A
   setb REG_6502_CF
-  test REG_6502_A, REG_6502_A
 
 ASM_SYM(asm_instruction_ROL_acc_interp_END):
   ret
@@ -1032,10 +1032,10 @@ ASM_SYM(asm_instruction_ROL_scratch_interp):
 
   shr REG_6502_CF_64, 1
   movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
-  rcl REG_SCRATCH2_8
+  # adc instead of rcl, which sets NZ flags too.
+  adc REG_SCRATCH2_8, REG_SCRATCH2_8
   mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_FULL_ADDR], REG_SCRATCH2_8
   setb REG_6502_CF
-  test REG_SCRATCH2_8, REG_SCRATCH2_8
 
 ASM_SYM(asm_instruction_ROL_scratch_interp_END):
   ret

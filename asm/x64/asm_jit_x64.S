@@ -2448,7 +2448,8 @@ ASM_SYM(asm_jit_ROL_ACC_END):
 .globl ASM_SYM(asm_jit_ROL_value)
 .globl ASM_SYM(asm_jit_ROL_value_END)
 ASM_SYM(asm_jit_ROL_value):
-  rcl REG_SCRATCH2_8, 1
+  # adc instead of rcl, which sets NZ flags too.
+  adc REG_SCRATCH2_8, REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_ROL_value_END):
   ret

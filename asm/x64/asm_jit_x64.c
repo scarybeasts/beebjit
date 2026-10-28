@@ -1921,9 +1921,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_ROL_acc: ASM(ROL_ACC); break;
   case k_opcode_ROL_value:
+    /* Uses adc, so no flags_nz_value needed. */
     ASM(ROL_value);
     ASM(save_carry);
-    ASM(flags_nz_value);
     break;
   case k_opcode_ROR_acc: ASM(ROR_ACC); break;
   case k_opcode_ROR_value:
