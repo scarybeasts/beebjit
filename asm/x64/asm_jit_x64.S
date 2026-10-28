@@ -2437,18 +2437,11 @@ ASM_SYM(asm_jit_ROL_ABS_END):
 .globl ASM_SYM(asm_jit_ROL_ACC)
 .globl ASM_SYM(asm_jit_ROL_ACC_END)
 ASM_SYM(asm_jit_ROL_ACC):
-  rcl REG_6502_A, 1
+  # Equivalent to rcl REG6502_A, 1 but with the benefit of lower latency, and it
+  # sets NZ flags without the need for a separate test instruction.
+  adc REG_6502_A, REG_6502_A
 
 ASM_SYM(asm_jit_ROL_ACC_END):
-  ret
-
-
-.globl ASM_SYM(asm_jit_ROL_ACC_n)
-.globl ASM_SYM(asm_jit_ROL_ACC_n_END)
-ASM_SYM(asm_jit_ROL_ACC_n):
-  rcl REG_6502_A, 2
-
-ASM_SYM(asm_jit_ROL_ACC_n_END):
   ret
 
 
@@ -2485,15 +2478,6 @@ ASM_SYM(asm_jit_ROR_ACC):
   rcr REG_6502_A, 1
 
 ASM_SYM(asm_jit_ROR_ACC_END):
-  ret
-
-
-.globl ASM_SYM(asm_jit_ROR_ACC_n)
-.globl ASM_SYM(asm_jit_ROR_ACC_n_END)
-ASM_SYM(asm_jit_ROR_ACC_n):
-  rcr REG_6502_A, 2
-
-ASM_SYM(asm_jit_ROR_ACC_n_END):
   ret
 
 

@@ -1226,7 +1226,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   case k_opcode_LSR_acc:
   case k_opcode_LSR_value:
   case k_opcode_ORA:
-  /* Not ROL, ROR. rcr and rcl don't set x64 sign / zero flags. */
+  /* ROL A is adc al, al which sets host NZ flags. Other ROL / ROR do not. */
+  case k_opcode_ROL_acc:
   case k_opcode_SBC:
   case k_opcode_SLO:
   case k_opcode_SUB:
@@ -1659,6 +1660,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
    * To minimize L1 DTLB issues, we'll generally map all accesses to READ
    * INDIRECT when we know it doesn't make a difference.
    */
+  uint32_t i_rot;
   uint32_t delta;
   void* p_trampolines;
   size_t offset;
@@ -2148,10 +2150,19 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_ORA_IMM: ASM_U8(ORA_IMM); break;
   case k_opcode_x64_ORA_ZPG: ASM_ADDR_U8(ORA_ZPG); break;
   case k_opcode_x64_ROL_ABS: ASM_ADDR_U32(ROL_ABS); break;
-  case k_opcode_x64_ROL_ACC_n: ASM_U8(ROL_ACC_n); break;
+  case k_opcode_x64_ROL_ACC_n:
+    /* rcl/rcr by more than 1 are microcoded on Intel; repeat single form. */
+    for (i_rot = 0; i_rot < (uint32_t) value1; ++i_rot) {
+      ASM(ROL_ACC);
+    }
+    break;
   case k_opcode_x64_ROL_ZPG: ASM_ADDR_U8(ROL_ZPG); break;
   case k_opcode_x64_ROR_ABS: ASM_ADDR_U32(ROR_ABS); break;
-  case k_opcode_x64_ROR_ACC_n: ASM_U8(ROR_ACC_n); break;
+  case k_opcode_x64_ROR_ACC_n:
+    for (i_rot = 0; i_rot < (uint32_t) value1; ++i_rot) {
+      ASM(ROR_ACC);
+    }
+    break;
   case k_opcode_x64_ROR_ZPG: ASM_ADDR_U8(ROR_ZPG); break;
   case k_opcode_x64_SAX_ABS: ASM_ADDR_U32(SAX_ABS); break;
   case k_opcode_x64_SBC_ABS: ASM_ADDR_U32(SBC_ABS); break;
