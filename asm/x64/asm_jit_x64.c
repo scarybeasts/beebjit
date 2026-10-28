@@ -825,7 +825,7 @@ asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_copy(p_buf, asm_jit_PUSH_16, asm_jit_PUSH_16_END);
-  asm_patch_u16(p_buf,
+  asm_patch_int(p_buf,
                 offset,
                 asm_jit_PUSH_16,
                 asm_jit_PUSH_16_word_patch,

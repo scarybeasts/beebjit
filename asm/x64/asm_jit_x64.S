@@ -881,8 +881,11 @@ ASM_SYM(asm_jit_PUSH_16):
   # Seems to be faster without movzx, as per other similar cases, which is
   # strange.
   mov REG_SCRATCH3_8, [REG_6502_S_64 + K_BBC_MEM_OFFSET_TO_READ_FULL - 0x102]
-  mov WORD PTR [REG_6502_S_64 - 1], 0xffff
+  # A 16-bit immediate store (66 prefix + imm16) is a length changing prefix
+  # and stalls the legacy decoder ~3 cycles. Go via a 32-bit immediate.
+  mov REG_SCRATCH3_32, 0x7fffffff
 ASM_SYM(asm_jit_PUSH_16_word_patch):
+  mov WORD PTR [REG_6502_S_64 - 1], REG_SCRATCH3_16
   lea REG_6502_S_32, [REG_6502_S_64 - 2]
 
 ASM_SYM(asm_jit_PUSH_16_END):
