@@ -1121,6 +1121,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   int is_mode_addr;
   int is_mode_abn;
   int is_rmw;
+  int is_rol;
   int do_set_segment;
   int do_eliminate_load_store;
   uint16_t addr;
@@ -1347,9 +1348,16 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     addr = p_mode_uop->value1;
     is_zpg = (addr < 0x100);
     new_uopcode = p_main_uop->uopcode;
-    if ((new_uopcode == k_opcode_ROL_value) ||
-        (new_uopcode == k_opcode_ROR_value)) {
-      /* x64 rcl / rcr don't update host NZ flags. Given that the common case is
+    /* ROL on memory is done as load, adc, store rather than the x64 rcl
+     * read-modify-write. rcl is multiple uops and doesn't set NZ, so flags,
+     * when needed, had to be recovered with a test from memory behind the
+     * store. adc is a single uop, sets NZ, and has the carry out a cycle
+     * earlier. The store never touches flags, so the carry can still flow
+     * straight into a following ROL or BCC / BCS.
+     */
+    is_rol = (new_uopcode == k_opcode_ROL_value);
+    if (new_uopcode == k_opcode_ROR_value) {
+      /* x64 rcr doesn't update host NZ flags. Given that the common case is
        * that flags aren't needed, we use a single-instruction x64 RMW opcode
        * for the operation, and recover flags from memory if needed.
        */
@@ -1370,16 +1378,23 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_main_uop = p_mode_uop;
       p_main_uop->is_eliminated = 0;
     }
-    if (is_rmw && !p_asm->is_memory_always_ram(p_asm->p_memory_object, addr)) {
-      /* Leave it as RMW so that the read and write can hit different
-       * mappings.
+    if (is_rmw &&
+        (is_rol ||
+         !p_asm->is_memory_always_ram(p_asm->p_memory_object, addr))) {
+      /* Leave it as RMW: for ROL as above, and otherwise so that the read and
+       * write can hit different mappings.
        */
-      p_load_uop->backend_tag = k_opcode_x64_load_ABS;
+      if (is_zpg) {
+        p_load_uop->backend_tag = k_opcode_x64_load_ZPG;
+        p_store_uop->backend_tag = k_opcode_x64_store_ZPG;
+      } else {
+        p_load_uop->backend_tag = k_opcode_x64_load_ABS;
+        p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+        p_store_uop->backend_tag = k_opcode_x64_store_ABS;
+        p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
+      }
       p_load_uop->value1 = addr;
-      p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
-      p_store_uop->backend_tag = k_opcode_x64_store_ABS;
       p_store_uop->value1 = addr;
-      p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
     } else {
       p_main_uop->backend_tag = new_uopcode;
       p_main_uop->value1 = addr;
@@ -1593,10 +1608,12 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     assert(p_mode_uop != NULL);
     assert(p_save_carry_uop != NULL);
     assert(p_nz_flags_uop != NULL);
-    if (p_main_uop->backend_tag == 0) {
-      /* The ROL / ROR read-modify-writes do built in flag saving. */
-      p_save_carry_uop->is_eliminated = 1;
-      p_save_carry_uop->is_merged = 1;
+    if ((p_main_uop->backend_tag == 0) && (uopcode == k_opcode_ROL_value)) {
+      /* The register form of ROL is adc, which sets NZ as part of the
+       * rotate. The carry save stays a separate uop so that the optimizer
+       * can eliminate it when the carry flows straight into the next
+       * instruction.
+       */
       p_nz_flags_uop->is_eliminated = 1;
       p_nz_flags_uop->is_merged = 1;
     }
@@ -1920,17 +1937,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_U32(raw_call);
     break;
   case k_opcode_ROL_acc: ASM(ROL_ACC); break;
-  case k_opcode_ROL_value:
-    /* Uses adc, so no flags_nz_value needed. */
-    ASM(ROL_value);
-    ASM(save_carry);
-    break;
+  case k_opcode_ROL_value: ASM(ROL_value); break;
   case k_opcode_ROR_acc: ASM(ROR_ACC); break;
-  case k_opcode_ROR_value:
-    ASM(ROR_value);
-    ASM(save_carry);
-    ASM(flags_nz_value);
-    break;
+  case k_opcode_ROR_value: ASM(ROR_value); break;
   case k_opcode_SBC: ASM(SBC); break;
   case k_opcode_SEC: asm_emit_instruction_SEC(p_dest_buf); break;
   case k_opcode_SED: asm_emit_instruction_SED(p_dest_buf); break;

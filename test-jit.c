@@ -1284,17 +1284,25 @@ jit_test_compile_binary(void) {
   p_binary = jit_test_get_binary(s_p_metadata, 0x3600);
 #if defined(__x86_64__)
   /* shr    r14b, 1
-   * rcl    BYTE PTR [rbp-0x4e], 1
-   * rcl    BYTE PTR [rbp-0x4f], 1
+   * movzx  esi, BYTE PTR [rbp-0x4e]
+   * adc    sil, sil
+   * mov    BYTE PTR [rbp-0x4e], sil
+   * movzx  esi, BYTE PTR [rbp-0x4f]
+   * adc    sil, sil
    * setb   r14b
+   * mov    BYTE PTR [rbp-0x4f], sil
    * dec    bl
    */
   p_expect = "\x41\xd0\xee"
-             "\xd0\x55\xb2"
-             "\xd0\x55\xb1"
+             "\x0f\xb6\x75\xb2"
+             "\x40\x10\xf6"
+             "\x40\x88\x75\xb2"
+             "\x0f\xb6\x75\xb1"
+             "\x40\x10\xf6"
              "\x41\x0f\x92\xc6"
+             "\x40\x88\x75\xb1"
              "\xfe\xcb";
-  expect_len = 15;
+  expect_len = 29;
 #elif defined(__aarch64__)
   /* ldrb  w20, [x27, #0x32]
    * mov   x4, x6
