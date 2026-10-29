@@ -1441,6 +1441,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
         p_main_uop->backend_tag = k_opcode_x64_STA_addr_zpx;
         do_eliminate_load_store = 1;
         is_mode_addr = 0;
+        break;
       default:
         break;
       }
