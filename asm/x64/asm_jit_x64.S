@@ -2684,6 +2684,15 @@ ASM_SYM(asm_jit_STA_addr_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_STA_addr_zpx)
+.globl ASM_SYM(asm_jit_STA_addr_zpx_END)
+ASM_SYM(asm_jit_STA_addr_zpx):
+  mov [REG_ADDR + K_BBC_MEM_READ_IND_ADDR], REG_6502_A
+
+ASM_SYM(asm_jit_STA_addr_zpx_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_STA_addr_n)
 .globl ASM_SYM(asm_jit_STA_addr_n_END)
 ASM_SYM(asm_jit_STA_addr_n):

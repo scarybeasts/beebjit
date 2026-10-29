@@ -1357,6 +1357,31 @@ jit_test_compile_binary(void) {
   test_expect_binary(p_expect, p_binary, expect_len);
 #endif
 
+#if defined(__x86_64__)
+  /* Check STA zpx stores via the read mapping, like the loads. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3E00), 0x100);
+  emit_STA(p_buf, k_zpx, 0x40);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3E00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3E00);
+  /* Uses the longer-form countdown check, so fix up p_binary. */
+  p_binary -= 6;
+  p_binary += 11;
+  /* lea    edx, [rbx+0x40]
+   * movzx  edx, dl
+   * mov    BYTE PTR [rdx+0x10008000], al
+   */
+  p_expect = "\x8d\x53\x40"
+             "\x0f\xb6\xd2"
+             "\x88\x82\x00\x80\x00\x10";
+  expect_len = 12;
+  test_expect_binary(p_expect, p_binary, expect_len);
+#endif
+
   /* Check the output for an SBC chain rolling into an ADC.
    * Exile has similar sequences where the carry flag does a bit of a journey!
    */

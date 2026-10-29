@@ -167,6 +167,7 @@ enum {
   k_opcode_x64_STA_addr_n,
   k_opcode_x64_STA_addr_X,
   k_opcode_x64_STA_addr_Y,
+  k_opcode_x64_STA_addr_zpx,
   k_opcode_x64_STA_ABS,
   k_opcode_x64_STA_ABX,
   k_opcode_x64_STA_ABY,
@@ -1423,7 +1424,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->backend_tag = k_opcode_x64_mode_ZPX;
     p_mode_uop->value1 = addr;
     is_mode_addr = 1;
-    if (is_rmw && (uopcode == k_opcode_addr_add_x_8bit)) {
+    if (uopcode == k_opcode_addr_add_x_8bit) {
       /* Mode zpx hits zero page which is always RAM.
        * So INC / DEC zpx can be a single x64 RMW like INC / DEC zpg.
        */
@@ -1436,6 +1437,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
         p_main_uop->backend_tag = k_opcode_x64_DEC_addr_zpx;
         do_eliminate_load_store = 1;
         break;
+      case k_opcode_STA:
+        p_main_uop->backend_tag = k_opcode_x64_STA_addr_zpx;
+        do_eliminate_load_store = 1;
+        is_mode_addr = 0;
       default:
         break;
       }
@@ -2244,6 +2249,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_x64_STA_addr_X: ASM(STA_addr_X); break;
   case k_opcode_x64_STA_addr_Y: ASM(STA_addr_Y); break;
+  case k_opcode_x64_STA_addr_zpx: ASM(STA_addr_zpx); break;
   case k_opcode_x64_STA_ABS: ASM_ADDR_U32(STA_ABS); break;
   case k_opcode_x64_STA_ABX: ASM_ADDR_U32_RAW(STA_ABX); break;
   case k_opcode_x64_STA_ABY: ASM_ADDR_U32_RAW(STA_ABY); break;
