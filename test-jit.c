@@ -1328,6 +1328,35 @@ jit_test_compile_binary(void) {
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
+#if defined(__x86_64__)
+  /* Check INC / DEC zpx are a single RMW, on the indirect read alias. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3D00), 0x100);
+  emit_INC(p_buf, k_zpx, 0x40);
+  emit_DEC(p_buf, k_zpx, 0x41);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3D00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3D00);
+  /* lea    edx, [rbx+0x40]
+   * movzx  edx, dl
+   * inc    BYTE PTR [rdx+0x10008000]
+   * lea    edx, [rbx+0x41]
+   * movzx  edx, dl
+   * dec    BYTE PTR [rdx+0x10008000]
+   */
+  p_expect = "\x8d\x53\x40"
+             "\x0f\xb6\xd2"
+             "\xfe\x82\x00\x80\x00\x10"
+             "\x8d\x53\x41"
+             "\x0f\xb6\xd2"
+             "\xfe\x8a\x00\x80\x00\x10";
+  expect_len = 24;
+  test_expect_binary(p_expect, p_binary, expect_len);
+#endif
+
   /* Check the output for an SBC chain rolling into an ADC.
    * Exile has similar sequences where the carry flag does a bit of a journey!
    */

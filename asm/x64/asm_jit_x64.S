@@ -1837,6 +1837,15 @@ ASM_SYM(asm_jit_DEC_ABS_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_DEC_addr_zpx)
+.globl ASM_SYM(asm_jit_DEC_addr_zpx_END)
+ASM_SYM(asm_jit_DEC_addr_zpx):
+  dec BYTE PTR [REG_ADDR + K_BBC_MEM_READ_IND_ADDR]
+
+ASM_SYM(asm_jit_DEC_addr_zpx_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_DEC_value)
 .globl ASM_SYM(asm_jit_DEC_value_END)
 ASM_SYM(asm_jit_DEC_value):
@@ -1975,8 +1984,6 @@ ASM_SYM(asm_jit_INC_ABS_END):
 .globl ASM_SYM(asm_jit_INC_addr_zpx)
 .globl ASM_SYM(asm_jit_INC_addr_zpx_END)
 ASM_SYM(asm_jit_INC_addr_zpx):
-  # NOTE: only used for mode zpx so it's safe to assume RAM.
-  # TODO: shorter encoding with REG_MEM?
   inc BYTE PTR [REG_ADDR + K_BBC_MEM_READ_IND_ADDR]
 
 ASM_SYM(asm_jit_INC_addr_zpx_END):

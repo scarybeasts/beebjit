@@ -93,6 +93,7 @@ enum {
   k_opcode_x64_CPY_IMM,
   k_opcode_x64_CPY_ZPG,
   k_opcode_x64_DEC_ABS,
+  k_opcode_x64_DEC_addr_zpx,
   k_opcode_x64_DEC_ZPG,
   k_opcode_x64_DEX_n,
   k_opcode_x64_DEY_n,
@@ -106,6 +107,7 @@ enum {
   k_opcode_x64_EOR_IMM,
   k_opcode_x64_EOR_ZPG,
   k_opcode_x64_INC_ABS,
+  k_opcode_x64_INC_addr_zpx,
   k_opcode_x64_INC_ZPG,
   k_opcode_x64_INX_n,
   k_opcode_x64_INY_n,
@@ -1421,6 +1423,23 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->backend_tag = k_opcode_x64_mode_ZPX;
     p_mode_uop->value1 = addr;
     is_mode_addr = 1;
+    if (is_rmw && (uopcode == k_opcode_addr_add_x_8bit)) {
+      /* Mode zpx hits zero page which is always RAM.
+       * So INC / DEC zpx can be a single x64 RMW like INC / DEC zpg.
+       */
+      switch (p_main_uop->uopcode) {
+      case k_opcode_INC_value:
+        p_main_uop->backend_tag = k_opcode_x64_INC_addr_zpx;
+        do_eliminate_load_store = 1;
+        break;
+      case k_opcode_DEC_value:
+        p_main_uop->backend_tag = k_opcode_x64_DEC_addr_zpx;
+        do_eliminate_load_store = 1;
+        break;
+      default:
+        break;
+      }
+    }
     break;
   case k_opcode_addr_add_y_8bit:
     /* Mode ZPY. */
@@ -2109,6 +2128,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_CPY_IMM: ASM_U8(CPY_IMM); break;
   case k_opcode_x64_CPY_ZPG: ASM_ADDR_U8(CPY_ZPG); break;
   case k_opcode_x64_DEC_ABS: ASM_ADDR_U32(DEC_ABS); break;
+  case k_opcode_x64_DEC_addr_zpx: ASM(DEC_addr_zpx); break;
   case k_opcode_x64_DEC_ZPG: ASM_ADDR_U8(DEC_ZPG); break;
   case k_opcode_x64_DEX_n: ASM_U8(DEX_n); break;
   case k_opcode_x64_DEY_n: ASM_U8(DEY_n); break;
@@ -2122,6 +2142,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_EOR_IMM: ASM_U8(EOR_IMM); break;
   case k_opcode_x64_EOR_ZPG: ASM_ADDR_U8(EOR_ZPG); break;
   case k_opcode_x64_INC_ABS: ASM_ADDR_U32(INC_ABS); break;
+  case k_opcode_x64_INC_addr_zpx: ASM(INC_addr_zpx); break;
   case k_opcode_x64_INC_ZPG: ASM_ADDR_U8(INC_ZPG); break;
   case k_opcode_x64_INX_n: ASM_U8(INX_n); break;
   case k_opcode_x64_INY_n: ASM_U8(INY_n); break;
