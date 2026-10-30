@@ -1310,8 +1310,19 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop++;
     p_mode_uop->backend_tag = k_opcode_x64_mode_IND;
     p_mode_uop->value1 = addr;
-    /* TODO: not correct for hardware register hits, but BRK breaks with IND. */
-    p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
+    if (addr < K_BBC_MEM_INACCESSIBLE_OFFSET) {
+      /* Read the vector via the indirect read mapping, the one stores try to
+       * use, to avoid store / load virtual memory aliasing issues.
+       * Happens with STA $FB / JMP ($00FA) in MOS.
+       */
+      p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+    } else {
+      /* The top page is unmapped in the indirect mapping and would fault into
+       * the interpreter. That must not happen for BRK, which comes through
+       * here for its $FFFE vector.
+       */
+      p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
+    }
     break;
   case k_opcode_addr_load_16bit_nowrap:
     /* Dynamic opcode, ABS. */
@@ -2043,6 +2054,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_ADDR_U8(mode_IDY_load_mov2);
     break;
   case k_opcode_x64_mode_IND:
+    if (value1 < 0x100) {
+      /* Zero page vector: 8-bit displacement forms, same page wrap. */
+      ASM_ADDR_U8(mode_IDY_load_mov1);
+      value1 = ((value1 + 1) & 0xFF);
+      ASM_ADDR_U8(mode_IDY_load_mov2);
+      break;
+    }
     ASM_ADDR_U32(mode_IND_mov1);
     value1++;
     if ((value1 & 0xFF) == 0) value1 -= 0x100;
