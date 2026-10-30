@@ -84,7 +84,6 @@ jit_interp_instruction_callback(void* p,
                                 int next_is_irq,
                                 int irq_pending) {
   int32_t next_block;
-  int32_t next_block_prev;
   uint8_t opmem;
 
   struct jit_metadata* p_metadata;
@@ -119,20 +118,13 @@ jit_interp_instruction_callback(void* p,
     return 0;
   }
 
+  /* If there's no JIT code at the next PC (next block == -1), exit to it and we
+   * will compile. We need this to avoid staying trapped in the interpreter.
+   * More typically, exit if our next PC is the start of a JIT block. By
+   * respecting JIT block boundaries, we avoid fragmenting the blocks.
+   */
   next_block = jit_metadata_get_code_block(p_metadata, next_pc);
-  if (next_block == -1) {
-    /* Always consider an address with no JIT code to be a new block
-     * boundary. Without this, an RTI to an uncompiled region will stay stuck
-     * in the interpreter.
-     */
-    return 1;
-  }
-
-  next_block_prev = jit_metadata_get_code_block(p_metadata, (next_pc - 1));
-  if (next_block != next_block_prev) {
-    /* If the instruction we're about to execute is at the start of a JIT
-     * block, bounce back into JIT at this clean boundary.
-     */
+  if ((next_block == -1) || (next_block == next_pc)) {
     return 1;
   }
 
