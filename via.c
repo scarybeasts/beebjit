@@ -938,6 +938,12 @@ via_write_ORB(struct via_struct* p_via, uint8_t val) {
 
 static void
 via_write_DDRA(struct via_struct* p_via, uint8_t val) {
+  /* The OS keyboard scan rewrites DDRA with its current value on every INKEY,
+   * and the port A recompute is the most expensive part of that scan.
+   */
+  if (val == p_via->DDRA) {
+    return;
+  }
   p_via->DDRA = val;
   via_update_port_a(p_via);
 }
