@@ -36,21 +36,13 @@ state_6502_destroy(struct state_6502* p_state_6502) {
 void
 state_6502_reset(struct state_6502* p_state_6502) {
   uint16_t init_pc;
-  uint32_t reg_s;
 
   uint8_t* p_mem_read = p_state_6502->p_mem_read;
-
-  /* Preserve the upper bits of S, in case the asm backend uses a pointer value
-   * there.
-   */
-  reg_s = p_state_6502->abi_state.reg_s;
 
   (void) memset(&p_state_6502->abi_state,
                 '\0',
                 sizeof(p_state_6502->abi_state));
   (void) memset(&p_state_6502->state, '\0', sizeof(p_state_6502->state));
-
-  p_state_6502->abi_state.reg_s = reg_s;
 
   /* EMU: from https://www.pagetable.com/?p=410, initial 6502 state is not all
    * zero. Also, see http://www.visual6502.org/JSSim/expert.html.
@@ -101,12 +93,18 @@ state_6502_set_registers(struct state_6502* p_state_6502,
                          uint8_t s,
                          uint8_t flags,
                          uint16_t pc) {
-  *((uint8_t*) &p_state_6502->abi_state.reg_a) = a;
-  *((uint8_t*) &p_state_6502->abi_state.reg_x) = x;
-  *((uint8_t*) &p_state_6502->abi_state.reg_y) = y;
-  *((uint8_t*) &p_state_6502->abi_state.reg_s) = s;
-  *((uint8_t*) &p_state_6502->abi_state.reg_flags) = flags;
-  state_6502_set_pc(p_state_6502, pc);
+  /* The ABI state fields are plain 32-bit values holding zero-extended 6502
+   * register values. Always access them at their full width: the asm
+   * backends restore them with 32-bit loads, and a narrower store followed by
+   * a wider load defeats store-to-load forwarding on x64 (~14 extra cycles
+   * per register on every interpreter exit).
+   */
+  p_state_6502->abi_state.reg_a = a;
+  p_state_6502->abi_state.reg_x = x;
+  p_state_6502->abi_state.reg_y = y;
+  p_state_6502->abi_state.reg_s = s;
+  p_state_6502->abi_state.reg_flags = flags;
+  p_state_6502->abi_state.reg_pc = pc;
 }
 
 uint64_t
@@ -124,32 +122,27 @@ state_6502_set_cycles(struct state_6502* p_state_6502, uint64_t cycles) {
 
 uint16_t
 state_6502_get_pc(struct state_6502* p_state_6502) {
-  uint32_t* p_pc = &p_state_6502->abi_state.reg_pc;
-  return *((uint16_t*) p_pc);
+  return p_state_6502->abi_state.reg_pc;
 }
 
 void
 state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc) {
-  uint32_t* p_pc = &p_state_6502->abi_state.reg_pc;
-  *((uint16_t*) p_pc) = pc;
+  p_state_6502->abi_state.reg_pc = pc;
 }
 
 void
 state_6502_set_a(struct state_6502* p_state_6502, uint8_t val) {
-  uint32_t* p_a = &p_state_6502->abi_state.reg_a;
-  *((uint8_t*) p_a) = val;
+  p_state_6502->abi_state.reg_a = val;
 }
 
 void
 state_6502_set_x(struct state_6502* p_state_6502, uint8_t val) {
-  uint32_t* p_x = &p_state_6502->abi_state.reg_x;
-  *((uint8_t*) p_x) = val;
+  p_state_6502->abi_state.reg_x = val;
 }
 
 void
 state_6502_set_y(struct state_6502* p_state_6502, uint8_t val) {
-  uint32_t* p_y = &p_state_6502->abi_state.reg_y;
-  *((uint8_t*) p_y) = val;
+  p_state_6502->abi_state.reg_y = val;
 }
 
 static int

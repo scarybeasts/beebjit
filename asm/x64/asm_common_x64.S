@@ -52,16 +52,13 @@ ASM_SYM(asm_enter_common):
   mov REG_6502_CF_64, 0
   mov REG_6502_ID_F_64, 0
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  # In the x64 JIT model, the 6502 S register is stored as a register
-  # value that can also be used as an x64 pointers to where it indexes.
-  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
-  or DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], 0x100
-  call ASM_SYM(asm_restore_AXYS_PC_flags)
-
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
+  # Must be set up before asm_restore_AXYS_PC_flags, which uses it.
   lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  call ASM_SYM(asm_restore_AXYS_PC_flags)
   # JIT invalidation marker constant.
   mov REG_JIT_INV_MARKER_32, 0x17ff
 
@@ -376,7 +373,11 @@ ASM_SYM(asm_save_AXYS_PC_flags):
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_6502_Y_32
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_6502_S_32
+  # In the x64 JIT model, the 6502 S register is held as an x64 pointer to
+  # the stack byte it indexes. The state struct holds just the 6502 value, so
+  # strip the pointer bits here and re-add them in the restore.
+  movzx REG_SCRATCH1_32, REG_6502_S
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_SCRATCH1_32
 
   call ASM_SYM(asm_asm_emit_intel_flags_to_scratch)
 
@@ -393,6 +394,9 @@ ASM_SYM(asm_restore_AXYS_PC_flags):
   mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
   mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
   mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  # Convert S to its pointer form: see asm_save_AXYS_PC_flags. REG_MEM is the
+  # memory base this run was entered with, plus REG_MEM_OFFSET.
+  lea REG_6502_S_64, [REG_MEM + REG_6502_S_64 + (0x100 - REG_MEM_OFFSET)]
   # Restore 6502 IP.
   # May not be used / set by every asm backend.
   mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
