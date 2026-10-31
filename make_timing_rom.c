@@ -1285,9 +1285,70 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE4B);
   emit_JMP(p_buf, k_abs, 0xD140);
 
-  /* Exit sequence. */
+  /* Test read-modify-write instructions hitting ROM: the ROM byte must be
+   * unchanged afterwards. This ROM runs without sideways RAM, so unlike
+   * test.rom these writes are compiled rather than sent to the interpreter,
+   * and exercise the JIT's ROM write handling (sideways ROM, OS ROM, and the
+   * $F000+ page that is inaccessible in the indirect read mapping).
+   */
   set_new_index(p_buf, 0x1140);
+  emit_LDA(p_buf, k_abs, 0x8000);
+  emit_STA(p_buf, k_zpg, 0x20);
+  emit_INC(p_buf, k_abs, 0x8000);
+  emit_LDA(p_buf, k_abs, 0x8000);
+  emit_CMP(p_buf, k_zpg, 0x20);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_STA(p_buf, k_zpg, 0x20);
+  emit_INC(p_buf, k_abs, 0xC000);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_CMP(p_buf, k_zpg, 0x20);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xF000);
+  emit_STA(p_buf, k_zpg, 0x20);
+  emit_INC(p_buf, k_abs, 0xF000);
+  emit_LDA(p_buf, k_abs, 0xF000);
+  emit_CMP(p_buf, k_zpg, 0x20);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* abs,X, with X loaded from memory so the optimizer can't know it. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x21);
+  emit_LDX(p_buf, k_zpg, 0x21);
+  emit_LDA(p_buf, k_abs, 0xF000);
+  emit_STA(p_buf, k_zpg, 0x20);
+  emit_INC(p_buf, k_abx, 0xF000);
+  emit_LDA(p_buf, k_abs, 0xF000);
+  emit_CMP(p_buf, k_zpg, 0x20);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Flags: INC of a $7F ROM byte sets N, INC of a $FF ROM byte sets Z. */
+  emit_INC(p_buf, k_abs, 0xD210);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_INC(p_buf, k_abs, 0xD211);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  /* Same for abs,X into the $F000 page, X = 0 then X = 1, both unknown. */
+  emit_LDX(p_buf, k_zpg, 0x21);
+  emit_INC(p_buf, k_abx, 0xFB00);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_INC(p_buf, k_zpg, 0x21);
+  emit_LDX(p_buf, k_zpg, 0x21);
+  emit_INC(p_buf, k_abx, 0xFB00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_LDA(p_buf, k_abs, 0xFB01);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xD200);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x1200);
   emit_EXIT(p_buf);
+
+  /* Data bytes for the ROM RMW flag tests above. */
+  set_new_index(p_buf, 0x1210);
+  util_buffer_add_1b(p_buf, 0x7F);
+  util_buffer_add_1b(p_buf, 0xFF);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
   /* For testing dynamic operand of abx mode. */
@@ -1325,6 +1386,11 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
   emit_RTS(p_buf);
+
+  /* Data bytes for the ROM RMW flag tests, in the $F000+ page. */
+  set_new_index(p_buf, 0x3B00);
+  util_buffer_add_1b(p_buf, 0x7F);
+  util_buffer_add_1b(p_buf, 0xFF);
 
   /* IRQ routine. */
   set_new_index(p_buf, 0x3F00);
