@@ -2354,6 +2354,9 @@ main(int argc, const char* argv[]) {
   emit_INC(p_buf, k_abs, 0x8000);
   /* Include an OS ROM hit for codegen comparison. */
   emit_INC(p_buf, k_abs, 0xC000);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_INC(p_buf, k_abs, 0xF000);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE180);
 
   /* Issue a SAX zpy; this was asserting the x64 backend. */
