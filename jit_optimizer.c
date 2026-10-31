@@ -26,7 +26,7 @@ jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
     uint8_t optype;
     int32_t uopcode = -1;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -94,7 +94,7 @@ jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
     p_opcode->flag_carry = flag_carry;
     p_opcode->flag_decimal = flag_decimal;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -204,10 +204,10 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     int do_eliminate_check_bcd = 0;
     int do_eliminate_load_carry = 0;
 
-    /* The transforms below will crash if we've written the opcode to be an
+    /* The transforms below will crash if we've rewritten the opcode to be an
      * interp or inturbo bail.
      */
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -567,6 +567,7 @@ jit_optimizer_collapse_indefinite_loops(struct jit_opcode_details* p_opcodes,
   }
 
   p_opcode->ends_block = 1;
+  p_opcode->is_rewritten = 1;
   p_opcode += p_opcode->num_bytes_6502;
   p_opcode->addr_6502 = -1;
 }
@@ -670,6 +671,7 @@ jit_optimizer_collapse_delay_loops(struct jit_opcode_details* p_opcodes,
 
   /* Block ends at the branch. */
   p_opcode->ends_block = 1;
+  p_opcode->is_rewritten = 1;
   p_opcode += p_opcode->num_bytes_6502;
   p_opcode->addr_6502 = -1;
 
@@ -755,7 +757,7 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
     int is_changing_addr_reg = 0;
     int is_tricky_opcode = 0;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -869,7 +871,7 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
     uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -952,7 +954,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
     int had_save_overflow = 0;
     int32_t index;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 
@@ -1123,7 +1125,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     struct asm_uop* p_countdown_uop = NULL;
     int is_self_modify_invalidated = p_opcode->self_modify_invalidated;
 
-    if (p_opcode->ends_block) {
+    if (p_opcode->is_rewritten) {
       continue;
     }
 

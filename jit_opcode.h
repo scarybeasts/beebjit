@@ -33,6 +33,12 @@ struct jit_opcode_details {
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int ends_block;
+  /* Set if the uops no longer implement the 6502 opcode described by
+   * optype_6502 etc., i.e. the opcode was rewritten into an interp or inturbo
+   * bail, or into a collapsed loop. The optimizer must leave such opcodes
+   * alone.
+   */
+  int is_rewritten;
   void* p_host_prefix_start;
   void* p_host_opcode_start;
   int32_t cycles_run_start;

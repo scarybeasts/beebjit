@@ -747,6 +747,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop1(p_uop, k_opcode_interp, addr_6502);
     p_uop++;
     p_details->ends_block = 1;
+    p_details->is_rewritten = 1;
 
     p_details->num_uops = (p_uop - &p_details->uops[0]);
     assert(p_details->num_uops <= k_max_uops_per_opcode);
@@ -758,6 +759,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop1(p_uop, k_opcode_inturbo, addr_6502);
     p_uop++;
     p_details->ends_block = 1;
+    p_details->is_rewritten = 1;
     p_details->max_cycles = 0;
 
     p_details->num_uops = (p_uop - &p_details->uops[0]);
@@ -1311,6 +1313,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler) {
     asm_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
     p_details->num_uops = 1;
     p_details->ends_block = 1;
+    p_details->is_rewritten = 1;
     p_details->is_dynamic_opcode = 1;
     p_details->is_dynamic_operand = 1;
     /* The dyanmic opcode doesn't directly consume 6502 cycles itself -- the

@@ -1582,6 +1582,42 @@ jit_test_compile_binary(void) {
   expect_len = 12;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check that a block consisting of a single opcode, which then jumps to the
+   * next block because of a block split, is still optimized. The opcode sets
+   * the NZ flags so the faster countdown check, which clobbers them, is
+   * expected.
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3F00), 0x100);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_LDX(p_buf, k_imm, 0x02);
+  emit_EXIT(p_buf);
+  /* Compile the block at $3F02 first, so that $3F00 compiles as one opcode. */
+  state_6502_set_pc(s_p_state_6502, 0x3F02);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0x3F00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x3F00);
+#if defined(__x86_64__)
+  /* sub    r15, 0x2
+   * jb     <countdown expired, epilog at end of chunk>
+   * mov    eax, 0x1
+   * test   al, al
+   */
+  /* Include the countdown check itself, so fix up p_binary. */
+  p_binary -= 6;
+#if K_JIT_BYTES_SHIFT == 6
+  p_expect = "\x49\x83\xef\x02" "\x72\x35" "\xb8\x01\x00\x00\x00" "\x84\xc0";
+#else
+  p_expect = "\x49\x83\xef\x02" "\x72\x75" "\xb8\x01\x00\x00\x00" "\x84\xc0";
+#endif
+  expect_len = 13;
+  test_expect_binary(p_expect, p_binary, expect_len);
+#endif
 }
 
 void
