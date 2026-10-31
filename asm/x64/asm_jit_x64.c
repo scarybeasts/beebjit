@@ -1479,12 +1479,16 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_tmp_uop->is_eliminated = 1;
       addr = p_tmp_uop->value1;
       if (is_rmw) {
+        /* Pick the mappings like plain abs,X loads and stores do, which tries
+         * to direct access to the READ_IND mapping where possible. This avoids
+         * memory aliasing issues.
+         */
         p_load_uop->backend_tag = k_opcode_x64_mode_ABX_and_load;
         p_load_uop->value1 = addr;
-        p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+        p_load_uop->value2 = asm_jit_get_segment(p_asm, addr, 0, 1);
         p_store_uop->backend_tag = k_opcode_x64_mode_ABX_store;
         p_store_uop->value1 = addr;
-        p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
+        p_store_uop->value2 = asm_jit_get_segment(p_asm, addr, 1, 1);
       } else {
         new_uopcode = p_main_uop->uopcode;
         new_uopcode = asm_jit_rewrite_ABX(new_uopcode);
