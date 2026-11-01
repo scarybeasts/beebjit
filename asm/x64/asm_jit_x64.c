@@ -2140,13 +2140,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_ABX:
-    ASM_U32(mode_ABX_to_temp_addr);
-    ASM(write_inv_from_temp_addr);
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    ASM_U32(write_inv_ABX);
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_ABY:
-    ASM_U32(mode_ABY_to_temp_addr);
-    ASM(write_inv_from_temp_addr);
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    ASM_U32(write_inv_ABY);
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_IDY:
