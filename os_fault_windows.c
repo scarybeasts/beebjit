@@ -6,41 +6,50 @@
 
 #include <stdio.h>
 
-static void (*s_p_fault_callback)(uintptr_t*,
-                                  uintptr_t,
-                                  int,
-                                  int,
-                                  int,
-                                  uintptr_t);
+static os_fault_callback_t s_p_fault_callback;
 
 static LONG
 VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
   EXCEPTION_RECORD* p_record = p_info->ExceptionRecord;
   CONTEXT* p_context = p_info->ContextRecord;
-  DWORD64 flags = p_record->ExceptionInformation[0];
+  int handled;
+  int is_exec = 0;
+  int is_write = 0;
+  int is_trap = 0;
+  uintptr_t host_fault_addr;
 
-  if (p_record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+  if (p_record->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+    DWORD64 flags = p_record->ExceptionInformation[0];
+    host_fault_addr = (uintptr_t) p_record->ExceptionInformation[1];
+    is_exec = !!(flags & 8);
+    is_write = !!(flags & 1);
+  } else if (p_record->ExceptionCode == EXCEPTION_BREAKPOINT) {
+    /* Windows winds Rip back to the int3 itself; the callback contract is the
+     * POSIX one, pc past the trap instruction.
+     */
+    is_trap = 1;
+    host_fault_addr = 0;
+    p_context->Rip += 1;
+  } else {
     os_fault_bail();
   }
 
-  s_p_fault_callback((uintptr_t*) &p_context->Rip,
-                     (uintptr_t) p_record->ExceptionInformation[1],
-                     0,
-                     !!(flags & 8),
-                     !!(flags & 1),
-                     (uintptr_t) p_context->Rdi);
+  handled = s_p_fault_callback((uintptr_t*) &p_context->Rip,
+                               host_fault_addr,
+                               0,
+                               is_exec,
+                               is_write,
+                               is_trap,
+                               (uintptr_t) p_context->Rdi);
+  if (!handled) {
+    os_fault_bail();
+  }
 
   return EXCEPTION_CONTINUE_EXECUTION;
 }
 
 void
-os_fault_register_handler(
-    void (*p_fault_callback)(uintptr_t* p_host_rip,
-                             uintptr_t host_fault_addr,
-                             int is_illegal,
-                             int is_exec,
-                             int is_write,
-                             uintptr_t host_rdi)) {
+os_fault_register_handler(os_fault_callback_t p_fault_callback) {
   void* p_ret;
 
   s_p_fault_callback = p_fault_callback;

@@ -328,24 +328,27 @@ asm_jit_is_default(void) {
   return 1;
 }
 
-static void
+static int
 asm_jit_rorx_check_handle_fault(uintptr_t* p_host_pc,
                                 uintptr_t host_fault_addr,
                                 int is_illegal,
                                 int is_exec,
                                 int is_write,
+                                int is_trap,
                                 uintptr_t host_context) {
   (void) host_fault_addr;
   (void) is_exec;
   (void) is_write;
   (void) host_context;
+  (void) is_trap;
 
   if (!is_illegal) {
-    os_fault_bail();
+    return 0;
   }
 
   s_rorx_works = 0;
   *p_host_pc += 6;
+  return 1;
 }
 
 void
