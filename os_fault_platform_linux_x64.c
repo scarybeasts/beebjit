@@ -34,6 +34,12 @@ os_fault_set_pc(void* p, uintptr_t pc) {
   p_context->uc_mcontext.gregs[REG_RIP] = pc;
 }
 
+void
+os_fault_set_trap_param(void* p, uintptr_t param) {
+  ucontext_t* p_context = (ucontext_t*) p;
+  p_context->uc_mcontext.gregs[REG_RSI] = param;
+}
+
 int
 os_fault_is_carry_flag_set(uintptr_t host_flags) {
   return !!(host_flags & 0x0001);

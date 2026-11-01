@@ -291,6 +291,13 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   return 1;
 }
 
+int
+asm_jit_handle_trap(uintptr_t* p_pc, uintptr_t* p_param) {
+  (void) p_pc;
+  (void) p_param;
+  return 0;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   /* blr x29 */

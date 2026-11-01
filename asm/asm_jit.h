@@ -32,6 +32,11 @@ int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                          int32_t addr_6502,
                          void* p_fault_addr,
                          int is_write);
+/* Called for a trap (x64: int3) with *p_pc past the trap instruction. Returns 1
+ * if it is a compile marker, having redirected *p_pc to the compile trampoline
+ * with the marker address in *p_param.
+ */
+int asm_jit_handle_trap(uintptr_t* p_pc, uintptr_t* p_param);
 
 void asm_jit_invalidate_code_at(void* p);
 int asm_jit_is_invalidated_code_at(void* p);

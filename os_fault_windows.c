@@ -17,6 +17,7 @@ VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
   int is_write = 0;
   int is_trap = 0;
   uintptr_t host_fault_addr;
+  uintptr_t host_param = 0;
 
   if (p_record->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
     DWORD64 flags = p_record->ExceptionInformation[0];
@@ -40,9 +41,14 @@ VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
                                is_exec,
                                is_write,
                                is_trap,
-                               (uintptr_t) p_context->Rdi);
+                               (uintptr_t) p_context->Rdi,
+                               &host_param);
   if (!handled) {
     os_fault_bail();
+  }
+
+  if (is_trap) {
+    p_context->Rsi = host_param;
   }
 
   return EXCEPTION_CONTINUE_EXECUTION;

@@ -50,11 +50,10 @@
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_16    r9w
 #define REG_SCRATCH3_32    r9d
-/* r11 holds the constant 0x17ff ("call [rdi]" bytes) used to invalidate JIT
- * code on writes. It is caller saved in the ABI, so every path from C back
- * into JIT or inturbo code reloads it.
+/* NOTE: r11 is currently unused by JIT / inturbo code.
+ * NOTE: REG_SCRATCH2 is also the register the SIGTRAP handler uses to pass the
+ * address of an int3 compile marker to asm_jit_compile_trampoline. See
+ * os_fault_set_trap_param() in the os_fault_platform_*_x64.c files.
  */
-#define REG_JIT_INV_MARKER_16  r11w
-#define REG_JIT_INV_MARKER_32  r11d
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_X64_H */

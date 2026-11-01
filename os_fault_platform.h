@@ -10,6 +10,11 @@ uintptr_t os_fault_get_jit_context(void* p_context);
 uintptr_t os_fault_get_pc(void* p_context);
 void os_fault_set_pc(void* p_context, uintptr_t pc);
 
+/* Sets the register used to pass a value from the fault handler to the code it
+ * redirects execution to (x64: rsi, REG_SCRATCH2).
+ */
+void os_fault_set_trap_param(void* p_context, uintptr_t param);
+
 int os_fault_is_carry_flag_set(uintptr_t host_flags);
 int os_fault_is_overflow_flag_set(uintptr_t host_flags);
 

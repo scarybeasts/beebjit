@@ -27,8 +27,13 @@ ASM_SYM(asm_jit_enter_END):
 
 .globl ASM_SYM(asm_jit_compile_trampoline)
 ASM_SYM(asm_jit_compile_trampoline):
-  # At this point: stack is aligned to 8 bytes.
-  # This is because the JIT engine gets here via call [rdi].
+  # The JIT engine gets here from the SIGTRAP handler (jit_handle_fault), after
+  # JIT code executed an int3 compile marker. The handler redirects the host
+  # pc here and puts the address of the int3 in REG_SCRATCH2. RFLAGS and the
+  # stack are exactly as the JIT code left them: stack aligned to 16 bytes.
+  # Stash the marker address; this also takes us to 8 byte stack alignment,
+  # as if we'd arrived via a call.
+  push REG_SCRATCH2
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   # Preserves RFLAGS
@@ -36,11 +41,8 @@ ASM_SYM(asm_jit_compile_trampoline):
 
   # param1: context object.
   mov REG_PARAM1, REG_CONTEXT
-  # param2: x64 rip that called here.
+  # param2: host address of the int3 compile marker that was hit.
   mov REG_PARAM2, [rsp]
-  # The actual instruction address of interest is the call itself, so
-  # subtract two to get that.
-  lea REG_PARAM2_32, [REG_PARAM2 - 2]
   # param3: countdown
   mov REG_PARAM3, REG_COUNTDOWN
   # param4: Intel rflags
@@ -68,9 +70,7 @@ ASM_SYM(asm_jit_compile_trampoline):
   sahf
   lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
 
-  mov REG_JIT_INV_MARKER_32, 0x17ff
-
-  # We're jumping out of a call so pop the return address.
+  # Discard the stashed marker address.
   pop REG_SCRATCH2
 
   jmp REG_6502_PC
@@ -127,7 +127,6 @@ not_exiting:
   shl REG_6502_PC, K_JIT_BYTES_SHIFT
   sahf
   lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
-  mov REG_JIT_INV_MARKER_32, 0x17ff
 
   jmp REG_6502_PC
 
@@ -394,7 +393,6 @@ ASM_SYM(asm_jit_call_scratch_param_call):
 ASM_SYM(asm_jit_call_scratch_param_call_END):
 ASM_SYM(asm_jit_call_scratch_param_stack_add):
   add rsp, 32
-  mov REG_JIT_INV_MARKER_32, 0x17ff
 ASM_SYM(asm_jit_call_scratch_param_stack_add_END):
 
   ret
@@ -1084,8 +1082,9 @@ ASM_SYM(asm_jit_sync_even_cycle_END):
 .globl ASM_SYM(asm_jit_write_inv_commit)
 .globl ASM_SYM(asm_jit_write_inv_commit_END)
 ASM_SYM(asm_jit_write_inv_commit):
-  # 0x17ff via register: a 16-bit immediate store is a length changing prefix.
-  mov WORD PTR [REG_SCRATCH2], REG_JIT_INV_MARKER_16
+  # The compile marker is a single int3 (0xcc); hitting it raises SIGTRAP,
+  # which jit_handle_fault turns into a call to asm_jit_compile_trampoline.
+  mov BYTE PTR [REG_SCRATCH2], 0xcc
 
 ASM_SYM(asm_jit_write_inv_commit_END):
   ret

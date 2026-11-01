@@ -335,12 +335,14 @@ asm_jit_rorx_check_handle_fault(uintptr_t* p_host_pc,
                                 int is_exec,
                                 int is_write,
                                 int is_trap,
-                                uintptr_t host_context) {
+                                uintptr_t host_context,
+                                uintptr_t* p_host_param) {
   (void) host_fault_addr;
   (void) is_exec;
   (void) is_write;
   (void) host_context;
   (void) is_trap;
+  (void) p_host_param;
 
   if (!is_illegal) {
     return 0;
@@ -605,23 +607,48 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   return 1;
 }
 
+int
+asm_jit_handle_trap(uintptr_t* p_pc, uintptr_t* p_param) {
+  void asm_jit_compile_trampoline(void);
+  /* int3 is a trap: the pc is past the 1 byte instruction. */
+  uintptr_t trap_addr = (*p_pc - 1);
+
+  /* JIT code never emits int3 and the JIT region is padded with hlt, so any
+   * int3 in the region is a compile marker: the start of an uncompiled host
+   * block, or written over self-modified code. jit_compile() tells them apart.
+   */
+  if ((trap_addr < K_JIT_ADDR) || (trap_addr >= K_JIT_ADDR_END)) {
+    return 0;
+  }
+  if (!asm_jit_is_invalidated_code_at((void*) trap_addr)) {
+    return 0;
+  }
+
+  /* The trampoline expects the marker address in REG_SCRATCH2, the trap
+   * parameter register.
+   */
+  *p_param = trap_addr;
+  *p_pc = (uintptr_t) asm_jit_compile_trampoline;
+  return 1;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
-  uint16_t* p_dst = (uint16_t*) p;
-  /* call [rdi] */
-  *p_dst = 0x17ff;
+  uint8_t* p_dst = (uint8_t*) p;
+  /* int3 */
+  *p_dst = 0xcc;
 }
 
 int
 asm_jit_is_invalidated_code_at(void* p) {
-  uint16_t code = *(uint16_t*) p;
-  return (code == 0x17ff);
+  uint8_t code = *(uint8_t*) p;
+  return (code == 0xcc);
 }
 
 void
 asm_emit_jit_invalidated(struct util_buffer* p_buf) {
-  /* call [rdi] */
-  util_buffer_add_2b(p_buf, 0xff, 0x17);
+  /* int3 */
+  util_buffer_add_1b(p_buf, 0xcc);
 }
 
 static void
@@ -1951,11 +1978,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LSR_value: ASM(LSR_value); break;
   case k_opcode_NOP:
     /* We don't really have to emit anything for a NOP, but for now and for
-     * good readability, we'll emit a host NOP.
-     * We actually emit two host NOPs to cover the size of the invalidation
-     * sequence.
+     * good readability, we'll emit a host NOP. This also covers the size of
+     * the (1 byte) invalidation sequence.
      */
-    asm_emit_instruction_REAL_NOP(p_dest_buf);
     asm_emit_instruction_REAL_NOP(p_dest_buf);
     break;
   case k_opcode_ORA: ASM(ORA); break;

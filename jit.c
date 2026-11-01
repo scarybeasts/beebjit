@@ -631,7 +631,8 @@ jit_handle_fault(uintptr_t* p_host_pc,
                  int is_exec,
                  int is_write,
                  int is_trap,
-                 uintptr_t host_context) {
+                 uintptr_t host_context,
+                 uintptr_t* p_host_param) {
   struct jit_struct* p_jit;
   int32_t addr_6502 = -1;
   uintptr_t new_pc = *p_host_pc;
@@ -640,9 +641,11 @@ jit_handle_fault(uintptr_t* p_host_pc,
   void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
-  /* Trap instructions aren't used by the JIT (yet); not ours. */
   if (is_trap) {
-    return 0;
+    /* x64: an int3 compile marker, i.e. an uncompiled host block or code
+     * invalidated by a write. Anything else isn't ours.
+     */
+    return asm_jit_handle_trap(p_host_pc, p_host_param);
   }
 
   /* Illegal instructions are not expected! */

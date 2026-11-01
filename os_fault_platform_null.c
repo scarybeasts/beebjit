@@ -30,6 +30,12 @@ os_fault_set_pc(void* p, uintptr_t pc) {
   (void) pc;
 }
 
+void
+os_fault_set_trap_param(void* p, uintptr_t param) {
+  (void) p;
+  (void) param;
+}
+
 int
 os_fault_is_carry_flag_set(uintptr_t host_flags) {
   (void) host_flags;

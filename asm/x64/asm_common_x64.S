@@ -59,8 +59,6 @@ ASM_SYM(asm_enter_common):
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
-  # JIT invalidation marker constant.
-  mov REG_JIT_INV_MARKER_32, 0x17ff
 
   pop REG_SCRATCH1
   # At this point: stack aligned to 8 bytes, not 16.
@@ -548,8 +546,6 @@ ASM_SYM(asm_debug):
   pop REG_ADDR
   popf
 
-  # JIT invalidation marker (r11 is caller saved).
-  mov REG_JIT_INV_MARKER_32, 0x17ff
   ret
 
 ASM_SYM(asm_debug_END):

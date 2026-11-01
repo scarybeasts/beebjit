@@ -41,6 +41,15 @@ os_fault_set_pc(void* p, uintptr_t pc) {
   p_context->uc_mcontext.pc = pc;
 }
 
+void
+os_fault_set_trap_param(void* p, uintptr_t param) {
+  /* The ARM64 JIT does not redirect traps, so there is no parameter register
+   * to set.
+   */
+  (void) p;
+  (void) param;
+}
+
 int
 os_fault_is_carry_flag_set(uintptr_t host_flags) {
   return !!(host_flags & 0x20000000);

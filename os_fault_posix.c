@@ -20,6 +20,7 @@ posix_fault_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   int is_write_fault = 0;
   int is_trap = 0;
   uintptr_t host_fault_addr = 0;
+  uintptr_t host_param = 0;
 
   /* Crash unless it's fault type we expected. */
   if ((signum == SIGSEGV) && (si_code == SEGV_ACCERR)) {
@@ -56,11 +57,15 @@ posix_fault_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
                                is_exec_fault,
                                is_write_fault,
                                is_trap,
-                               host_context);
+                               host_context,
+                               &host_param);
   if (!handled) {
     os_fault_bail();
   }
 
+  if (is_trap) {
+    os_fault_set_trap_param(p_void, host_param);
+  }
   os_fault_set_pc(p_void, host_pc);
 }
 
