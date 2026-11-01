@@ -791,56 +791,38 @@ asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_dest_buf, uint16_t n) {
 
 static void
 asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
-  void asm_jit_MODE_ZPX_8bit(void);
-  void asm_jit_MODE_ZPX_8bit_lea_patch(void);
-  void asm_jit_MODE_ZPX_8bit_END(void);
   void asm_jit_MODE_ZPX(void);
   void asm_jit_MODE_ZPX_lea_patch(void);
   void asm_jit_MODE_ZPX_END(void);
   size_t offset = util_buffer_get_pos(p_buf);
 
-  if (value <= 0x7F) {
-    asm_copy(p_buf, asm_jit_MODE_ZPX_8bit, asm_jit_MODE_ZPX_8bit_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_MODE_ZPX_8bit,
-                   asm_jit_MODE_ZPX_8bit_lea_patch,
-                   value);
-  } else {
-    asm_copy(p_buf, asm_jit_MODE_ZPX, asm_jit_MODE_ZPX_END);
-    asm_patch_int(p_buf,
-                  offset,
-                  asm_jit_MODE_ZPX,
-                  asm_jit_MODE_ZPX_lea_patch,
-                  value);
-  }
+  /* The lea displacement is signed 8-bit but the following movzx wraps the
+   * result to 8 bits, so any zero page constant fits.
+   */
+  asm_copy(p_buf, asm_jit_MODE_ZPX, asm_jit_MODE_ZPX_END);
+  asm_patch_byte(p_buf,
+                 offset,
+                 asm_jit_MODE_ZPX,
+                 asm_jit_MODE_ZPX_lea_patch,
+                 value);
 }
 
 static void
 asm_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
-  void asm_jit_MODE_ZPY_8bit(void);
-  void asm_jit_MODE_ZPY_8bit_lea_patch(void);
-  void asm_jit_MODE_ZPY_8bit_END(void);
   void asm_jit_MODE_ZPY(void);
   void asm_jit_MODE_ZPY_lea_patch(void);
   void asm_jit_MODE_ZPY_END(void);
   size_t offset = util_buffer_get_pos(p_buf);
 
-  if (value <= 0x7F) {
-    asm_copy(p_buf, asm_jit_MODE_ZPY_8bit, asm_jit_MODE_ZPY_8bit_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_MODE_ZPY_8bit,
-                   asm_jit_MODE_ZPY_8bit_lea_patch,
-                   value);
-  } else {
-    asm_copy(p_buf, asm_jit_MODE_ZPY, asm_jit_MODE_ZPY_END);
-    asm_patch_int(p_buf,
-                  offset,
-                  asm_jit_MODE_ZPY,
-                  asm_jit_MODE_ZPY_lea_patch,
-                  value);
-  }
+  /* The lea displacement is signed 8-bit but the following movzx wraps the
+   * result to 8 bits, so any zero page constant fits.
+   */
+  asm_copy(p_buf, asm_jit_MODE_ZPY, asm_jit_MODE_ZPY_END);
+  asm_patch_byte(p_buf,
+                 offset,
+                 asm_jit_MODE_ZPY,
+                 asm_jit_MODE_ZPY_lea_patch,
+                 value);
 }
 
 static void

@@ -786,7 +786,7 @@ ASM_SYM(asm_jit_addr_load_16bit_wrap_END):
 .globl ASM_SYM(asm_jit_MODE_ZPX_lea_patch)
 .globl ASM_SYM(asm_jit_MODE_ZPX_END)
 ASM_SYM(asm_jit_MODE_ZPX):
-  lea REG_ADDR_32, [REG_6502_X_64 + 0x7fffffff]
+  lea REG_ADDR_32, [REG_6502_X_64 + 0x7f]
 ASM_SYM(asm_jit_MODE_ZPX_lea_patch):
   movzx REG_ADDR_32, REG_ADDR_8
 
@@ -794,39 +794,15 @@ ASM_SYM(asm_jit_MODE_ZPX_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_MODE_ZPX_8bit)
-.globl ASM_SYM(asm_jit_MODE_ZPX_8bit_lea_patch)
-.globl ASM_SYM(asm_jit_MODE_ZPX_8bit_END)
-ASM_SYM(asm_jit_MODE_ZPX_8bit):
-  lea REG_ADDR_32, [REG_6502_X_64 + 0x7f]
-ASM_SYM(asm_jit_MODE_ZPX_8bit_lea_patch):
-  movzx REG_ADDR_32, REG_ADDR_8
-
-ASM_SYM(asm_jit_MODE_ZPX_8bit_END):
-  ret
-
-
 .globl ASM_SYM(asm_jit_MODE_ZPY)
 .globl ASM_SYM(asm_jit_MODE_ZPY_lea_patch)
 .globl ASM_SYM(asm_jit_MODE_ZPY_END)
 ASM_SYM(asm_jit_MODE_ZPY):
-  lea REG_ADDR_32, [REG_6502_Y_64 + 0x7fffffff]
+  lea REG_ADDR_32, [REG_6502_Y_64 + 0x7f]
 ASM_SYM(asm_jit_MODE_ZPY_lea_patch):
   movzx REG_ADDR_32, REG_ADDR_8
 
 ASM_SYM(asm_jit_MODE_ZPY_END):
-  ret
-
-
-.globl ASM_SYM(asm_jit_MODE_ZPY_8bit)
-.globl ASM_SYM(asm_jit_MODE_ZPY_8bit_lea_patch)
-.globl ASM_SYM(asm_jit_MODE_ZPY_8bit_END)
-ASM_SYM(asm_jit_MODE_ZPY_8bit):
-  lea REG_ADDR_32, [REG_6502_Y_64 + 0x7f]
-ASM_SYM(asm_jit_MODE_ZPY_8bit_lea_patch):
-  movzx REG_ADDR_32, REG_ADDR_8
-
-ASM_SYM(asm_jit_MODE_ZPY_8bit_END):
   ret
 
 
