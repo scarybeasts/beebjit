@@ -75,6 +75,7 @@ enum {
   k_opcode_x64_AND_ZPG,
   k_opcode_x64_AND_IMM,
   k_opcode_x64_ASL_ABS,
+  k_opcode_x64_ASL_ABX,
   k_opcode_x64_ASL_ACC_n,
   k_opcode_x64_ASL_ZPG,
   k_opcode_x64_CMP_ABS,
@@ -93,6 +94,7 @@ enum {
   k_opcode_x64_CPY_IMM,
   k_opcode_x64_CPY_ZPG,
   k_opcode_x64_DEC_ABS,
+  k_opcode_x64_DEC_ABX,
   k_opcode_x64_DEC_addr_zpx,
   k_opcode_x64_DEC_ZPG,
   k_opcode_x64_DEX_n,
@@ -107,6 +109,7 @@ enum {
   k_opcode_x64_EOR_IMM,
   k_opcode_x64_EOR_ZPG,
   k_opcode_x64_INC_ABS,
+  k_opcode_x64_INC_ABX,
   k_opcode_x64_INC_addr_zpx,
   k_opcode_x64_INC_ZPG,
   k_opcode_x64_INX_n,
@@ -133,6 +136,7 @@ enum {
   k_opcode_x64_LDY_IMM,
   k_opcode_x64_LDY_ZPG,
   k_opcode_x64_LSR_ABS,
+  k_opcode_x64_LSR_ABX,
   k_opcode_x64_LSR_ACC_n,
   k_opcode_x64_LSR_ZPG,
   k_opcode_x64_ORA_ABS,
@@ -1513,12 +1517,34 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
          * to direct access to the READ_IND mapping where possible. This avoids
          * memory aliasing issues.
          */
-        p_load_uop->backend_tag = k_opcode_x64_mode_ABX_and_load;
-        p_load_uop->value1 = addr;
-        p_load_uop->value2 = asm_jit_get_segment(p_asm, addr, 0, 1);
-        p_store_uop->backend_tag = k_opcode_x64_mode_ABX_store;
-        p_store_uop->value1 = addr;
-        p_store_uop->value2 = asm_jit_get_segment(p_asm, addr, 1, 1);
+        uint32_t segment = asm_jit_get_segment(p_asm, addr, 0, 1);
+        new_uopcode = -1;
+        if (segment == K_BBC_MEM_READ_IND_ADDR) {
+          /* The whole indexed range is RAM, so read and write hit the same
+           * mapping and INC / DEC / ASL / LSR can be a single x64 RMW like
+           * the abs forms. Not ROL / ROR: rcl / rcr don't set host NZ.
+           */
+          switch (p_main_uop->uopcode) {
+          case k_opcode_ASL_value: new_uopcode = k_opcode_x64_ASL_ABX; break;
+          case k_opcode_DEC_value: new_uopcode = k_opcode_x64_DEC_ABX; break;
+          case k_opcode_INC_value: new_uopcode = k_opcode_x64_INC_ABX; break;
+          case k_opcode_LSR_value: new_uopcode = k_opcode_x64_LSR_ABX; break;
+          default: break;
+          }
+        }
+        if (new_uopcode != -1) {
+          p_main_uop->backend_tag = new_uopcode;
+          p_main_uop->value1 = addr;
+          p_main_uop->value2 = segment;
+          do_eliminate_load_store = 1;
+        } else {
+          p_load_uop->backend_tag = k_opcode_x64_mode_ABX_and_load;
+          p_load_uop->value1 = addr;
+          p_load_uop->value2 = segment;
+          p_store_uop->backend_tag = k_opcode_x64_mode_ABX_store;
+          p_store_uop->value1 = addr;
+          p_store_uop->value2 = asm_jit_get_segment(p_asm, addr, 1, 1);
+        }
       } else {
         new_uopcode = p_main_uop->uopcode;
         new_uopcode = asm_jit_rewrite_ABX(new_uopcode);
@@ -2166,6 +2192,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_AND_IMM: ASM_U8(AND_IMM); break;
   case k_opcode_x64_AND_ZPG: ASM_ADDR_U8(AND_ZPG); break;
   case k_opcode_x64_ASL_ABS: ASM_ADDR_U32(ASL_ABS); break;
+  case k_opcode_x64_ASL_ABX: ASM_ADDR_U32_RAW(ASL_ABX); break;
   case k_opcode_x64_ASL_ACC_n: ASM_U8(ASL_ACC_n); break;
   case k_opcode_x64_ASL_ZPG: ASM_ADDR_U8(ASL_ZPG); break;
   case k_opcode_x64_CMP_ABS: ASM_ADDR_U32(CMP_ABS); break;
@@ -2184,6 +2211,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_CPY_IMM: ASM_U8(CPY_IMM); break;
   case k_opcode_x64_CPY_ZPG: ASM_ADDR_U8(CPY_ZPG); break;
   case k_opcode_x64_DEC_ABS: ASM_ADDR_U32(DEC_ABS); break;
+  case k_opcode_x64_DEC_ABX: ASM_ADDR_U32_RAW(DEC_ABX); break;
   case k_opcode_x64_DEC_addr_zpx: ASM(DEC_addr_zpx); break;
   case k_opcode_x64_DEC_ZPG: ASM_ADDR_U8(DEC_ZPG); break;
   case k_opcode_x64_DEX_n: ASM_U8(DEX_n); break;
@@ -2198,6 +2226,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_EOR_IMM: ASM_U8(EOR_IMM); break;
   case k_opcode_x64_EOR_ZPG: ASM_ADDR_U8(EOR_ZPG); break;
   case k_opcode_x64_INC_ABS: ASM_ADDR_U32(INC_ABS); break;
+  case k_opcode_x64_INC_ABX: ASM_ADDR_U32_RAW(INC_ABX); break;
   case k_opcode_x64_INC_addr_zpx: ASM(INC_addr_zpx); break;
   case k_opcode_x64_INC_ZPG: ASM_ADDR_U8(INC_ZPG); break;
   case k_opcode_x64_INX_n: ASM_U8(INX_n); break;
@@ -2224,6 +2253,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_LDY_IMM: ASM_U8(LDY_IMM); break;
   case k_opcode_x64_LDY_ZPG: ASM_ADDR_U8(LDY_ZPG); break;
   case k_opcode_x64_LSR_ABS: ASM_ADDR_U32(LSR_ABS); break;
+  case k_opcode_x64_LSR_ABX: ASM_ADDR_U32_RAW(LSR_ABX); break;
   case k_opcode_x64_LSR_ACC_n: ASM_U8(LSR_ACC_n); break;
   case k_opcode_x64_LSR_ZPG: ASM_ADDR_U8(LSR_ZPG); break;
   case k_opcode_x64_ORA_ABS: ASM_ADDR_U32(ORA_ABS); break;

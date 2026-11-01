@@ -1451,6 +1451,15 @@ ASM_SYM(asm_jit_ASL_ABS_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_ASL_ABX)
+.globl ASM_SYM(asm_jit_ASL_ABX_END)
+ASM_SYM(asm_jit_ASL_ABX):
+  shl BYTE PTR [REG_6502_X_64 + 0x7fffffff], 1
+
+ASM_SYM(asm_jit_ASL_ABX_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_ASL_ACC)
 .globl ASM_SYM(asm_jit_ASL_ACC_END)
 ASM_SYM(asm_jit_ASL_ACC):
@@ -1836,6 +1845,15 @@ ASM_SYM(asm_jit_DEC_ABS_END):
   ret
 
 
+.globl ASM_SYM(asm_jit_DEC_ABX)
+.globl ASM_SYM(asm_jit_DEC_ABX_END)
+ASM_SYM(asm_jit_DEC_ABX):
+  dec BYTE PTR [REG_6502_X_64 + 0x7fffffff]
+
+ASM_SYM(asm_jit_DEC_ABX_END):
+  ret
+
+
 .globl ASM_SYM(asm_jit_DEC_addr_zpx)
 .globl ASM_SYM(asm_jit_DEC_addr_zpx_END)
 ASM_SYM(asm_jit_DEC_addr_zpx):
@@ -1977,6 +1995,15 @@ ASM_SYM(asm_jit_INC_ABS):
   inc BYTE PTR [REG_MEM + 0x7fffffff]
 
 ASM_SYM(asm_jit_INC_ABS_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_INC_ABX)
+.globl ASM_SYM(asm_jit_INC_ABX_END)
+ASM_SYM(asm_jit_INC_ABX):
+  inc BYTE PTR [REG_6502_X_64 + 0x7fffffff]
+
+ASM_SYM(asm_jit_INC_ABX_END):
   ret
 
 
@@ -2302,6 +2329,15 @@ ASM_SYM(asm_jit_LSR_ABS):
   shr BYTE PTR [REG_MEM + 0x7fffffff], 1
 
 ASM_SYM(asm_jit_LSR_ABS_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_LSR_ABX)
+.globl ASM_SYM(asm_jit_LSR_ABX_END)
+ASM_SYM(asm_jit_LSR_ABX):
+  shr BYTE PTR [REG_6502_X_64 + 0x7fffffff], 1
+
+ASM_SYM(asm_jit_LSR_ABX_END):
   ret
 
 
