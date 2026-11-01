@@ -1382,6 +1382,30 @@ jit_test_compile_binary(void) {
   test_expect_binary(p_expect, p_binary, expect_len);
 #endif
 
+#if defined(__x86_64__)
+  /* Check INC abs,X on an always-RAM range is a single x64 RMW on the
+   * indirect read alias, with the invalidation address folded into one load.
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x4000), 0x100);
+  emit_INC(p_buf, k_abx, 0x02A1);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x4000);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_test_get_binary(s_p_metadata, 0x4000);
+  /* inc    BYTE PTR [rbx+0x100082a1]
+   * mov    esi, DWORD PTR [rdi+rbx*4+0xafc]
+   * mov    BYTE PTR [rsi], 0xcc
+   */
+  p_expect = "\xfe\x83\xa1\x82\x00\x10"
+             "\x8b\xb4\x9f\xfc\x0a\x00\x00"
+             "\xc6\x06\xcc";
+  expect_len = 16;
+  test_expect_binary(p_expect, p_binary, expect_len);
+#endif
+
   /* Check the output for an SBC chain rolling into an ADC.
    * Exile has similar sequences where the carry flag does a bit of a journey!
    */
