@@ -1455,7 +1455,11 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     }
     break;
   case k_opcode_addr_load_16bit_wrap:
-    /* Mode IDX. */
+    /* Mode IDX. The pointer's second byte address is calculated from X, not
+     * from the first byte address, to avoid a long dependency chain. The 8-bit
+     * wrap means a signed 8-bit displacement always suffices.
+     */
+    p_mode_uop->value1 = (((p_mode_uop - 2)->value1 + 1) & 0xFF);
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_add_x_8bit);
     /* FALL THROUGH. */
@@ -1856,7 +1860,19 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   /* Addressing and value opcodes. */
   case k_opcode_addr_add_x: ASM(save_addr_low_byte); ASM(addr_add_x); break;
   case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
-  case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
+  case k_opcode_addr_load_16bit_wrap:
+    {
+      void asm_jit_addr_load_16bit_wrap(void);
+      void asm_jit_addr_load_16bit_wrap_lea_patch(void);
+      offset = util_buffer_get_pos(p_dest_buf);
+      ASM(addr_load_16bit_wrap);
+      asm_patch_byte(p_dest_buf,
+                     offset,
+                     asm_jit_addr_load_16bit_wrap,
+                     asm_jit_addr_load_16bit_wrap_lea_patch,
+                     value1);
+    }
+    break;
   case k_opcode_call_scratch_param:
     ASM_U32(call_scratch_param_load_param1);
     value1 = value2;

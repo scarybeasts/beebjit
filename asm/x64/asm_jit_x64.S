@@ -769,9 +769,11 @@ ASM_SYM(asm_jit_addr_add_y_END):
 
 
 .globl ASM_SYM(asm_jit_addr_load_16bit_wrap)
+.globl ASM_SYM(asm_jit_addr_load_16bit_wrap_lea_patch)
 .globl ASM_SYM(asm_jit_addr_load_16bit_wrap_END)
 ASM_SYM(asm_jit_addr_load_16bit_wrap):
-  lea REG_SCRATCH2_32, [REG_ADDR + 1]
+  lea REG_SCRATCH2_32, [REG_6502_X_64 + 0x7f]
+ASM_SYM(asm_jit_addr_load_16bit_wrap_lea_patch):
   movzx REG_SCRATCH2_32, REG_SCRATCH2_8
   mov REG_ADDR_8, [REG_ADDR + REG_MEM - REG_MEM_OFFSET]
   mov REG_ADDR_8_HI, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
