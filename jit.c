@@ -854,9 +854,14 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    */
   os_fault_register_handler(jit_handle_fault);
 
+  /* The no code and dynamic operand pointers are written to on every store
+   * invalidation. Keep them away from the start of the page: a store whose
+   * address matches a subsequent load in its low 12 bits blocks that load
+   * (4K aliasing), and zero page $00 - $07 are popular pointer locations.
+   */
   p_metadata = jit_metadata_create(p_jit_base,
-                                   p_no_code_mapping_addr,
-                                   ((uint8_t*) p_no_code_mapping_addr + 4),
+                                   ((uint8_t*) p_no_code_mapping_addr + 0xEF0),
+                                   ((uint8_t*) p_no_code_mapping_addr + 0xEF4),
                                    &p_jit->jit_ptrs[0]);
   p_jit->p_metadata = p_metadata;
   /* Set up the invalidation markers. jit_memory_range_invalidate() only
