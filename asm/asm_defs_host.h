@@ -35,6 +35,18 @@
 #define K_CONTEXT_OFFSET_INTERP_OBJECT          56
 #define K_CONTEXT_OFFSET_ABI_END                64
 #define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 40)
+/* x64 keeps REG_CONTEXT pointing this far into the context object, which is
+ * where the JIT pointers table starts (K_JIT_CONTEXT_OFFSET_JIT_PTRS), so that
+ * register indexed lookups in the table need no displacement byte. The fields
+ * before the table stay within a signed 8-bit displacement. Context pointers
+ * stored for asm code to load into REG_CONTEXT carry the same bias.
+ */
+#if defined(__x86_64__)
+#define K_CONTEXT_REG_OFFSET                    (K_CONTEXT_OFFSET_DRIVER_END + \
+                                                 16)
+#else
+#define K_CONTEXT_REG_OFFSET                    0
+#endif
 
 #define K_STATE_6502_OFFSET_REG_A               0
 #define K_STATE_6502_OFFSET_REG_X               4

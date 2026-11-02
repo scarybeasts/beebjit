@@ -1396,11 +1396,11 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x4000);
   /* inc    BYTE PTR [rbx+0x100082a1]
-   * mov    esi, DWORD PTR [rdi+rbx*4+0xafc]
+   * mov    esi, DWORD PTR [rdi+rbx*4+0xa84]
    * mov    BYTE PTR [rsi], 0xcc
    */
   p_expect = "\xfe\x83\xa1\x82\x00\x10"
-             "\x8b\xb4\x9f\xfc\x0a\x00\x00"
+             "\x8b\xb4\x9f\x84\x0a\x00\x00"
              "\xc6\x06\xcc";
   expect_len = 16;
   test_expect_binary(p_expect, p_binary, expect_len);

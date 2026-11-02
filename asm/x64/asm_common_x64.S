@@ -34,7 +34,7 @@ ASM_SYM(asm_enter_common):
   # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
   # as it will be overwritten.
   push REG_PARAM2
-  mov REG_CONTEXT, REG_PARAM1
+  lea REG_CONTEXT, [REG_PARAM1 + K_CONTEXT_REG_OFFSET]
   mov REG_COUNTDOWN, REG_PARAM3
 
   mov REG_SCRATCH1, 0
@@ -57,7 +57,8 @@ ASM_SYM(asm_enter_common):
   # Must be set up before asm_restore_AXYS_PC_flags, which uses it.
   lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
 
   pop REG_SCRATCH1
@@ -520,7 +521,8 @@ ASM_SYM(asm_debug):
   pushfq
   push REG_ADDR
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
 
   call ASM_SYM(asm_save_AXYS_PC_flags)
 
@@ -529,17 +531,20 @@ ASM_SYM(asm_debug):
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_HOST_PC], REG_SCRATCH1_32
 
   push REG_CONTEXT
-  # NOTE: doesn't trash REG_CONTEXT because both param1 and context are
-  # currently rdi.
-  mov REG_PARAM1, REG_CONTEXT
+  # Fetch the callback before param1 is set up: param1 and REG_CONTEXT are the
+  # same register in the AMD64 calling convention.
+  mov REG_SCRATCH3, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_DEBUG_CALLBACK]
+  lea REG_PARAM1, [REG_CONTEXT - K_CONTEXT_REG_OFFSET]
   mov REG_PARAM2, 0
   # Win x64 shadow space convention.
   sub rsp, 32
-  call [REG_CONTEXT + K_CONTEXT_OFFSET_DEBUG_CALLBACK]
+  call REG_SCRATCH3
   add rsp, 32
   pop REG_CONTEXT
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   # TODO: handle different 6502 PC!
 

@@ -177,7 +177,8 @@ static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct cpu_driver* p_inturbo_cpu_driver =
-      (struct cpu_driver*) p_jit->p_inturbo;
+      (struct cpu_driver*) ((uint8_t*) p_jit->p_inturbo -
+                            K_CONTEXT_REG_OFFSET);
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
   jit_metadata_destroy(p_jit->p_metadata);
@@ -816,7 +817,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
     inturbo_set_use_interp_for_opcode(p_inturbo, 0x40);
     cpu_driver_init(p_inturbo_driver);
   }
-  p_jit->p_inturbo = p_inturbo;
+  /* JIT code loads this straight into REG_CONTEXT, so store it with the
+   * register bias applied.
+   */
+  p_jit->p_inturbo =
+      (struct inturbo_struct*) ((uint8_t*) p_inturbo + K_CONTEXT_REG_OFFSET);
 
   p_jit->driver.abi.p_interp_callback = jit_enter_interp;
   p_jit->driver.abi.p_interp_object = p_jit;

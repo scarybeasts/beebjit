@@ -34,13 +34,17 @@ ASM_SYM(asm_jit_compile_trampoline):
   # Stash the marker address; this also takes us to 8 byte stack alignment,
   # as if we'd arrived via a call.
   push REG_SCRATCH2
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   # Preserves RFLAGS
   call ASM_SYM(asm_save_AXYS_PC_flags)
 
+  # Save REG_CONTEXT in REG_6502_A_64 (not a parameter register in either
+  # calling convention) because param1 is REG_CONTEXT in the AMD64 one.
+  mov REG_6502_A_64, REG_CONTEXT
   # param1: context object.
-  mov REG_PARAM1, REG_CONTEXT
+  lea REG_PARAM1, [REG_6502_A_64 - K_CONTEXT_REG_OFFSET]
   # param2: host address of the int3 compile marker that was hit.
   mov REG_PARAM2, [rsp]
   # param3: countdown
@@ -53,16 +57,20 @@ ASM_SYM(asm_jit_compile_trampoline):
 
   # One push prior to the call.
   # That takes us back to 16 bytes stack alignment.
-  push REG_CONTEXT
+  # REG_6502_A_64 holds the (biased) REG_CONTEXT value; param1 may have
+  # overwritten REG_CONTEXT itself.
+  push REG_6502_A_64
   # Win x64 shadow space convention.
   sub rsp, 32
-  call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
+  call [REG_6502_A_64 - K_CONTEXT_REG_OFFSET + \
+        K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
   add rsp, 32
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
 
   lahf
@@ -80,7 +88,8 @@ ASM_SYM(asm_jit_compile_trampoline):
 ASM_SYM(asm_jit_interp):
   # At this point: stack is aligned to 16 bytes.
   # This is because the JIT engine gets here via jmp.
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   # Preserves RFLAGS
   call ASM_SYM(asm_save_AXYS_PC_flags)
@@ -95,7 +104,8 @@ ASM_SYM(asm_jit_interp):
   push REG_CONTEXT
   push REG_CONTEXT
   # param1 is interp object.
-  mov REG_PARAM1, [REG_CONTEXT + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  mov REG_PARAM1, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                   K_CONTEXT_OFFSET_INTERP_OBJECT]
   # param2 is stack storage for 2x int64 return values.
   lea REG_PARAM2, [rsp - 16]
   # param3 is current countdown value.
@@ -108,7 +118,7 @@ ASM_SYM(asm_jit_interp):
 
   # Return value space and Win x64 shadow space convention.
   sub rsp, 16 + 32
-  call [REG_6502_A_64 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  call [REG_6502_A_64 - K_CONTEXT_REG_OFFSET + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   add rsp, 16 + 32
   mov REG_COUNTDOWN, [rsp - 16]
   mov REG_RETURN, [rsp - 8]
@@ -120,7 +130,8 @@ ASM_SYM(asm_jit_interp):
   ret
 
 not_exiting:
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
 
   lahf
@@ -325,7 +336,9 @@ ASM_SYM(asm_jit_inturbo_call):
   # Keeps stack alignment to 16 after the call.
   push REG_CONTEXT
   # Swith REG_CONTEXT to inturbo one.
-  mov REG_CONTEXT, [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_INTURBO]
+  # The stored pointer already carries the REG_CONTEXT bias.
+  mov REG_CONTEXT, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                    K_JIT_CONTEXT_OFFSET_INTURBO]
   call REG_SCRATCH1
 
   pop REG_CONTEXT
@@ -485,7 +498,8 @@ ASM_SYM(asm_jit_check_page_crossing_y_END):
 .globl ASM_SYM(asm_jit_CHECK_PENDING_IRQ_END)
 ASM_SYM(asm_jit_CHECK_PENDING_IRQ):
   # TODO: could use a register for IRQ_FIRE, if CLI / PLP is common?
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   mov REG_SCRATCH2_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH2_32, [REG_SCRATCH2 - 1]
   bt REG_SCRATCH2_32, 31
@@ -501,7 +515,8 @@ ASM_SYM(asm_jit_CHECK_PENDING_IRQ_END):
 .globl ASM_SYM(asm_jit_check_pending_irq_plp_branch)
 .globl ASM_SYM(asm_jit_check_pending_irq_plp_branch_END)
 ASM_SYM(asm_jit_check_pending_irq_plp_check):
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   mov REG_SCRATCH2_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   test REG_SCRATCH2_32, REG_SCRATCH2_32
   setne REG_SCRATCH2_8
@@ -1053,7 +1068,7 @@ ASM_SYM(asm_jit_write_inv_commit_END):
 .globl ASM_SYM(asm_jit_write_inv)
 .globl ASM_SYM(asm_jit_write_inv_END)
 ASM_SYM(asm_jit_write_inv):
-  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+  mov REG_SCRATCH2_32, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_ADDR * 4]
 
@@ -1092,7 +1107,7 @@ ASM_SYM(asm_jit_write_inv_ABY_END):
 .globl ASM_SYM(asm_jit_write_inv_IDY_END)
 ASM_SYM(asm_jit_write_inv_IDY):
   lea REG_SCRATCH2_32, [REG_ADDR + REG_6502_Y_64]
-  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+  mov REG_SCRATCH2_32, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
 
@@ -1103,10 +1118,19 @@ ASM_SYM(asm_jit_write_inv_IDY_END):
 .globl ASM_SYM(asm_jit_write_inv_IDY_n)
 .globl ASM_SYM(asm_jit_write_inv_IDY_n_END)
 ASM_SYM(asm_jit_write_inv_IDY_n):
-  # The contant encodes both K_JIT_CONTEXT_OFFSET_JIT_PTRS and the "n".
-  mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff + REG_ADDR * 4]
+  # The constant is the "n" * 4; the table is at displacement 0.
+  mov REG_SCRATCH2_32, [REG_CONTEXT + REG_ADDR * 4 + 0x7f]
 
 ASM_SYM(asm_jit_write_inv_IDY_n_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_write_inv_IDY_n_32)
+.globl ASM_SYM(asm_jit_write_inv_IDY_n_32_END)
+ASM_SYM(asm_jit_write_inv_IDY_n_32):
+  mov REG_SCRATCH2_32, [REG_CONTEXT + REG_ADDR * 4 + 0x7fffffff]
+
+ASM_SYM(asm_jit_write_inv_IDY_n_32_END):
   ret
 
 
@@ -1114,7 +1138,7 @@ ASM_SYM(asm_jit_write_inv_IDY_n_END):
 .globl ASM_SYM(asm_jit_write_inv_IDY_X_END)
 ASM_SYM(asm_jit_write_inv_IDY_X):
   lea REG_SCRATCH2_32, [REG_ADDR + REG_6502_X_64]
-  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+  mov REG_SCRATCH2_32, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
 

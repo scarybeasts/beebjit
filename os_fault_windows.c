@@ -1,5 +1,7 @@
 #include "os_fault.h"
 
+#include "asm/asm_defs_host.h"
+
 #include "util.h"
 
 #include <windows.h>
@@ -41,7 +43,8 @@ VectoredHandler(struct _EXCEPTION_POINTERS* p_info) {
                                is_exec,
                                is_write,
                                is_trap,
-                               (uintptr_t) p_context->Rdi,
+                               ((uintptr_t) p_context->Rdi -
+                                K_CONTEXT_REG_OFFSET),
                                &host_param);
   if (!handled) {
     os_fault_bail();

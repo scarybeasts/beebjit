@@ -96,7 +96,8 @@ ASM_SYM(asm_inturbo_check_decimal_END):
 .globl ASM_SYM(asm_inturbo_check_interrupt_jae_patch)
 ASM_SYM(asm_inturbo_check_interrupt):
 
-  mov REG_SCRATCH1, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH1, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   mov REG_SCRATCH1_32, \
       DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
@@ -206,7 +207,7 @@ ASM_SYM(asm_inturbo_do_write_invalidation):
 
   # The pointer to the code blocks is stored in the private pointer space of
   # our context object.
-  mov REG_SCRATCH2, [REG_CONTEXT]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET]
   mov REG_SCRATCH1_32, [REG_SCRATCH2 + REG_SCRATCH1 * 4]
   # The JIT compile marker is a single int3 (0xcc).
   mov BYTE PTR [REG_SCRATCH1], 0xcc
@@ -259,7 +260,8 @@ ASM_SYM(asm_inturbo_call_interp_and_ret):
 
 .globl ASM_SYM(asm_inturbo_do_call_interp)
 ASM_SYM(asm_inturbo_do_call_interp):
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   lea REG_6502_PC, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   call ASM_SYM(asm_save_AXYS_PC_flags)
 
@@ -270,7 +272,8 @@ ASM_SYM(asm_inturbo_do_call_interp):
   # We call'ed here, so one more push keeps the stack correctly aligned.
   push REG_CONTEXT
   # param1 is interp object.
-  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  mov REG_PARAM1, [REG_SCRATCH3 - K_CONTEXT_REG_OFFSET + \
+                   K_CONTEXT_OFFSET_INTERP_OBJECT]
   # param2 is stack storage for 2x int64 return values.
   lea REG_PARAM2, [rsp - 16]
   # param3 is current countdown value.
@@ -278,7 +281,7 @@ ASM_SYM(asm_inturbo_do_call_interp):
 
   # Return value space and Win x64 shadow space convention.
   sub rsp, 16 + 32
-  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  call [REG_SCRATCH3 - K_CONTEXT_REG_OFFSET + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   add rsp, 16 + 32
   mov REG_COUNTDOWN, [rsp - 16]
   mov REG_RETURN, [rsp - 8]
@@ -287,7 +290,8 @@ ASM_SYM(asm_inturbo_do_call_interp):
   test REG_RETURN, REG_RETURN
   jne exiting
 
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
+                     K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   lea REG_6502_PC, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
@@ -299,7 +303,7 @@ exiting:
   # It's a layering violation, but for now handle those two cases here by
   # walking up the stack one more call if we're in JIT mode.
   add rsp, 8
-  mov REG_SCRATCH1, [REG_CONTEXT]
+  mov REG_SCRATCH1, [REG_CONTEXT - K_CONTEXT_REG_OFFSET]
   test REG_SCRATCH1, REG_SCRATCH1
   je exiting_inturbo
   add rsp, 16

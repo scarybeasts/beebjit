@@ -1878,7 +1878,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_adjust);
     break;
   case k_opcode_collapse_loop: ASM_U32(load_PC); ASM(collapse_loop); break;
-  case k_opcode_deref_context: ASM_U32(deref_context); break;
+  case k_opcode_deref_context:
+    value1 -= K_CONTEXT_REG_OFFSET;
+    ASM_U32(deref_context);
+    break;
   case k_opcode_deref_scratch: ASM_U32(deref_scratch); break;
   case k_opcode_load_deref_scratch: ASM_U32(load_deref_scratch); break;
   case k_opcode_load_deref_scratch_quad:
@@ -2133,17 +2136,23 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;
   case k_opcode_x64_store_ZPG: ASM_ADDR_U8(store_ZPG); break;
   case k_opcode_x64_write_inv_ABS:
-    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS -
+              K_CONTEXT_REG_OFFSET +
+              (value1 * sizeof(uint32_t)));
     ASM_U32(write_inv_ABS);
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_ABX:
-    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS -
+              K_CONTEXT_REG_OFFSET +
+              (value1 * sizeof(uint32_t)));
     ASM_U32(write_inv_ABX);
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_ABY:
-    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS -
+              K_CONTEXT_REG_OFFSET +
+              (value1 * sizeof(uint32_t)));
     ASM_U32(write_inv_ABY);
     ASM(write_inv_commit);
     break;
@@ -2152,9 +2161,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_IDY_n:
-    value1 *= 4;
-    value2 = K_JIT_CONTEXT_OFFSET_JIT_PTRS;
-    ASM_ADDR_U32_RAW(write_inv_IDY_n);
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS -
+              K_CONTEXT_REG_OFFSET +
+              (value1 * sizeof(uint32_t)));
+    if (value1 <= 0x7F) {
+      ASM_U8(write_inv_IDY_n);
+    } else {
+      ASM_U32(write_inv_IDY_n_32);
+    }
     ASM(write_inv_commit);
     break;
   case k_opcode_x64_write_inv_IDY_X:

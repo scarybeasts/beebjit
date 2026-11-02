@@ -1,5 +1,7 @@
 #include "os_fault_platform.h"
 
+#include "asm/asm_defs_host.h"
+
 #include <sys/ucontext.h>
 
 int
@@ -19,7 +21,8 @@ os_fault_is_exec_fault(void* p) {
 uintptr_t
 os_fault_get_jit_context(void* p) {
   ucontext_t* p_context = (ucontext_t*) p;
-  return p_context->uc_mcontext->__ss.__rdi;
+  /* REG_CONTEXT is biased, see K_CONTEXT_REG_OFFSET. */
+  return (p_context->uc_mcontext->__ss.__rdi - K_CONTEXT_REG_OFFSET);
 }
 
 uintptr_t
