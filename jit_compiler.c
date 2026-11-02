@@ -42,8 +42,9 @@ enum {
   k_addr_flag_block_start = 1,
   k_addr_flag_block_continuation = 2,
   k_addr_flag_has_countdown = 4,
-  k_addr_flag_has_fixups = 8,
-  k_addr_flag_has_history = 16,
+  k_addr_flag_fixups_resolved = 8,
+  k_addr_flag_needs_extra_fixups = 16,
+  k_addr_flag_has_history = 32,
 };
 
 struct jit_compiler {
@@ -1612,8 +1613,9 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
         p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_block_continuation;
       }
 
-      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_fixups;
-      p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;
+      p_compiler->addr_flags[addr_6502] &= ~(k_addr_flag_fixups_resolved |
+                                             k_addr_flag_needs_extra_fixups |
+                                             k_addr_flag_has_countdown);
 
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
@@ -1631,21 +1633,40 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
                                  p_details->self_modify_invalidated,
                                  ticks);
 
-        p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_fixups;
+        p_compiler->addr_flags[addr_6502] |= k_addr_flag_fixups_resolved;
         if (p_details->cycles_run_start != -1) {
           p_compiler->addr_flags[addr_6502] |= k_addr_flag_has_countdown;
         } else {
           p_compiler->addr_flags[addr_6502] &= ~k_addr_flag_has_countdown;
         }
-        p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         p_compiler->addr_countdown_adjustment_fixup[addr_6502] =
             p_details->countdown_adjustment;
+
+        p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         p_compiler->addr_a_fixup[addr_6502] = p_details->reg_a;
+        if (p_details->reg_a != -1) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
         p_compiler->addr_x_fixup[addr_6502] = p_details->reg_x;
+        if (p_details->reg_x != -1) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
         p_compiler->addr_y_fixup[addr_6502] = p_details->reg_y;
+        if (p_details->reg_y != -1) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
         p_compiler->addr_nz_fixup[addr_6502] = p_details->nz_flags_location;
+        if (p_details->nz_flags_location != -1) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
         p_compiler->addr_c_fixup[addr_6502] = p_details->c_flag_location;
+        if (p_details->c_flag_location != 0) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
         p_compiler->addr_v_fixup[addr_6502] = p_details->v_flag_location;
+        if (p_details->v_flag_location != 0) {
+          p_compiler->addr_flags[addr_6502] |= k_addr_flag_needs_extra_fixups;
+        }
       }
 
       addr_6502++;
@@ -1786,23 +1807,19 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          int64_t countdown,
                          uint64_t host_flags,
                          int is_invalidation) {
+  int32_t cycles_fixup;
+  int32_t nz_fixup;
+  int32_t v_fixup;
+  int32_t c_fixup;
+  int32_t a_fixup;
+  int32_t x_fixup;
+  int32_t y_fixup;
   uint16_t pc_6502 = p_state_6502->abi_state.reg_pc;
-  int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
-  int32_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
-  int32_t v_fixup = p_compiler->addr_v_fixup[pc_6502];
-  int32_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
-  int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
-  int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
-  int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
+  uint8_t addr_flags = p_compiler->addr_flags[pc_6502];
 
-  assert(p_compiler->addr_flags[pc_6502] & k_addr_flag_has_fixups);
-  /* cycles_fixup can be 0 in the case the opcode is bouncing to the
-   * interpreter -- an invalid opcode, for example.
-   */
-  assert(cycles_fixup >= 0);
+  assert(addr_flags & k_addr_flag_fixups_resolved);
 
-  if (is_invalidation &&
-      (p_compiler->addr_flags[pc_6502] & k_addr_flag_has_countdown)) {
+  if (is_invalidation && (addr_flags & k_addr_flag_has_countdown)) {
     /* We've invalidated a countdown. The countdown has not executed, so there
      * is nothing to fix up unless the countdown itself contained a post-branch
      * adjustment.
@@ -1817,7 +1834,29 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     return countdown;
   }
 
+  /* Always do cycles fixup. The common case is we just bailed out of JIT due
+   * to a countdown check, so cycles need to be fixed up.
+   */
+  cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
+  /* cycles_fixup can be 0 in the case the opcode is bouncing to the
+   * interpreter -- an invalid opcode, for example.
+   */
+  assert(cycles_fixup >= 0);
   countdown += cycles_fixup;
+
+  /* Nearly every entry needs only the cycles fixup; avoid the cache cold
+   * reads of the register / flag fixup tables.
+   */
+  if (!(addr_flags & k_addr_flag_needs_extra_fixups)) {
+    return countdown;
+  }
+
+  nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
+  v_fixup = p_compiler->addr_v_fixup[pc_6502];
+  c_fixup = p_compiler->addr_c_fixup[pc_6502];
+  a_fixup = p_compiler->addr_a_fixup[pc_6502];
+  x_fixup = p_compiler->addr_x_fixup[pc_6502];
+  y_fixup = p_compiler->addr_y_fixup[pc_6502];
 
   if (a_fixup != -1) {
     state_6502_set_a(p_state_6502, a_fixup);
@@ -2007,5 +2046,5 @@ jit_compiler_testing_get_x_fixup(struct jit_compiler* p_compiler,
 int32_t
 jit_compiler_testing_has_fixups(struct jit_compiler* p_compiler,
                                 uint16_t addr) {
-  return !!(p_compiler->addr_flags[addr] & k_addr_flag_has_fixups);
+  return !!(p_compiler->addr_flags[addr] & k_addr_flag_fixups_resolved);
 }
