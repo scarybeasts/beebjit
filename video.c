@@ -2230,16 +2230,33 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
     break;
   }
 
+  val &= mask;
+
+  /* Rewriting a register with its current value doesn't change the CRTC, so
+   * don't recalculate the video timer: a recalculation away from an exact
+   * vsync tick drops the timer out of its fast frame-jumping mode for the
+   * rest of the frame, and several games rewrite R1 or R7 every frame from
+   * the vsync interrupt.
+   */
+  if (val == p_video->crtc_registers[reg]) {
+    assert(!p_video->is_interlace_sync_and_video ||
+           !(p_video->scanline_counter & 1));
+    /* TODO: understand why this is necessary to pass tests. */
+    if (p_video->is_rendering_active) {
+      video_advance_crtc_timing(p_video);
+    }
+    return;
+  }
+
   if (p_video->is_rendering_active || !does_not_change_framing) {
     video_advance_crtc_timing(p_video);
   }
 
-  p_video->crtc_registers[reg] = (val & mask);
+  p_video->crtc_registers[reg] = val;
 
   switch (reg) {
   case k_crtc_reg_horiz_total:
-    p_video->half_r0 = ((p_video->crtc_registers[k_crtc_reg_horiz_total] + 1) /
-                        2);
+    p_video->half_r0 = ((val + 1) / 2);
     break;
   case k_crtc_reg_sync_width:
     p_video->hsync_pulse_width = hsync_pulse_width;
