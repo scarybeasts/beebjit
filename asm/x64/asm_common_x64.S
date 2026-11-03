@@ -467,15 +467,25 @@ ASM_SYM(asm_push_from_scratch_END):
 .globl ASM_SYM(asm_push_word_from_scratch_END)
 ASM_SYM(asm_push_word_from_scratch):
 
-  xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
-  mov [REG_6502_S_64], REG_SCRATCH1_8
-  lea REG_SCRATCH2, [REG_6502_S_64 - 1]
-  mov REG_6502_S, REG_SCRATCH2_8
+  # Push with a single 16-bit store, like the JIT's JSR, so that a JIT RTS
+  # (a 16-bit load) can store forward from it. The two bytes are onle
+  lahf
+  test REG_6502_S, REG_6502_S
+  je asm_push_word_from_scratch_wrap
+  mov WORD PTR [REG_6502_S_64 - 1], REG_SCRATCH1_16
+  sub REG_6502_S, 2
+  jmp asm_push_word_from_scratch_done
 
+asm_push_word_from_scratch_wrap:
   xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
   mov [REG_6502_S_64], REG_SCRATCH1_8
-  lea REG_SCRATCH2, [REG_6502_S_64 - 1]
-  mov REG_6502_S, REG_SCRATCH2_8
+  dec REG_6502_S
+  xchg REG_SCRATCH1_8, REG_SCRATCH1_8_HI
+  mov [REG_6502_S_64], REG_SCRATCH1_8
+  dec REG_6502_S
+
+asm_push_word_from_scratch_done:
+  sahf
 
 ASM_SYM(asm_push_word_from_scratch_END):
   ret
