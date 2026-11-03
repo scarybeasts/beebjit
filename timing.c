@@ -32,6 +32,7 @@ struct timing_struct {
   struct timer_struct* p_ticking_head;
   uint64_t next_timer_expiry;
   uint32_t scale_factor;
+  int is_scaled;
 
   uint32_t num_timers;
   struct timer_struct timers[k_timing_num_timers];
@@ -55,6 +56,7 @@ timing_create(uint32_t scale_factor) {
   struct timing_struct* p_timing = util_mallocz(sizeof(struct timing_struct));
 
   p_timing->scale_factor = scale_factor;
+  p_timing->is_scaled = (scale_factor != 1);
   p_timing->total_timer_ticks = 0;
   p_timing->p_expiry_head = NULL;
   p_timing->p_ticking_head = NULL;
@@ -341,7 +343,14 @@ timing_get_timer_value(struct timing_struct* p_timing, uint32_t id) {
   if (p_timer->ticking) {
     ret -= timing_get_countdown_adjustment(p_timing);
   }
-  ret /= p_timing->scale_factor;
+  /* The scale factor is 1 unless a non-standard CPU speed was requested, so
+   * skip the 64-bit divide: it dominates games that poll the VIA timers.
+   * (Tested via a separate flag: the compiler folds "if (s != 1) x /= s"
+   * back into an unconditional divide.)
+   */
+  if (p_timing->is_scaled) {
+    ret /= p_timing->scale_factor;
+  }
   return ret;
 }
 
