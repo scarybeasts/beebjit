@@ -135,6 +135,12 @@ debug_interrupt_callback(void) {
 }
 
 static void
+debug_framestop_callback(void* p) {
+  (void) p;
+  debug_interrupt_callback();
+}
+
+static void
 debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
   if (p_breakpoint->p_command_list) {
@@ -2256,6 +2262,15 @@ debug_callback_common(struct debug_struct* p_debug,
         ticks_delta = (parse_u64_int - ticks);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
+    } else if (!strcmp(p_command, "framestop") && (p_param_1_str != NULL)) {
+      if (parse_int != 0) {
+        video_set_framestop_callback(p_debug->p_video,
+                                     debug_framestop_callback,
+                                     p_debug);
+      } else {
+        video_set_framestop_callback(p_debug->p_video, NULL, NULL);
+      }
+      (void) printf("framestop now: %d\n", (parse_int != 0));
     } else if (!strcmp(p_command, "seek")) {
       (void) bbc_replay_seek(p_bbc, (parse_int * 2000000ull));
       p_debug->debug_running = 1;
@@ -2584,6 +2599,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "cs                 : clear stats collected\n"
   "t                  : trap into gdb\n"
   "breakat <c>        : break at <c> cycles\n"
+  "framestop <0|1>    : break at every frame (default: 0)\n"
   "keydown <k>        : simulate key press <k>\n"
   "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"

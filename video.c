@@ -197,6 +197,11 @@ struct video_struct {
   uint8_t* p_mem_base;
   uint8_t romsel;
   uint8_t acccon;
+
+  /* Debugger interaction. */
+  void (*p_framestop_callback)(void*);
+  void* p_framestop_object;
+  uint64_t framestop_num_vsyncs;
 };
 
 static inline uint8_t
@@ -341,6 +346,11 @@ static void
 video_do_paint(struct video_struct* p_video) {
   int do_clear_after_paint;
 
+  if ((p_video->p_framestop_callback != NULL) &&
+      (p_video->num_vsyncs >= p_video->framestop_num_vsyncs)) {
+    p_video->p_framestop_callback(p_video->p_framestop_object);
+  }
+
   /* Skip the paint for the appropriate option. */
   if (p_video->frame_skip_counter > 0) {
     p_video->frame_skip_counter--;
@@ -383,6 +393,9 @@ video_check_go_inactive(struct video_struct* p_video) {
   assert(p_video->is_rendering_active);
 
   if (p_video->opt_is_always_render) {
+    return;
+  }
+  if (p_video->p_framestop_callback != NULL) {
     return;
   }
 
@@ -1524,6 +1537,37 @@ video_destroy(struct video_struct* p_video) {
 void
 video_set_nula(struct video_struct* p_video, int is_nula) {
   p_video->is_nula = is_nula;
+}
+
+void
+video_set_framestop_callback(struct video_struct* p_video,
+                             void (*p_framestop_callback)(void* p),
+                             void* p_framestop_object) {
+  /* Catch up the CRTC so the vsync count is current. The timers firing are
+   * not enough in the case we're skipping full frame, because the full frame
+   * timer fires as vsync lowers. We key off of vsync raising.
+   */
+  video_advance_crtc_timing(p_video);
+
+  p_video->p_framestop_callback = p_framestop_callback;
+  p_video->p_framestop_object = p_framestop_object;
+
+  /* The first framestop is at the second frame end from now. The frame
+   * currently being drawn may or may not be rendering, depending on wall time,
+   * but the next frame is always fully rendered.
+   */
+  p_video->framestop_num_vsyncs = (p_video->num_vsyncs + 2);
+
+  /* If rendering is inactive, prod it active as if a wall time vsync had hit.
+   * It goes active at the next vsync lower, in time to render the next frame.
+   * It then stays active until framestop is turned off; see
+   * video_check_go_inactive().
+   */
+  if ((p_framestop_callback != NULL) &&
+      !p_video->externally_clocked &&
+      !p_video->is_rendering_active) {
+    video_wall_time_vsync_hit(p_video);
+  }
 }
 
 void
