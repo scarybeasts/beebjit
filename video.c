@@ -328,7 +328,8 @@ void
 video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
   int do_full_render = p_video->externally_clocked;
   int do_wait_for_paint = (p_video->opt_is_always_render ||
-                           p_video->has_paint_timer_triggered);
+                           p_video->has_paint_timer_triggered ||
+                           (p_video->p_framestop_callback != NULL));
 
   assert(render_has_buffer(p_video->p_render));
 
@@ -361,6 +362,13 @@ video_do_paint(struct video_struct* p_video) {
 
   do_clear_after_paint = (p_video->is_framing_changed_for_render ||
                           p_video->opt_is_always_clear_frame_buffer);
+  /* With framestop, clear after the warm-up paint but not after the stops,
+   * because the debugger looks at the frame after the paint.
+   */
+  if (p_video->p_framestop_callback != NULL) {
+    do_clear_after_paint =
+        (p_video->num_vsyncs < p_video->framestop_num_vsyncs);
+  }
 
   video_force_paint(p_video, do_clear_after_paint);
   p_video->is_framing_changed_for_render = 0;
@@ -1543,30 +1551,32 @@ void
 video_set_framestop_callback(struct video_struct* p_video,
                              void (*p_framestop_callback)(void* p),
                              void* p_framestop_object) {
-  /* Catch up the CRTC so the vsync count is current. The timers firing are
-   * not enough in the case we're skipping full frame, because the full frame
-   * timer fires as vsync lowers. We key off of vsync raising.
+  /* Catch up the CRTC so the vsync count is current. This also drops the
+   * timer out of any fast frame skipping mode, which must happen before
+   * rendering is forced active below.
    */
   video_advance_crtc_timing(p_video);
 
   p_video->p_framestop_callback = p_framestop_callback;
   p_video->p_framestop_object = p_framestop_object;
 
-  /* The first framestop is at the second frame end from now. The frame
-   * currently being drawn may or may not be rendering, depending on wall time,
-   * but the next frame is always fully rendered.
+  /* The first framestop is at the second frame end from now. The next vsync
+   * raise does a warm-up paint, and the frame after it is fully rendered.
    */
   p_video->framestop_num_vsyncs = (p_video->num_vsyncs + 2);
 
-  /* If rendering is inactive, prod it active as if a wall time vsync had hit.
-   * It goes active at the next vsync lower, in time to render the next frame.
-   * It then stays active until framestop is turned off; see
-   * video_check_go_inactive().
+  /* If rendering is inactive, make it active now, so that the next vsync
+   * raise does a (synchronous) warm-up paint. The beam position is junk until
+   * then, but it needs to be low enough that the vsync isn't ignored; see
+   * render_vsync(). Rendering then stays active until framestop is turned off;
+   * see video_check_go_inactive().
    */
   if ((p_framestop_callback != NULL) &&
       !p_video->externally_clocked &&
-      !p_video->is_rendering_active) {
-    video_wall_time_vsync_hit(p_video);
+      !p_video->is_rendering_active &&
+      render_has_buffer(p_video->p_render)) {
+    render_set_beam_pos(p_video->p_render, 0, 64);
+    p_video->is_rendering_active = 1;
   }
 }
 
