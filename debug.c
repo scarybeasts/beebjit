@@ -92,6 +92,8 @@ struct debug_struct {
 
   /* Breakpointing. */
   int32_t next_or_finish_stop_addr;
+  uint32_t step_count;
+  uint32_t continue_count;
   struct debug_breakpoint breakpoints[k_max_break];
   uint32_t max_breakpoint_used_plus_one;
   struct util_buffer* p_temp_storage_buf;
@@ -127,11 +129,18 @@ struct debug_struct {
 };
 
 static int s_interrupt_received;
+static volatile int s_ctrl_c_received;
 static struct debug_struct* s_p_debug;
 
 static void
 debug_interrupt_callback(void) {
   s_interrupt_received = 1;
+}
+
+static void
+debug_ctrl_c_callback(void) {
+  s_ctrl_c_received = 1;
+  debug_interrupt_callback();
 }
 
 static void
@@ -1955,6 +1964,8 @@ debug_callback_common(struct debug_struct* p_debug,
   volatile int* p_interrupt_received = &s_interrupt_received;
   int break_print = 0;
   int break_stop = 0;
+  int is_breakpoint_stop;
+  int is_skipped = 0;
 
   state_6502_get_registers(p_state_6502,
                            &p_debug->reg_a,
@@ -2076,11 +2087,40 @@ debug_callback_common(struct debug_struct* p_debug,
       p_debug->breakpoint_continue = -1;
     }
   }
+  is_breakpoint_stop = break_stop;
 
   if (*p_interrupt_received || !p_debug->debug_running) {
+    /* "s <n>" passes silently through plain steps until its count runs out.
+     * Anything else, e.g. a breakpoint or framestop, stops it early.
+     */
+    if (!*p_interrupt_received &&
+        !is_breakpoint_stop &&
+        (p_debug->step_count > 0)) {
+      p_debug->step_count--;
+      is_skipped = 1;
+    }
     *p_interrupt_received = 0;
     break_print = 1;
     break_stop = 1;
+  }
+
+  /* "c <n>" passes silently through stops until its count runs out. */
+  if (break_stop &&
+      p_debug->debug_running &&
+      (p_debug->continue_count > 0)) {
+    p_debug->continue_count--;
+    is_skipped = 1;
+  }
+
+  /* Ctrl-C always stops. */
+  if (s_ctrl_c_received) {
+    s_ctrl_c_received = 0;
+    is_skipped = 0;
+  }
+
+  if (is_skipped) {
+    break_print = 0;
+    break_stop = 0;
   }
 
   break_print |= p_debug->debug_running_print;
@@ -2098,9 +2138,13 @@ debug_callback_common(struct debug_struct* p_debug,
     p_debug->debug_running = 0;
   }
 
-  if (p_debug->debug_running) {
+  if (p_debug->debug_running || is_skipped) {
     return 0;
   }
+
+  /* Any remaining count is cancelled by stopping early. */
+  p_debug->step_count = 0;
+  p_debug->continue_count = 0;
 
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     p_debug->next_or_finish_stop_addr = -1;
@@ -2241,12 +2285,18 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "cs")) {
       debug_clear_stats(p_debug);
     } else if (!strcmp(p_command, "s") || !strcmp(p_command, "step")) {
+      if (parse_int > 1) {
+        p_debug->step_count = (parse_int - 1);
+      }
       break;
     } else if (!strcmp(p_command, "t")) {
       do_trap = 1;
       break;
     } else if (!strcmp(p_command, "c")) {
       p_debug->debug_running = 1;
+      if (parse_int > 1) {
+        p_debug->continue_count = (parse_int - 1);
+      }
       break;
     } else if (!strcmp(p_command, "bc")) {
       p_debug->debug_running = 1;
@@ -2591,6 +2641,7 @@ debug_callback_common(struct debug_struct* p_debug,
       (void) printf(
   "q                  : quit\n"
   "c, s, n, f         : continue, step (in), next (step over), finish (JSR)\n"
+  "{c,s} [n]          : continue / step [n] times (default: 1)\n"
   "d <a>              : disassemble at <a>\n"
   "{b,break} <a>      : set breakpoint at 6502 address <a>\n"
   "{bl,blist}         : list breakpoints\n"
@@ -2745,7 +2796,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->opt_is_print_ticks = util_has_option(p_options->p_opt_flags,
                                                 "debug:print-ticks");
 
-  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
+  os_terminal_set_ctrl_c_callback(debug_ctrl_c_callback);
 
   return p_debug;
 }
