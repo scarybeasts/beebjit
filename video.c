@@ -198,6 +198,9 @@ struct video_struct {
   uint8_t romsel;
   uint8_t acccon;
 
+  /* Headless: never render, except for the debugger's framestop. */
+  int is_headless;
+
   /* Debugger interaction. */
   void (*p_framestop_callback)(void*);
   void* p_framestop_object;
@@ -439,7 +442,7 @@ video_check_go_active(struct video_struct* p_video) {
     return;
   }
 
-  if (!render_has_buffer(p_video->p_render)) {
+  if (p_video->is_headless) {
     return;
   }
 
@@ -1548,6 +1551,16 @@ video_set_nula(struct video_struct* p_video, int is_nula) {
 }
 
 void
+video_set_headless(struct video_struct* p_video, int is_headless) {
+  p_video->is_headless = is_headless;
+}
+
+int
+video_is_headless(struct video_struct* p_video) {
+  return p_video->is_headless;
+}
+
+void
 video_set_framestop_callback(struct video_struct* p_video,
                              void (*p_framestop_callback)(void* p),
                              void* p_framestop_object) {
@@ -1565,6 +1578,12 @@ video_set_framestop_callback(struct video_struct* p_video,
    */
   p_video->framestop_num_vsyncs = (p_video->num_vsyncs + 2);
 
+  /* Headless has no render buffer until it's needed. */
+  if ((p_framestop_callback != NULL) &&
+      !render_has_buffer(p_video->p_render)) {
+    render_create_internal_buffer(p_video->p_render);
+  }
+
   /* If rendering is inactive, make it active now, so that the next vsync
    * raise does a (synchronous) warm-up paint. The beam position is junk until
    * then, but it needs to be low enough that the vsync isn't ignored; see
@@ -1573,8 +1592,7 @@ video_set_framestop_callback(struct video_struct* p_video,
    */
   if ((p_framestop_callback != NULL) &&
       !p_video->externally_clocked &&
-      !p_video->is_rendering_active &&
-      render_has_buffer(p_video->p_render)) {
+      !p_video->is_rendering_active) {
     render_set_beam_pos(p_video->p_render, 0, 64);
     p_video->is_rendering_active = 1;
   }
@@ -1829,7 +1847,7 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   via_set_CA1(p_system_via, 1);
   p_video->num_vsyncs++;
 
-  if (!render_has_buffer(p_video->p_render)) {
+  if (p_video->is_headless && (p_video->p_framestop_callback == NULL)) {
     return;
   }
 

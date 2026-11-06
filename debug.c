@@ -2127,7 +2127,7 @@ debug_callback_common(struct debug_struct* p_debug,
        * scanline by scanline.
        */
       video_advance_crtc_timing(p_debug->p_video);
-      if (render_has_buffer(p_debug->p_render)) {
+      if (!video_is_headless(p_debug->p_video)) {
         video_force_paint(p_debug->p_video, 0);
       }
 

@@ -30,6 +30,8 @@ struct video_struct* video_create(uint8_t* p_mem,
 void video_destroy(struct video_struct* p_video);
 
 void video_set_nula(struct video_struct* p_video, int is_nula);
+void video_set_headless(struct video_struct* p_video, int is_headless);
+int video_is_headless(struct video_struct* p_video);
 void video_set_framestop_callback(struct video_struct* p_video,
                                   void (*p_framestop_callback)(void* p),
                                   void* p_framestop_object);

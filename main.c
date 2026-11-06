@@ -597,6 +597,9 @@ beebjit_main(void) {
   } else if (frame_cycles > 0) {
     /* TODO: push this down into video.c. */
     render_create_internal_buffer(p_render);
+  } else {
+    /* Headless doesn't render, unless saving frames or using framestop. */
+    video_set_headless(bbc_get_video(p_bbc), 1);
   }
 
   /* Links need to be set before bbc_power_on_reset(). */
