@@ -89,7 +89,7 @@ echo 'Checking unexpected scanline.'
     -mode jit \
     -autoboot \
     -debug -fast -accurate \
-    -commands "breakat 9000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x32fc44b4)||bail';q" \
+    -commands "breakat 9000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x63d4912a)||bail';q" \
     > /dev/null
 
 # This checks the simple NuLA support.

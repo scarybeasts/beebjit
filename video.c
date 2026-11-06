@@ -2310,10 +2310,6 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
   if (val == p_video->crtc_registers[reg]) {
     assert(!p_video->is_interlace_sync_and_video ||
            !(p_video->scanline_counter & 1));
-    /* TODO: understand why this is necessary to pass tests. */
-    if (p_video->is_rendering_active) {
-      video_advance_crtc_timing(p_video);
-    }
     return;
   }
 
