@@ -70,7 +70,10 @@ os_time_create_sleeper(void) {
   struct os_time_sleeper* p_ret =
       util_mallocz(sizeof(struct os_time_sleeper));
 
-  handle = CreateWaitableTimer(NULL, TRUE, "sleeper");
+  /* Unnamed: a named timer is a single object shared by every sleeper in the
+   * session, so the CPU and sound threads would re-arm each other's sleeps.
+   */
+  handle = CreateWaitableTimer(NULL, TRUE, NULL);
   if (handle == NULL) {
     util_bail("CreateWaitableTimer failed");
   }
