@@ -100,8 +100,6 @@ struct debug_struct {
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
   uint32_t sub_instruction_tick;
-  int32_t breakpoint_continue;
-  uint32_t breakpoint_continue_count;
 
   /* Stats. */
   int stats;
@@ -1953,8 +1951,6 @@ debug_callback_common(struct debug_struct* p_debug,
   uint8_t oplen;
   int is_rom;
   int is_register;
-  uint64_t breakpoint_continue_hit_count;
-  struct debug_breakpoint* p_breakpoint_continue;
   struct bbc_struct* p_bbc;
 
   struct state_6502* p_state_6502 = p_debug->p_state_6502;
@@ -2067,26 +2063,10 @@ debug_callback_common(struct debug_struct* p_debug,
                       wrapped_8bit,
                       wrapped_16bit);
 
-  breakpoint_continue_hit_count = 0;
-  p_breakpoint_continue = NULL;
-  if (p_debug->breakpoint_continue != -1) {
-    p_breakpoint_continue = &p_debug->breakpoints[p_debug->breakpoint_continue];
-    breakpoint_continue_hit_count = p_breakpoint_continue->num_hits;
-  }
   debug_check_breakpoints(p_debug,
                           &break_print,
                           &break_stop,
                           opmem);
-  if ((p_breakpoint_continue != NULL) &&
-      (p_breakpoint_continue->num_hits > breakpoint_continue_hit_count)) {
-    assert(p_debug->breakpoint_continue_count > 0);
-    p_debug->breakpoint_continue_count--;
-    if (p_debug->breakpoint_continue_count > 0) {
-      break_stop = 0;
-    } else {
-      p_debug->breakpoint_continue = -1;
-    }
-  }
   is_breakpoint_stop = break_stop;
 
   if (*p_interrupt_received || !p_debug->debug_running) {
@@ -2178,7 +2158,6 @@ debug_callback_common(struct debug_struct* p_debug,
     const char* p_param_2_str;
     const char* p_param_3_str;
     int32_t parse_int = -1;
-    int32_t parse_int2 = -1;
     int32_t parse_hex_int = -1;
     int32_t parse_hex_int2 = -1;
     int32_t parse_hex_int3 = -1;
@@ -2253,7 +2232,6 @@ debug_callback_common(struct debug_struct* p_debug,
     p_param_2_str = NULL;
     if (num_strings > 2) {
       p_param_2_str = util_string_list_get_string(p_command_strings, 2);
-      parse_int2 = (int32_t) util_parse_u64(p_param_2_str, 0);
       parse_hex_int2 = (int32_t) util_parse_u64(p_param_2_str, 1);
     }
     p_param_3_str = NULL;
@@ -2296,16 +2274,6 @@ debug_callback_common(struct debug_struct* p_debug,
       p_debug->debug_running = 1;
       if (parse_int > 1) {
         p_debug->continue_count = (parse_int - 1);
-      }
-      break;
-    } else if (!strcmp(p_command, "bc")) {
-      p_debug->debug_running = 1;
-      if ((parse_int >= 0) &&
-          (parse_int < k_max_break) &&
-          p_debug->breakpoints[parse_int].is_in_use &&
-          (parse_int2 > 0)) {
-        p_debug->breakpoint_continue = parse_int;
-        p_debug->breakpoint_continue_count = parse_int2;
       }
       break;
     } else if (!strcmp(p_command, "n") || !strcmp(p_command, "next")) {
@@ -2679,7 +2647,6 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "more")) {
       (void) printf(
   "eval <expr>        : evaluate expression, e.g. 'a=7' to set A\n"
-  "bc <b> <count>     : run until breakpoint <b> hits <count> times\n"
   "stats              : toggle stats collection (default: off)\n"
   "ds                 : dump stats collected\n"
   "cs                 : clear stats collected\n"
@@ -2767,7 +2734,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->p_tool = disc_tool_create();
   p_debug->p_command_strings = util_string_list_alloc();
   p_debug->p_pending_commands = util_string_list_alloc();
-  p_debug->breakpoint_continue = -1;
 
   p_debug->p_temp_storage_buf = util_buffer_create();
   util_buffer_setup_internal(p_debug->p_temp_storage_buf);
