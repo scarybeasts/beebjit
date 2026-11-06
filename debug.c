@@ -1145,6 +1145,39 @@ debug_save_raw(struct debug_struct* p_debug,
 }
 
 static void
+debug_save_frame(struct debug_struct* p_debug, const char* p_file_name) {
+  char file_name[256];
+  struct util_file* p_file;
+  struct render_struct* p_render = p_debug->p_render;
+
+  /* Headless only has a render buffer once framestop is used. */
+  if (!render_has_buffer(p_render)) {
+    log_do_log(k_log_misc, k_log_warning, "no render buffer");
+    return;
+  }
+
+  if (p_file_name == NULL) {
+    (void) snprintf(&file_name[0],
+                    sizeof(file_name),
+                    "beebjit_frame_%"PRIu64".bgra",
+                    timing_get_total_timer_ticks(p_debug->p_timing));
+    p_file_name = &file_name[0];
+  }
+
+  p_file = util_file_try_open(p_file_name, 1, 1);
+  if (p_file == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "cannot open file %s", p_file_name);
+    return;
+  }
+
+  util_file_write(p_file,
+                  render_get_buffer(p_render),
+                  render_get_buffer_size(p_render));
+  util_file_close(p_file);
+  (void) printf("frame saved: %s\n", p_file_name);
+}
+
+static void
 debug_print_registers(uint8_t reg_a,
                       uint8_t reg_x,
                       uint8_t reg_y,
@@ -2403,6 +2436,8 @@ debug_callback_common(struct debug_struct* p_debug,
       debug_save_raw(p_debug, p_param_1_str, parse_hex_int2, parse_hex_int3);
     } else if (!strcmp(p_command, "ss")) {
       state_save(p_bbc, p_param_1_str);
+    } else if (!strcmp(p_command, "saveframe")) {
+      debug_save_frame(p_debug, p_param_1_str);
     } else if (!strcmp(p_command, "d")) {
       if (parse_hex_int == -1) {
         parse_hex_int = p_debug->reg_pc;
@@ -2600,6 +2635,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "t                  : trap into gdb\n"
   "breakat <c>        : break at <c> cycles\n"
   "framestop <0|1>    : break at every frame (default: 0)\n"
+  "saveframe [f]      : save render buffer to BGRA file [f]\n"
   "keydown <k>        : simulate key press <k>\n"
   "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
