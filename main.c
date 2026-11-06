@@ -358,7 +358,7 @@ beebjit_main(void) {
     } else if (!strcmp(arg, "-version") ||
                !strcmp(arg, "-v")) {
       (void) printf("beebjit "BEEBJIT_VERSION"\n");
-      exit(0);
+      os_exit(0);
     } else if (!strcmp(arg, "-help") ||
                !strcmp(arg, "--help") ||
                !strcmp(arg, "-h")) {
@@ -387,7 +387,7 @@ beebjit_main(void) {
 "-help              : show this help text.\n"
 "-more              : show more, less common options.\n"
 "");
-      exit(0);
+      os_exit(0);
     } else if (!strcmp(arg, "-more")) {
       (void) printf(
 "-frame-cycles   <c>: start saving frame images after <c> cycles.\n"
@@ -401,7 +401,7 @@ beebjit_main(void) {
 "-key-remap  <f> <t>: remap physical key from / to. See EXAMPLES.\n"
 "-nula              : use a VideoNuLA (early support).\n"
 "");
-      exit(0);
+      os_exit(0);
     } else {
       log_do_log(k_log_misc,
                  k_log_warning,
@@ -482,7 +482,7 @@ beebjit_main(void) {
 
   if (test_flag) {
     test_do_tests(p_bbc);
-    exit(0);
+    os_exit(0);
   }
 
   if (nula_flag) {
@@ -555,7 +555,7 @@ beebjit_main(void) {
   }
 
   if (convert_hfe_flag || convert_ssd_flag || convert_adl_flag) {
-    exit(0);
+    os_exit(0);
   }
 
   /* Load the tapes! */
@@ -755,7 +755,7 @@ beebjit_main(void) {
         save_frame_count++;
         if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
           log_do_log(k_log_misc, k_log_info, "save frame count exit");
-          exit(0);
+          os_exit(0);
         }
       }
       if (do_clear_after_paint) {
@@ -809,14 +809,14 @@ beebjit_main(void) {
   util_free(p_opt_flags);
   util_free(p_log_flags);
 
-  exit(0);
+  os_exit(0);
 }
 
 int
 main(int argc, const char* argv[]) {
   s_argc = argc;
   s_argv = argv;
-  /* The beebjit_main function calls exit() and should not return.
+  /* The beebjit_main function calls os_exit() and should not return.
    * The OS window function can launch beebjit_main on a new thread if it needs
    * the main thread for itself. This is the case on MacOS. For other OS's,
    * beebjit_main is simply called on the main thread.

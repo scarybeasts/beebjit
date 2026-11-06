@@ -21,6 +21,7 @@
 
 #include "os_fault.h"
 #include "os_terminal.h"
+#include "os_thread.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -2243,7 +2244,7 @@ debug_callback_common(struct debug_struct* p_debug,
     if (!strcmp(p_command, "q") ||
         !strcmp(p_command, "quit") ||
         !strcmp(p_command, "exit")) {
-      exit(0);
+      os_exit(0);
     } else if (!strcmp(p_command, "bail")) {
       util_bail("debug bail (command)");
     } else if (!strcmp(p_command, "p")) {

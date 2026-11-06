@@ -90,3 +90,15 @@ void
 os_lock_unlock(struct os_lock_struct* p_lock) {
   LeaveCriticalSection(&p_lock->cs);
 }
+
+void
+os_exit(int exit_code) {
+  /* Not exit(), which ends in ExitProcess(). That kills the other threads
+   * wherever they are and then runs DLL detach code, which deadlocks if it
+   * needs a lock one of those threads held, e.g. in the sound driver.
+   * TerminateProcess() skips DLL detach, and stdio flushing, so flush first.
+   */
+  (void) fflush(NULL);
+  (void) TerminateProcess(GetCurrentProcess(), (UINT) exit_code);
+  exit(exit_code);
+}

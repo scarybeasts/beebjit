@@ -3,6 +3,7 @@
 #include "util.h"
 
 #include <pthread.h>
+#include <stdlib.h>
 
 struct os_thread_struct {
   pthread_t thread;
@@ -32,4 +33,9 @@ os_thread_destroy(struct os_thread_struct* p_thread_struct) {
   util_free(p_thread_struct);
 
   return (intptr_t) p_retval;
+}
+
+void
+os_exit(int exit_code) {
+  exit(exit_code);
 }

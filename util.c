@@ -1,5 +1,7 @@
 #include "util.h"
 
+#include "os_thread.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -620,7 +622,7 @@ util_bail(const char* p_msg, ...) {
 
   (void) fprintf(stderr, "BAILING: %s\n", msg);
 
-  exit(1);
+  os_exit(1);
   /* Not reached. */
 }
 
