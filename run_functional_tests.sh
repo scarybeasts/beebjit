@@ -47,15 +47,13 @@ echo 'Checking RVI rendering.'
     -mode interp \
     -autoboot \
     -fast -accurate -debug \
-    -opt video:always-render \
-    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
+    -commands "breakat 11000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
     > /dev/null
 ./beebjit -0 test/display/raster-c.ssd \
     -mode jit \
     -autoboot \
     -fast -accurate -debug \
-    -opt video:always-render \
-    -commands "breakat 11000000;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
+    -commands "breakat 11000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x2c23c1b6)||bail';q" \
     > /dev/null
 
 # This checks the framebuffer looks as expected, in an RVI test case that uses
@@ -64,8 +62,7 @@ echo 'Checking RVI rendering.'
     -mode interp \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 6500000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x16d251fe)||bail';q" \
+    -commands "breakat 6500000;c;framestop 1;c;eval '(frame_buffer_crc32==0x16d251fe)||bail';q" \
     > /dev/null
 
 # This checks the display accuracy of a gnarly MODE1 + MODE7 test case that
@@ -74,8 +71,7 @@ echo 'Checking RVI rendering.'
 ./beebjit -0 test/display/mode1+7.ssd \
     -mode interp \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x646f907a)||bail';q" \
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 4d 4f 44 45 31 2f 37 22 0d;writem 02e1 ef;breakat 25000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x646f907a)||bail';q" \
     > /dev/null
 
 # This checks some teletext state machine corner cases.
@@ -83,8 +79,7 @@ echo 'Checking teletext rendering.'
 ./beebjit -0 test/display/teletest_v1.ssd \
     -mode jit \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2550000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0xd1431641)||bail';q" \
+    -commands "breakat 1000000;c;writem 03e0 43 48 2e 22 54 45 4c 45 54 53 54 22 0d;writem 02e1 ef;breakat 2550000;c;framestop 1;c;eval '(frame_buffer_crc32==0xd1431641)||bail';q" \
     > /dev/null
 
 # This checks some 6845 end-of-frame logic that can render an unexpected
@@ -94,8 +89,7 @@ echo 'Checking unexpected scanline.'
     -mode jit \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 9000000;c;b expr 'render_y == 621';c;eval '(frame_buffer_crc32==0xe5a2ca70)||bail';q" \
+    -commands "breakat 9000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x32fc44b4)||bail';q" \
     > /dev/null
 
 # This checks the simple NuLA support.
@@ -105,8 +99,7 @@ echo 'Checking NuLA palette.'
     -nula \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 22000000;c;keydown 90;breakat 23960000;c;b expr 'render_y == 600';c;eval '(frame_buffer_crc32==0x46e9a111)||bail';q" \
+    -commands "breakat 22000000;c;keydown 90;breakat 23960000;c;framestop 1;c;eval '(frame_buffer_crc32==0xbccf4422)||bail';q" \
     > /dev/null
 
 # This checks a replay of a 100% Nightworld run.
@@ -123,8 +116,7 @@ echo 'Checking teletext data pipeline.'
     -mode jit \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 2000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x3156b9d1)||bail';q" \
+    -commands "breakat 2000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x3156b9d1)||bail';q" \
     > /dev/null
 
 # Check teletext in fast mode because it gets broken all the time.
@@ -142,8 +134,7 @@ echo 'Checking ANDY / HAZEL render.'
     -master \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x21c558e5)||bail';q" \
+    -commands "breakat 5000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x21c558e5)||bail';q" \
     > /dev/null
 
 echo 'Checking ANDY / HAZEL non-render.'
@@ -151,6 +142,5 @@ echo 'Checking ANDY / HAZEL non-render.'
     -master \
     -autoboot \
     -debug -fast -accurate \
-    -opt video:always-render \
-    -commands "breakat 5000000;c;b expr 'render_y == 620';c;eval '(frame_buffer_crc32==0x9cd725cd)||bail';q" \
+    -commands "breakat 5000000;c;framestop 1;c;eval '(frame_buffer_crc32==0x9cd725cd)||bail';q" \
     > /dev/null
