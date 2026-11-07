@@ -564,6 +564,12 @@ teletext_render(struct teletext_struct* p_teletext,
   uint8_t* p_src_data = p_teletext->p_render_character;
   uint32_t render_fg_color = p_teletext->render_fg_color;
   uint32_t bg_color = p_teletext->bg_color;
+  /* Palette colors have channels of 0 or 1, so blending val with fg and
+   * (255 - val) with bg picks, per channel, 0, val, ~val or 255. That's the
+   * bg mask, with val's bits flipped in the channels where fg and bg differ.
+   */
+  uint32_t base_color = ((bg_color * 255) | 0xff000000);
+  uint32_t diff_mask = ((render_fg_color ^ bg_color) * 255);
   struct render_character_2MHz* p_black =
       &p_teletext->render_character_2MHz_black;
 
@@ -629,13 +635,8 @@ teletext_render(struct teletext_struct* p_teletext,
   }
 
   for (i = 0; i < 8; ++i) {
-    uint32_t color;
-    uint8_t val = p_src_data[i];
-
-    color = (val * render_fg_color);
-    color += ((255 - val) * bg_color);
-
-    p_out->host_pixels[i] = (color | 0xff000000);
+    uint32_t val = p_src_data[i];
+    p_out->host_pixels[i] = (base_color ^ ((val * 0x01010101) & diff_mask));
   }
 
   p_out = p_next_out;
@@ -649,13 +650,8 @@ teletext_render(struct teletext_struct* p_teletext,
   }
 
   for (i = 0; i < 8; ++i) {
-    uint32_t color;
-    uint8_t val = p_src_data[i];
-
-    color = (val * render_fg_color);
-    color += ((255 - val) * bg_color);
-
-    p_out->host_pixels[i] = (color | 0xff000000);
+    uint32_t val = p_src_data[i];
+    p_out->host_pixels[i] = (base_color ^ ((val * 0x01010101) & diff_mask));
   }
 }
 
