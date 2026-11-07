@@ -325,8 +325,15 @@ os_window_create(uint32_t width, uint32_t height) {
     /* We use CG bitmaps and not NSBitmapImageRep, because the latter seems to
      * cache a point-in-time view of the pixel buffer, leading to the screen not
      * updating.
+     * The bitmap is tagged with the window's color space. With any other, e.g.
+     * device RGB, Core Animation color converts every frame on the CPU when it
+     * commits the layer contents, which was most of the idle CPU on an M1.
      */
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGColorSpaceRef colorSpace =
+        CGColorSpaceRetain([[window colorSpace] CGColorSpace]);
+    if (colorSpace == NULL) {
+      colorSpace = CGColorSpaceCreateDeviceRGB();
+    }
     uint32_t bitmapInfo = (kCGImageByteOrder32Little |
                            kCGImageAlphaPremultipliedFirst);
     CGContextRef context = CGBitmapContextCreate(NULL,
