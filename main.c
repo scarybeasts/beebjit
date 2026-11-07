@@ -705,7 +705,8 @@ beebjit_main(void) {
 
   bbc_run_async(p_bbc);
 
-  os_poller_add_handle(p_poller, handle_channel_read_ui);
+  os_poller_add_handle(p_poller,
+                       os_channel_get_poll_handle(handle_channel_read_ui));
   if (window_handle != -1) {
     os_poller_add_handle(p_poller, window_handle);
   }

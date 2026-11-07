@@ -2,7 +2,6 @@
 
 #include "util.h"
 
-#include <assert.h>
 #include <windows.h>
 
 enum {
@@ -12,15 +11,13 @@ enum {
 struct os_poller_struct {
   HANDLE handles[k_os_poller_max_handles];
   uint32_t num_used_handles;
-  int32_t triggered_handle;
+  uint32_t triggered_mask;
 };
 
 struct os_poller_struct*
 os_poller_create() {
   struct os_poller_struct* p_poller =
       util_mallocz(sizeof(struct os_poller_struct));
-
-  p_poller->triggered_handle = -1;
 
   return p_poller;
 }
@@ -52,26 +49,48 @@ os_poller_add_handle(struct os_poller_struct* p_poller, intptr_t handle) {
 
 void
 os_poller_poll(struct os_poller_struct* p_poller) {
+  uint32_t i;
+  DWORD ret;
   uint32_t num_used_handles = p_poller->num_used_handles;
+  uint32_t triggered_mask = 0;
 
   /* NOTE: needs to be QS_ALLINPUT and not QS_ALLEVENTS otherwise there's a
    * strange hang trying to restore the minimized window.
    */
-  DWORD ret = MsgWaitForMultipleObjects(num_used_handles,
-                                        p_poller->handles,
-                                        FALSE,
-                                        INFINITE,
-                                        QS_ALLINPUT);
+  ret = MsgWaitForMultipleObjects(num_used_handles,
+                                  p_poller->handles,
+                                  FALSE,
+                                  INFINITE,
+                                  QS_ALLINPUT);
   if (ret == WAIT_FAILED) {
     util_bail("MsgWaitForMultipleObjects failed");
   }
 
-  p_poller->triggered_handle = (ret - WAIT_OBJECT_0);
+  /* The wait only returns the first ready source, so check them all, like
+   * poll(), otherwise a busy channel could starve the window. The handles are
+   * manual reset events, so checking them doesn't change them.
+   */
+  for (i = 0; i < num_used_handles; ++i) {
+    if (WaitForSingleObject(p_poller->handles[i], 0) == WAIT_OBJECT_0) {
+      triggered_mask |= (1 << i);
+    }
+  }
+  /* The window's message queue is the index after the handles. */
+  if (ret == (WAIT_OBJECT_0 + num_used_handles)) {
+    triggered_mask |= (1 << num_used_handles);
+  } else if (MsgWaitForMultipleObjectsEx(0,
+                                         NULL,
+                                         0,
+                                         QS_ALLINPUT,
+                                         MWMO_INPUTAVAILABLE) ==
+             WAIT_OBJECT_0) {
+    triggered_mask |= (1 << num_used_handles);
+  }
+
+  p_poller->triggered_mask = triggered_mask;
 }
 
 int
 os_poller_handle_triggered(struct os_poller_struct* p_poller, uint32_t index) {
-  int32_t triggered_handle = p_poller->triggered_handle;
-  assert(triggered_handle != -1);
-  return (index == (uint32_t) triggered_handle);
+  return !!(p_poller->triggered_mask & (1 << index));
 }

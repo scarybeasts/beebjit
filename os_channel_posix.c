@@ -46,6 +46,11 @@ os_channel_free_handles(intptr_t read1,
   }
 }
 
+intptr_t
+os_channel_get_poll_handle(intptr_t handle) {
+  return handle;
+}
+
 void
 os_channel_read(intptr_t handle, void* p_buf, uint32_t length) {
   int fd = (int) handle;

@@ -12,6 +12,9 @@ void os_channel_free_handles(intptr_t read1,
                              intptr_t read2,
                              intptr_t write2);
 
+/* The handle to give the poller to wait for a read handle to have data. */
+intptr_t os_channel_get_poll_handle(intptr_t handle);
+
 void os_channel_read(intptr_t handle, void* p_message, uint32_t length);
 void os_channel_write(intptr_t handle, const void* p_message, uint32_t length);
 
