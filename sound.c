@@ -129,6 +129,14 @@ iir_lowpass_apply(double new_sample,
   new_output += (p_input_history[1] * p_input_coefficients[2]);
   new_output -= (p_output_history[1] * p_output_coefficients[2]);
 
+  /* With silent input, the output decays towards zero and would end up as
+   * denormals, which are very slow: each operation on one takes a microcode
+   * assist on Intel. Values this small are far below 16-bit sample precision.
+   */
+  if (fabs(new_output) < 1e-10) {
+    new_output = 0.0;
+  }
+
   p_input_history[1] = p_input_history[0];
   p_input_history[0] = new_sample;
 
