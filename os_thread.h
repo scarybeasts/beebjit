@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_OS_THREAD_H
 #define BEEBJIT_OS_THREAD_H
 
+#include <stdint.h>
+
 struct os_thread_struct;
 
 struct os_thread_struct* os_thread_create(void* p_func, void* p_arg);
