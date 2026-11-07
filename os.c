@@ -48,6 +48,7 @@
 #include "os_alloc_windows.c"
 #include "os_channel_windows.c"
 #include "os_fault_windows.c"
+#include "os_lock_windows.c"
 #include "os_poller_windows.c"
 #include "os_sound_windows.c"
 #include "os_terminal_windows.c"
