@@ -19,6 +19,7 @@ struct os_window_struct {
   CGContextRef context;
   int pipe_read;
   int pipe_write;
+  int is_closed;
 };
 
 static uint8_t s_cocoa_keycode_lookup[256];
@@ -265,6 +266,7 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
   ssize_t ret;
   uint8_t val = 'C';
   (void) notification;
+  _osWindow->is_closed = 1;
   /* Signal the main beebjit event loop. */
   ret = write(_osWindow->pipe_write, &val, 1);
   if (ret != 1) {
@@ -462,9 +464,5 @@ os_window_process_events(struct os_window_struct* p_window) {
 
 int
 os_window_is_closed(struct os_window_struct* p_window) {
-  /* This is only called after we signal the close event, which is the only
-   * event we send to the beebjit main loop.
-   */
-  (void) p_window;
-  return 1;
+  return p_window->is_closed;
 }
