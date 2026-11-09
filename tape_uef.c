@@ -365,9 +365,8 @@ tape_uef_load(struct tape_struct* p_tape,
       if ((temp_float > 1200) || (temp_float < 0)) {
         util_bail("UEF file strange float gap %f", temp_float);
       }
-      len_u16_1 = (temp_float * 1200);
 
-      tape_add_bits(p_tape, k_tape_bit_silence, len_u16_1);
+      tape_add_bits(p_tape, k_tape_bit_silence, (uint32_t) (temp_float * 1200));
       break;
     case k_tape_uef_chunk_data_encoding_format_change:
       if (chunk_len != 2) {
