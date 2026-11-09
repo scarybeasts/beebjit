@@ -166,6 +166,10 @@ jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
     case k_sed:
       flag_decimal = 1;
       break;
+    case k_plp:
+      flag_carry = k_value_unknown;
+      flag_decimal = k_value_unknown;
+      break;
     default:
       switch (opreg) {
       case k_a:
@@ -275,6 +279,11 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
         do_eliminate_load_carry = 1;
       }
       had_check_bcd = 1;
+      break;
+    case k_sed:
+    case k_plp:
+      /* An earlier check_bcd no longer vouches for the decimal flag. */
+      had_check_bcd = 0;
       break;
     case k_sta:
       if (p_opcode->reg_a == k_value_unknown) {

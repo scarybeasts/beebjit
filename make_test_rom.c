@@ -2828,8 +2828,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x93);
   emit_JMP(p_buf, k_abs, 0xE840);
 
-  /* End of test. */
+  /* Test that an ADC / SBC keeps its decimal mode check if SED or PLP may
+   * have set D since an earlier check in the block. Example: Zarm.
+   */
   set_new_index(p_buf, 0x2840);
+  emit_LDA(p_buf, k_imm, 0x5F);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_SED(p_buf);
+  emit_SEC(p_buf);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_CLD(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x59);
+  emit_JMP(p_buf, k_abs, 0xE854);
+  emit_LDA(p_buf, k_imm, 0x0C);   /* PLP sets D after a CLD. Keep I. */
+  emit_PHA(p_buf);
+  emit_CLD(p_buf);
+  emit_PLP(p_buf);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_SEC(p_buf);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_CLD(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x59);
+  emit_JMP(p_buf, k_abs, 0xE880);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2880);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
