@@ -258,5 +258,5 @@ adc_set_channel_value(struct adc_struct* p_adc,
   assert(channel < k_adc_num_channels);
   p_adc->state.channel_value[channel] = value;
 
-  adc_recalculate_read(p_adc);
+  /* ADC value will recalculate when the next conversion finishes. */
 }
