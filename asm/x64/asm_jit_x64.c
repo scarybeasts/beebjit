@@ -1010,6 +1010,9 @@ asm_jit_rewrite_addr(int32_t uopcode) {
   case k_opcode_STX: new_uopcode = k_opcode_x64_STX_addr; break;
   case k_opcode_STY: new_uopcode = k_opcode_x64_STY_addr; break;
   case k_opcode_SUB: new_uopcode = k_opcode_x64_SUB_addr; break;
+  /* No form that uses the address. Can occur for dynamic operands. */
+  case k_opcode_CPX: break;
+  case k_opcode_CPY: break;
   default: assert(0); break;
   }
   return new_uopcode;
@@ -1710,8 +1713,13 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     } else {
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_addr(new_uopcode);
-      p_main_uop->backend_tag = new_uopcode;
-      do_eliminate_load_store = 1;
+      /* Otherwise, keep the load into the scratch register for the main uop.
+       * Example: Cosmic Fighter makes the MOS's CPX $030A a dynamic operand.
+       */
+      if (new_uopcode != -1) {
+        p_main_uop->backend_tag = new_uopcode;
+        do_eliminate_load_store = 1;
+      }
     }
   }
 

@@ -2852,8 +2852,37 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x59);
   emit_JMP(p_buf, k_abs, 0xE880);
 
-  /* End of test. */
+  /* Test a dynamic operand on CPX abs, which has no x64 form that compares
+   * with the address directly.
+   */
   set_new_index(p_buf, 0x2880);
+  emit_LDA(p_buf, k_imm, 0xEC);   /* CPX $0000 */
+  emit_STA(p_buf, k_abs, 0x4F00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4F01);
+  emit_STA(p_buf, k_abs, 0x4F02);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4F03);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x4F01);
+  emit_JSR(p_buf, 0x4F00);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x13);
+  emit_STA(p_buf, k_zpg, 0x70);
+  emit_LDA(p_buf, k_imm, 0x70);
+  emit_STA(p_buf, k_abs, 0x4F01);
+  emit_LDX(p_buf, k_imm, 0x07);
+  emit_JSR(p_buf, 0x4F00);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0x13);
+  emit_JSR(p_buf, 0x4F00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE900);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2900);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
