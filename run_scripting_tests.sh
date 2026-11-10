@@ -20,8 +20,11 @@ if [ "$SAVEMEM_SIZE" -ne 65536 ]; then
   echo "FAIL: savemem file size $SAVEMEM_SIZE, expected 65536"
   exit 1
 fi
-./beebjit -headless -debug \
-    -commands "loadmem $TMP_MEM 0;eval '(mem[0x2000]==0x5a)||bail';eval '(mem[0x7fff]==0xa5)||bail';q" \
+./beebjit -headless -debug -commands \
+"loadmem $TMP_MEM 0;\
+eval '(mem[0x2000]==0x5a)||bail';\
+eval '(mem[0x7fff]==0xa5)||bail';\
+q" \
     > /dev/null
 rm -f "$TMP_MEM"
 
@@ -68,6 +71,38 @@ rm -f "$TMP_CAP"
 echo 'Checking JIT crash after hard reset.'
 ./beebjit -headless -mode jit -fast -accurate -debug \
     -commands 'b 8003;c;hard;c;q' \
+    > /dev/null
+
+echo 'Checking breakpoint commands.'
+# $2000: LDX #5; DEX; BNE $2002; JMP $2005. The breakpoint on the DEX hits 5
+# times. A stopping breakpoint's commands run before the rest of the script, and
+# not for stops skipped by "c <n>". A nostop breakpoint's commands run at every
+# hit without stopping.
+./beebjit -headless -debug -mode interp -commands \
+"writem 2000 a2 05 ca d0 fd 4c 05 20;\
+eval pc=0x2000;\
+b 2002 commands 'writem 71 aa';\
+c;\
+eval '(mem[0x71]==0xaa)||bail';\
+q" \
+    > /dev/null
+./beebjit -headless -debug -mode interp -commands \
+"writem 2000 a2 05 ca d0 fd 4c 05 20;\
+eval pc=0x2000;\
+b 2002 commands 'eval mem[0x71]=mem[0x71]+1';\
+c 3;\
+eval '(mem[0x71]==1)||bail';\
+eval '(x==3)||bail';\
+q" \
+    > /dev/null
+./beebjit -headless -debug -mode interp -commands \
+"writem 2000 a2 05 ca d0 fd 4c 05 20;\
+eval pc=0x2000;\
+b 2002 nostop commands 'eval mem[0x71]=mem[0x71]+1';\
+b 2005;\
+c;\
+eval '(mem[0x71]==5)||bail';\
+q" \
     > /dev/null
 
 echo 'Scripting tests OK.'

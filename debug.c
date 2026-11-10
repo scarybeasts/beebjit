@@ -97,6 +97,8 @@ struct debug_struct {
   uint32_t continue_count;
   struct debug_breakpoint breakpoints[k_max_break];
   uint32_t max_breakpoint_used_plus_one;
+  uint32_t hit_breakpoints_with_commands[k_max_break];
+  uint32_t num_hit_breakpoints_with_commands;
   struct util_buffer* p_temp_storage_buf;
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
@@ -766,6 +768,8 @@ debug_check_breakpoints(struct debug_struct* p_debug,
   uint32_t i;
   uint32_t max_breakpoint_used_plus_one = p_debug->max_breakpoint_used_plus_one;
 
+  p_debug->num_hit_breakpoints_with_commands = 0;
+
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     *p_out_print = 1;
     *p_out_stop = 1;
@@ -816,8 +820,8 @@ debug_check_breakpoints(struct debug_struct* p_debug,
     *p_out_print |= p_breakpoint->do_print;
     *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
-      util_string_list_append_list(p_debug->p_pending_commands,
-                                   p_breakpoint->p_command_list);
+      p_debug->hit_breakpoints_with_commands[
+          p_debug->num_hit_breakpoints_with_commands++] = i;
     }
   }
 }
@@ -1963,6 +1967,9 @@ debug_callback_common(struct debug_struct* p_debug,
   int break_stop = 0;
   int is_breakpoint_stop;
   int is_skipped = 0;
+  int is_inline;
+  uint32_t num_inline_commands;
+  uint32_t i_hit;
 
   state_6502_get_registers(p_state_6502,
                            &p_debug->reg_a,
@@ -2104,6 +2111,34 @@ debug_callback_common(struct debug_struct* p_debug,
     break_stop = 0;
   }
 
+  /* As in gdb, a breakpoint's commands run when it's hit, ahead of anything
+   * else pending. A stop skipped by "c <n>" runs none, like an ignored hit in
+   * gdb. A nostop breakpoint's commands run without stopping, unless something
+   * else stops here anyway.
+   */
+  num_inline_commands = 0;
+  for (i_hit = p_debug->num_hit_breakpoints_with_commands; i_hit > 0; --i_hit) {
+    uint32_t j;
+    uint32_t index = p_debug->hit_breakpoints_with_commands[i_hit - 1];
+    struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[index];
+    struct util_string_list_struct* p_command_list =
+        p_breakpoint->p_command_list;
+
+    if (p_breakpoint->do_stop && is_skipped) {
+      continue;
+    }
+    for (j = util_string_list_get_count(p_command_list); j > 0; --j) {
+      util_string_list_insert(p_debug->p_pending_commands,
+                              0,
+                              util_string_list_get_string(p_command_list,
+                                                          (j - 1)));
+      num_inline_commands++;
+    }
+  }
+  if (break_stop) {
+    num_inline_commands = 0;
+  }
+
   break_print |= p_debug->debug_running_print;
   if (break_print) {
     debug_print_status_line(p_debug,
@@ -2119,13 +2154,16 @@ debug_callback_common(struct debug_struct* p_debug,
     p_debug->debug_running = 0;
   }
 
-  if (p_debug->debug_running || is_skipped) {
+  is_inline = (num_inline_commands > 0);
+  if ((p_debug->debug_running || is_skipped) && !is_inline) {
     return 0;
   }
 
   /* Any remaining count is cancelled by stopping early. */
-  p_debug->step_count = 0;
-  p_debug->continue_count = 0;
+  if (!is_inline) {
+    p_debug->step_count = 0;
+    p_debug->continue_count = 0;
+  }
 
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     p_debug->next_or_finish_stop_addr = -1;
@@ -2167,6 +2205,11 @@ debug_callback_common(struct debug_struct* p_debug,
         p_debug->p_pending_commands;
     struct util_string_list_struct* p_command_strings =
         p_debug->p_command_strings;
+
+    /* Once a nostop breakpoint's commands are done, carry on running. */
+    if (is_inline && (num_inline_commands == 0)) {
+      break;
+    }
 
     (void) printf("(6502db) ");
     ret = fflush(stdout);
@@ -2217,6 +2260,9 @@ debug_callback_common(struct debug_struct* p_debug,
     (void) strcpy(&input_buf[0], p_command_and_params);
     util_string_split(p_command_strings, p_command_and_params, ' ', '\'');
     util_string_list_remove(p_pending_commands, 0);
+    if (num_inline_commands > 0) {
+      num_inline_commands--;
+    }
 
     p_command = "";
     num_strings = util_string_list_get_count(p_command_strings);
