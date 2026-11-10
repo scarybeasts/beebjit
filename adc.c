@@ -51,6 +51,7 @@ adc_recalculate_read(struct adc_struct* p_adc) {
   uint8_t channel = p_adc->state.current_channel;
   uint16_t adc_val = p_adc->state.channel_value[channel];
   uint8_t status = channel;
+  uint64_t ticks = timing_get_total_timer_ticks(p_adc->p_timing);
 
   if (p_adc->state.is_input_flag) {
     status |= 0x04;
@@ -74,7 +75,14 @@ adc_recalculate_read(struct adc_struct* p_adc) {
    */
   p_adc->state.read_hi = (adc_val >> 8);
   /* AUG states bits 3-0 are always set to low. */
-  p_adc->state.read_lo = (adc_val & 0xF0);
+  /* Add in jitter on some of the low bits like a real machine. Various
+   * games use this to seed a RNG, and Galaxy Raiders won't start unless
+   * the low byte reads non-zero at least once.
+   */
+  p_adc->state.read_lo = (adc_val & 0x80);
+  ticks &= 0x0E;
+  ticks <<= 3;
+  p_adc->state.read_lo |= ticks;
 }
 
 static void
