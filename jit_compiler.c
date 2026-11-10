@@ -1476,6 +1476,13 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
          * compile trampoline.
          */
         addr_6502++;
+        if (addr_6502 == p_compiler->sub_instruction_addr_6502) {
+          /* The code spilled into the host block where the sub-instruction
+           * entry would go, so we can't do a sub-instruction. Hits rarely,
+           * e.g. BRK because it's a lot of host bytes.
+           */
+          p_compiler->sub_instruction_addr_6502 = -1;
+        }
         p_host_address_base =
             jit_metadata_get_host_block_address(p_compiler->p_metadata,
                                                 addr_6502);
@@ -1779,16 +1786,19 @@ jit_compiler_prepare_compile_block(struct jit_compiler* p_compiler,
 
 void
 jit_compiler_execute_compile_block(struct jit_compiler* p_compiler) {
-  int32_t sub_instruction_addr_6502 = p_compiler->sub_instruction_addr_6502;
+  int32_t sub_instruction_addr_6502;
 
   assert(p_compiler->opcode_details[0].addr_6502 != -1);
 
-  /* 7) Emit the uop stream to the output buffer. */
+  /* 7) Emit the uop stream to the output buffer.
+   * NOTE: may clear p_compiler->sub_instruction_addr_6502.
+   */
   jit_compiler_emit_uops(p_compiler);
 
   /* 8) Update compiler metadata. */
   jit_compiler_update_metadata(p_compiler);
 
+  sub_instruction_addr_6502 = p_compiler->sub_instruction_addr_6502;
   if (sub_instruction_addr_6502 != -1) {
     struct asm_uop tmp_uop;
     struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;

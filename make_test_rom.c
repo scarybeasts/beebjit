@@ -2905,8 +2905,35 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE4E);
   emit_JMP(p_buf, k_abs, 0xE940);
 
-  /* End of test. */
+  /* Test a sub-instruction where the preceding opcode's code spills into the
+   * sub-instruction's host block. Example: Sabre Wulf calls a routine with
+   * BRK, and the BRK handler returns to the BRK's padding byte, a TAY.
+   */
   set_new_index(p_buf, 0x2940);
+  emit_LDA(p_buf, k_imm, 0x68);   /* BRK handler at $E968. */
+  emit_STA(p_buf, k_abs, 0x4040);
+  emit_LDA(p_buf, k_imm, 0xE9);
+  emit_STA(p_buf, k_abs, 0x4041);
+  emit_LDX(p_buf, k_imm, 0x08);
+  emit_BRK(p_buf);                /* $E94C, a block start. */
+  emit_TAY(p_buf);                /* $E94D, the BRK's padding byte. */
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -5);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x5A);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Unset BRK vector. */
+  emit_STA(p_buf, k_abs, 0x4040);
+  emit_STA(p_buf, k_abs, 0x4041);
+  emit_JMP(p_buf, k_abs, 0xE980);
+  util_buffer_set_pos(p_buf, 0x2968);
+  emit_PLA(p_buf);                /* Drop the stacked P and return address. */
+  emit_PLA(p_buf);
+  emit_PLA(p_buf);
+  emit_LDA(p_buf, k_imm, 0x5A);
+  emit_JMP(p_buf, k_abs, 0xE94D);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2980);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
