@@ -7,9 +7,9 @@
 #define REG_6502_X         bl
 #define REG_6502_X_32      ebx
 #define REG_6502_X_64      rbx
-#define REG_6502_Y         cl
-#define REG_6502_Y_32      ecx
-#define REG_6502_Y_64      rcx
+#define REG_6502_Y         dl
+#define REG_6502_Y_32      edx
+#define REG_6502_Y_64      rdx
 #define REG_6502_S         r8b
 #define REG_6502_S_32      r8d
 #define REG_6502_S_64      r8
@@ -26,10 +26,10 @@
 #define REG_6502_ID_F_64   r13
 #define REG_COUNTDOWN      r15
 /* REG_ADDR is currently shared with REG_SCRATCH1. */
-#define REG_ADDR           rdx
-#define REG_ADDR_8         dl
-#define REG_ADDR_8_HI      dh
-#define REG_ADDR_32        edx
+#define REG_ADDR           rcx
+#define REG_ADDR_8         cl
+#define REG_ADDR_8_HI      ch
+#define REG_ADDR_32        ecx
 
 #define REG_CONTEXT        rdi
 #define REG_MEM            rbp
@@ -37,11 +37,11 @@
 #define REG_MEM_OFFSET     0x80
 
 /* REG_SCRATCH1 is currently shared with REG_ADDR. */
-#define REG_SCRATCH1       rdx
-#define REG_SCRATCH1_8     dl
-#define REG_SCRATCH1_8_HI  dh
-#define REG_SCRATCH1_16    dx
-#define REG_SCRATCH1_32    edx
+#define REG_SCRATCH1       rcx
+#define REG_SCRATCH1_8     cl
+#define REG_SCRATCH1_8_HI  ch
+#define REG_SCRATCH1_16    cx
+#define REG_SCRATCH1_32    ecx
 #define REG_SCRATCH2       rsi
 #define REG_SCRATCH2_8     sil
 #define REG_SCRATCH2_16    si

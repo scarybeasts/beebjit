@@ -1129,15 +1129,15 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3300);
 #if defined(__x86_64__)
-  /* movzx  edx, BYTE PTR [rbp-0x10]
-   * mov    dh, BYTE PTR [rbp-0x0f]
-   * xor    al, BYTE PTR [rdx+rcx*1+0x10008000]
-   * mov    BYTE PTR [rdx+rcx*1+0x11008000], al
+  /* movzx  ecx, BYTE PTR [rbp-0x10]
+   * mov    ch, BYTE PTR [rbp-0x0f]
+   * xor    al, BYTE PTR [rcx+rdx*1+0x10008000]
+   * mov    BYTE PTR [rcx+rdx*1+0x11008000], al
    */
-  p_expect = "\x0f\xb6\x55\xf0"
-             "\x8a\x75\xf1"
-             "\x32\x84\x0a\x00\x80\x00\x10"
-             "\x88\x84\x0a\x00\x80\x00\x11";
+  p_expect = "\x0f\xb6\x4d\xf0"
+             "\x8a\x6d\xf1"
+             "\x32\x84\x11\x00\x80\x00\x10"
+             "\x88\x84\x11\x00\x80\x00\x11";
   expect_len = 21;
 #elif defined(__aarch64__)
   /* TODO: the second add y / addr check can also be eliminated. */
@@ -1184,18 +1184,18 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3400);
 #if defined(__x86_64__)
-  /* movzx  edx, BYTE PTR [rbp-0x35]
-   * mov    dh, BYTE PTR [rbp-0x34]
-   * movzx  eax, BYTE PTR [rdx+rbp*1-0x7c]
+  /* movzx  ecx, BYTE PTR [rbp-0x35]
+   * mov    ch, BYTE PTR [rbp-0x34]
+   * movzx  eax, BYTE PTR [rcx+rbp*1-0x7c]
    * mov    BYTE PTR [rbp-0x3f],al
-   * movzx  eax,BYTE PTR [rdx+rbp*1-0x7d]
+   * movzx  eax,BYTE PTR [rcx+rbp*1-0x7d]
    * mov    BYTE PTR [rbp-0x40],al
    */
-  p_expect = "\x0f\xb6\x55\xcb"
-             "\x8a\x75\xcc"
-             "\x0f\xb6\x44\x2a\x84"
+  p_expect = "\x0f\xb6\x4d\xcb"
+             "\x8a\x6d\xcc"
+             "\x0f\xb6\x44\x29\x84"
              "\x88\x45\xc1"
-             "\x0f\xb6\x44\x2a\x83"
+             "\x0f\xb6\x44\x29\x83"
              "\x88\x45\xc0";
   expect_len = 23;
 #elif defined(__aarch64__)
@@ -1242,13 +1242,13 @@ jit_test_compile_binary(void) {
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3500);
 #if defined(__x86_64__)
-  /* movzx  edx,BYTE PTR [rbp+0x3481]
-   * mov    dh,BYTE PTR [rbp+0x3482]
-   * movzx  eax,BYTE PTR [rdx+rbx*1+0x10008000]
+  /* movzx  ecx,BYTE PTR [rbp+0x3481]
+   * mov    ch,BYTE PTR [rbp+0x3482]
+   * movzx  eax,BYTE PTR [rcx+rbx*1+0x10008000]
    */
-  p_expect = "\x0f\xb6\x95\x81\x34\x00\x00"
-             "\x8a\xb5\x82\x34\x00\x00"
-             "\x0f\xb6\x84\x1a\x00\x80\x00\x10";
+  p_expect = "\x0f\xb6\x8d\x81\x34\x00\x00"
+             "\x8a\xad\x82\x34\x00\x00"
+             "\x0f\xb6\x84\x19\x00\x80\x00\x10";
   expect_len = 21;
 #elif defined(__aarch64__)
   /* mov   x21, #0x3501
@@ -1340,19 +1340,19 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
   p_binary = jit_test_get_binary(s_p_metadata, 0x3D00);
-  /* lea    edx, [rbx+0x40]
-   * movzx  edx, dl
-   * inc    BYTE PTR [rdx+0x10008000]
-   * lea    edx, [rbx+0x41]
-   * movzx  edx, dl
-   * dec    BYTE PTR [rdx+0x10008000]
+  /* lea    ecx, [rbx+0x40]
+   * movzx  ecx, cl
+   * inc    BYTE PTR [rcx+0x10008000]
+   * lea    ecx, [rbx+0x41]
+   * movzx  ecx, cl
+   * dec    BYTE PTR [rcx+0x10008000]
    */
-  p_expect = "\x8d\x53\x40"
-             "\x0f\xb6\xd2"
-             "\xfe\x82\x00\x80\x00\x10"
-             "\x8d\x53\x41"
-             "\x0f\xb6\xd2"
-             "\xfe\x8a\x00\x80\x00\x10";
+  p_expect = "\x8d\x4b\x40"
+             "\x0f\xb6\xc9"
+             "\xfe\x81\x00\x80\x00\x10"
+             "\x8d\x4b\x41"
+             "\x0f\xb6\xc9"
+             "\xfe\x89\x00\x80\x00\x10";
   expect_len = 24;
   test_expect_binary(p_expect, p_binary, expect_len);
 #endif
@@ -1371,13 +1371,13 @@ jit_test_compile_binary(void) {
   /* Uses the longer-form countdown check, so fix up p_binary. */
   p_binary -= 6;
   p_binary += 11;
-  /* lea    edx, [rbx+0x40]
-   * movzx  edx, dl
-   * mov    BYTE PTR [rdx+0x10008000], al
+  /* lea    ecx, [rbx+0x40]
+   * movzx  ecx, cl
+   * mov    BYTE PTR [rcx+0x10008000], al
    */
-  p_expect = "\x8d\x53\x40"
-             "\x0f\xb6\xd2"
-             "\x88\x82\x00\x80\x00\x10";
+  p_expect = "\x8d\x4b\x40"
+             "\x0f\xb6\xc9"
+             "\x88\x81\x00\x80\x00\x10";
   expect_len = 12;
   test_expect_binary(p_expect, p_binary, expect_len);
 #endif
@@ -1593,9 +1593,9 @@ jit_test_compile_binary(void) {
   p_binary = jit_test_get_binary(s_p_metadata, 0x3C00);
 #if defined(__x86_64__)
   /* add    bl, 2
-   * inc    cl
+   * inc    dl
    */
-  p_expect = "\x80\xc3\x02" "\xfe\xc1";
+  p_expect = "\x80\xc3\x02" "\xfe\xc2";
   expect_len = 5;
 #elif defined(__aarch64__)
   /* add   x1, x1, #0x2

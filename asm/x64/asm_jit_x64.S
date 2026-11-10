@@ -538,10 +538,13 @@ ASM_SYM(asm_jit_check_pending_irq_plp_branch_END):
 ASM_SYM(asm_jit_collapse_loop):
   lahf
   mov REG_SCRATCH2_32, REG_6502_A_32
-  xor REG_SCRATCH1_32, REG_SCRATCH1_32
+  # div uses rdx:rax, and rdx is REG_6502_Y.
+  mov REG_SCRATCH1_32, REG_6502_Y_32
+  xor edx, edx
   mov REG_6502_A_64, REG_COUNTDOWN
   div REG_6502_PC
-  mov REG_COUNTDOWN, REG_SCRATCH1
+  mov REG_COUNTDOWN, rdx
+  mov REG_6502_Y_32, REG_SCRATCH1_32
   mov REG_6502_A_32, REG_SCRATCH2_32
   sahf
   movzx REG_6502_A_32, REG_6502_A
@@ -877,7 +880,7 @@ ASM_SYM(asm_jit_raw_call_END):
 .globl ASM_SYM(asm_jit_restore_regs_END)
 ASM_SYM(asm_jit_restore_regs):
   pop rax
-  pop rcx
+  pop rdx
   pop r8
   pop rdi
   sahf
@@ -928,7 +931,7 @@ ASM_SYM(asm_jit_save_regs):
   lahf
   push rdi
   push r8
-  push rcx
+  push rdx
   push rax
 
 ASM_SYM(asm_jit_save_regs_END):
@@ -1884,7 +1887,7 @@ ASM_SYM(asm_jit_DEX_n_END):
 .globl ASM_SYM(asm_jit_DEY_n)
 .globl ASM_SYM(asm_jit_DEY_n_END)
 ASM_SYM(asm_jit_DEY_n):
-  sub cl, 1
+  sub REG_6502_Y, 1
 
 ASM_SYM(asm_jit_DEY_n_END):
   ret
@@ -2037,7 +2040,7 @@ ASM_SYM(asm_jit_INX_n_END):
 .globl ASM_SYM(asm_jit_INY_n)
 .globl ASM_SYM(asm_jit_INY_n_END)
 ASM_SYM(asm_jit_INY_n):
-  add cl, 1
+  add REG_6502_Y, 1
 
 ASM_SYM(asm_jit_INY_n_END):
   ret
