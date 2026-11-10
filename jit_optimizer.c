@@ -971,6 +971,16 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       continue;
     }
 
+    /* CLI checks for a pending IRQ, which trashes the host flags, and then
+     * bounces into the interpreter to re-run the CLI. Commit the carry /
+     * overflow early, here, so that the fixup locations are recorded as being
+     * in the JIT registers, not the host flags.
+     */
+    if (p_opcode->optype_6502 == k_cli) {
+      p_save_carry_uop = NULL;
+      p_save_overflow_uop = NULL;
+    }
+
     if (p_save_carry_uop != NULL) {
       p_opcode->c_flag_location = p_save_carry_uop->uopcode;
     }

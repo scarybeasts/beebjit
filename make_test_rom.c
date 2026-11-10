@@ -2881,8 +2881,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE900);
 
-  /* End of test. */
+  /* Test the carry from a CMP survives a CLI bouncing to a pending IRQ. */
   set_new_index(p_buf, 0x2900);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE44);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45);
+  emit_LDA(p_buf, k_abs, 0xFE4D);
+  emit_AND(p_buf, k_imm, 0x40);
+  emit_BEQ(p_buf, -7);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_zpg, 0x70);
+  emit_LDA(p_buf, k_zpg, 0x70);
+  emit_CMP(p_buf, k_imm, 0x80);   /* Carry clear, but not known to the JIT. */
+  emit_CLI(p_buf);
+  emit_NOP(p_buf);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E);
+  emit_JMP(p_buf, k_abs, 0xE940);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2940);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
