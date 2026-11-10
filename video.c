@@ -1330,10 +1330,19 @@ video_CB2_changed_callback(void* p, int level, int output) {
 static void
 video_PCR_changed_callback(void* p, uint8_t pcr) {
   struct video_struct* p_video = (struct video_struct*) p;
+  int via_ca1_irq_level = (pcr & 0x01);
+
+  /* Only the CA1 edge (vsync raise or lower) matters to the video timer. */
+  if (via_ca1_irq_level == p_video->via_ca1_irq_level) {
+    return;
+  }
 
   video_advance_crtc_timing(p_video);
-
-  p_video->via_ca1_irq_level = (pcr & 0x01);
+  p_video->via_ca1_irq_level = via_ca1_irq_level;
+  /* The video timer may still be set to fire e.g. at vsync lower, but the
+   * vsync raise may now be the significant moment. Recalculate the timer.
+   */
+  video_update_timer(p_video);
 }
 
 static void
