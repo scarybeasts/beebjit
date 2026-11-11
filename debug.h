@@ -20,6 +20,9 @@ volatile int* debug_get_interrupt(struct debug_struct* p_debug);
 int debug_subsystem_active(void* p);
 void debug_set_commands(struct debug_struct* p_debug, const char* p_commands);
 
-void* debug_callback(struct cpu_driver* p_cpu_driver, int do_irq);
+/* Returns non-zero if the debugger stopped, and so may have changed the CPU
+ * state.
+ */
+int debug_callback(struct cpu_driver* p_cpu_driver, int do_irq);
 
 #endif /* BEEBJIT_DEBUG_H */

@@ -12,6 +12,7 @@
 #define REG_PARAM4         r9
 #define REG_PARAM4_32      r9d
 #define REG_RETURN         rax
+#define REG_RETURN_32      eax
 
 #else
 
@@ -25,6 +26,7 @@
 #define REG_PARAM4         rcx
 #define REG_PARAM4_32      ecx
 #define REG_RETURN         rax
+#define REG_RETURN_32      eax
 
 #endif
 

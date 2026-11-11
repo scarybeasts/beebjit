@@ -540,6 +540,12 @@ ASM_SYM(asm_debug):
   mov REG_SCRATCH1, [rsp]
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_HOST_PC], REG_SCRATCH1_32
 
+  # The 6502 registers that live in caller-saved registers, for when the
+  # debugger doesn't stop and so changes nothing.
+  push REG_6502_A_64
+  push REG_6502_Y_64
+  push REG_6502_S_64
+  push REG_6502_PC
   push REG_CONTEXT
   # Fetch the callback before param1 is set up: param1 and REG_CONTEXT are the
   # same register in the AMD64 calling convention.
@@ -551,13 +557,20 @@ ASM_SYM(asm_debug):
   sub rsp, 32
   call REG_SCRATCH3
   add rsp, 32
+  test REG_RETURN_32, REG_RETURN_32
   pop REG_CONTEXT
+  pop REG_6502_PC
+  pop REG_6502_S_64
+  pop REG_6502_Y_64
+  pop REG_6502_A_64
+  je debug_no_restore
 
   mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
                      K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   # TODO: handle different 6502 PC!
 
+debug_no_restore:
   pop REG_ADDR
   popf
 

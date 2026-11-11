@@ -1936,7 +1936,7 @@ debug_print_status_line(struct debug_struct* p_debug,
   (void) fflush(stdout);
 }
 
-static void*
+static int
 debug_callback_common(struct debug_struct* p_debug,
                       struct cpu_driver* p_cpu_driver,
                       int do_irq) {
@@ -1961,7 +1961,6 @@ debug_callback_common(struct debug_struct* p_debug,
   struct state_6502* p_state_6502 = p_debug->p_state_6502;
   uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
-  void* ret_intel_pc = 0;
   volatile int* p_interrupt_received = &s_interrupt_received;
   int break_print = 0;
   int break_stop = 0;
@@ -2729,7 +2728,7 @@ debug_callback_common(struct debug_struct* p_debug,
   if (do_trap) {
     os_debug_trap();
   }
-  return ret_intel_pc;
+  return 1;
 }
 
 static void
@@ -2743,7 +2742,7 @@ debug_sub_instruction_callback(void* p) {
   (void) debug_callback_common(p_debug, NULL, 0);
 }
 
-void*
+int
 debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   p_debug->sub_instruction_tick = 0;
