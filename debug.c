@@ -1609,6 +1609,13 @@ debug_write_variable_pc(void* p, uint32_t index, int64_t value) {
 }
 
 static void
+debug_write_variable_flags(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_flags = value;
+}
+
+static void
 debug_write_variable_mem(void* p, uint32_t index, int64_t value) {
   if (index < k_6502_addr_space_size) {
     struct debug_struct* p_debug = (struct debug_struct*) p;
@@ -1679,6 +1686,8 @@ debug_get_write_variable_function(void* p, const char* p_name) {
     ret = debug_write_variable_s;
   } else if (!strcmp(p_name, "pc")) {
     ret = debug_write_variable_pc;
+  } else if (!strcmp(p_name, "flags")) {
+    ret = debug_write_variable_flags;
   } else if (!strcmp(p_name, "mem")) {
     ret = debug_write_variable_mem;
   } else if (!strcmp(p_name, "temp")) {
