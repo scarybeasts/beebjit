@@ -526,9 +526,11 @@ ASM_SYM(asm_pull_word_to_scratch_END):
 .globl ASM_SYM(asm_debug)
 .globl ASM_SYM(asm_debug_END)
 ASM_SYM(asm_debug):
-  # Some optimizations cache values across opcodes in REG_ADDR or host flags.
-  # So they must be saved.
-  pushfq
+  # Some optimizations cache values across opcodes in REG_ADDR, so save it.
+  # The optimizer makes sure carry and overflow are in their registers at a
+  # debug opcode. The only 6502 state in the host flags is N / Z, which lahf /
+  # sahf preserves much more cheaply than
+  # pushfq / popfq.
   push REG_ADDR
 
   mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
@@ -541,7 +543,8 @@ ASM_SYM(asm_debug):
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_HOST_PC], REG_SCRATCH1_32
 
   # The 6502 registers that live in caller-saved registers, for when the
-  # debugger doesn't stop and so changes nothing.
+  # debugger doesn't stop and so changes nothing. The save's lahf left the host
+  # flags in ah.
   push REG_6502_A_64
   push REG_6502_Y_64
   push REG_6502_S_64
@@ -553,26 +556,27 @@ ASM_SYM(asm_debug):
                      K_CONTEXT_OFFSET_DEBUG_CALLBACK]
   lea REG_PARAM1, [REG_CONTEXT - K_CONTEXT_REG_OFFSET]
   mov REG_PARAM2, 0
-  # Win x64 shadow space convention.
-  sub rsp, 32
+  # Win x64 shadow space convention, plus 8 for 16 byte stack alignment.
+  sub rsp, 40
   call REG_SCRATCH3
-  add rsp, 32
+  add rsp, 40
   test REG_RETURN_32, REG_RETURN_32
   pop REG_CONTEXT
   pop REG_6502_PC
   pop REG_6502_S_64
   pop REG_6502_Y_64
   pop REG_6502_A_64
-  je debug_no_restore
+  jne debug_restore
+  sahf
+  pop REG_ADDR
+  ret
 
+debug_restore:
   mov REG_SCRATCH2, [REG_CONTEXT - K_CONTEXT_REG_OFFSET + \
                      K_CONTEXT_OFFSET_STATE_6502]
   call ASM_SYM(asm_restore_AXYS_PC_flags)
   # TODO: handle different 6502 PC!
-
-debug_no_restore:
   pop REG_ADDR
-  popf
 
   ret
 

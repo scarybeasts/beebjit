@@ -975,8 +975,10 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
      * bounces into the interpreter to re-run the CLI. Commit the carry /
      * overflow early, here, so that the fixup locations are recorded as being
      * in the JIT registers, not the host flags.
+     * For the debug callout, make sure carry / overflow are in their registers.
      */
-    if (p_opcode->optype_6502 == k_cli) {
+    if ((p_opcode->optype_6502 == k_cli) ||
+        (p_opcode->uops[0].uopcode == k_opcode_debug)) {
       p_save_carry_uop = NULL;
       p_save_overflow_uop = NULL;
     }
