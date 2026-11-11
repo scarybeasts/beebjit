@@ -1237,8 +1237,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       pc = (p_mem_read[addr] | (p_mem_read[(uint16_t) (addr + 1)] << 8));
       intf = 1;
       do_irq = 0;
-      cycles_this_instruction = 4;
-      break;
+      INTERP_TIMING_ADVANCE(4);
+      goto check_irq;
     case 0x01: /* ORA idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
