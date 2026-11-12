@@ -10,6 +10,8 @@
 #include "timing.h"
 #include "util.h"
 
+#include "os_compiler_hints.h"
+
 #include <assert.h>
 #include <stdint.h>
 
@@ -2892,7 +2894,7 @@ do_special_checks:
      * before the penultimate cycle because an interrupt that is asserted
      * at the start of the last cycle is not soon enough to be detected.
      */
-    if (poll_irq) {
+    if (OS_UNLIKELY(poll_irq)) {
       special_checks &= ~k_interp_special_poll_irq;
 
       countdown += cycles_this_instruction;
@@ -2959,7 +2961,7 @@ check_irq:
      * exit or reset.
      */
     cpu_driver_flags = p_interp->driver.flags;
-    if (cpu_driver_flags != 0) {
+    if (OS_UNLIKELY(cpu_driver_flags != 0)) {
       if (cpu_driver_flags & k_cpu_flag_exited) {
         break;
       }
