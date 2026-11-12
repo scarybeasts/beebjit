@@ -710,7 +710,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   while (ticks < ticks_target) {
     int r0_hit = (horiz_counter == r0);
-    int is_odd_tick = (ticks & 1);
 
     if (p_video->is_rendering_active) {
       struct render_struct* p_render = p_video->p_render;
@@ -720,19 +719,23 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         is_render_prepared = 1;
       }
 
-      if (!is_1MHz || !is_odd_tick) {
+      if (!is_1MHz || !(ticks & 1)) {
         p_video->data_byte  = video_do_rendering_tick(p_video,
                                                       horiz_counter,
                                                       address_counter,
                                                       r0_hit,
-                                                      is_odd_tick);
+                                                      (ticks & 1));
       }
 
-      render_render(p_render, p_video->data_byte, is_odd_tick);
+      render_render(p_render, p_video->data_byte, (ticks & 1));
     }
 
-    if (is_1MHz && !is_odd_tick) {
-      ticks++;
+    ticks++;
+
+    /* At 1MHz, the CRTC only ticks on odd ticks: here, ticks has just been
+     * incremented, so it's odd after an even tick.
+     */
+    if (is_1MHz && (ticks & 1)) {
       continue;
     }
 
@@ -788,8 +791,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
      * to 14 bits when read.
      */
     address_counter++;
-
-    ticks++;
 
     if (r7_hit || p_video->is_even_vsync) {
       if (horiz_counter == p_video->half_r0) {
