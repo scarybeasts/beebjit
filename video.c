@@ -1164,6 +1164,23 @@ video_update_timer(struct video_struct* p_video) {
                                 timer_value);
 }
 
+static void
+video_set_address_counter_at_vsync(struct video_struct* p_video) {
+  /* The timer's jumps skip stepping the CRTC, so set the address counter as
+   * stepping would have, in the vsync row: from the frame start address, each
+   * row before it latched R1 further (if R1 was hit), and then C0 along.
+   */
+  uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
+  uint32_t address = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
+  address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+
+  if (r1 <= p_video->crtc_registers[k_crtc_reg_horiz_total]) {
+    address += (p_video->crtc_registers[k_crtc_reg_vert_sync_position] * r1);
+  }
+  p_video->address_counter_saved = (address & 0x3FFF);
+  p_video->address_counter = ((address + p_video->horiz_counter) & 0x3FFF);
+}
+
 static uint32_t
 video_jump_to_vsync_start(struct video_struct* p_video) {
   uint32_t crtc_ticks;
@@ -1198,6 +1215,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   }
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   p_video->scanline_counter = 0;
+  video_set_address_counter_at_vsync(p_video);
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   crtc_ticks = (p_video->vsync_pulse_width * (r0 + 1));
@@ -1228,6 +1246,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
     p_video->had_even_vsync_this_row = 1;
     p_video->is_even_vsync = 1;
   }
+  video_set_address_counter_at_vsync(p_video);
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   crtc_ticks = p_video->frame_crtc_ticks;
@@ -1386,11 +1405,12 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
   if (r0 < 3) {
     sane = 0;
   }
-  /* Make sure vsync pulse width fits within one character row (which is
-   * restricted to being 4 lines or more below.
+  /* Make sure vsync ends before the last scanline of its character row (which
+   * is restricted to being 4 lines or more below), so the timer's jumps never
+   * skip the R1 latch on that scanline.
    */
   assert(p_video->vsync_pulse_width != 0);
-  if (p_video->vsync_pulse_width > 3) {
+  if (p_video->vsync_pulse_width > 2) {
     sane = 0;
   }
   /* R4 > R7 > R6. */
