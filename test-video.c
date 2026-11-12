@@ -1379,6 +1379,71 @@ video_test_inactive_R1_write() {
 }
 
 static void
+video_test_inactive_R12_R13_write() {
+  /* Tests that R12/R13 writes when not rendering apply from the next frame
+   * start, for the address counter that the light pen reads.
+   */
+  uint64_t num_crtc_advances;
+
+  g_test_fast_flag = 1;
+
+  video_test_setup_mode_4_non_interlaced();
+
+  /* To VSYNC lower, with the timer jumping. The next frame start is 30
+   * scanlines on.
+   */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode4ni_to_vsync +
+                                    (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  num_crtc_advances = g_p_video->num_crtc_advances;
+
+  /* Before the frame start: latched there. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (29 * k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 0, 13);
+  video_crtc_write(g_p_video, 1, 0x10);
+  test_expect_u32(0, g_p_video->has_skipped_frame_start_address);
+
+  /* After it: for the frame after. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (2 * k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 1, 0x20);
+  video_crtc_write(g_p_video, 0, 12);
+  video_crtc_write(g_p_video, 1, 0x01);
+  test_expect_u32(1, g_p_video->has_skipped_frame_start_address);
+  test_expect_u32(0x10, g_p_video->skipped_frame_start_address);
+
+  /* To VSYNC lower: 35 rows of 40 on from 0x10. */
+  (void) timing_advance_time_delta(
+      g_p_timing,
+      (k_ticks_mode4ni_per_frame - (31 * k_ticks_mode7_per_scanline)));
+  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(0, g_p_video->has_skipped_frame_start_address);
+  test_expect_u32((0x10 + 1400), g_p_video->address_counter_saved);
+  test_expect_u32((0x10 + 1400), g_p_video->address_counter);
+
+  /* A frame later, from 0x120. */
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode4ni_per_frame);
+  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32((0x120 + 1400), g_p_video->address_counter_saved);
+
+  /* A catch-up stepping over a skipped frame start latches the old value. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (32 * k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 0, 13);
+  video_crtc_write(g_p_video, 1, 0x30);
+  test_expect_u32(1, g_p_video->has_skipped_frame_start_address);
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (16 * k_ticks_mode7_per_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->has_skipped_frame_start_address);
+  test_expect_u32(2, g_p_video->vert_counter);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32((0x120 + 80), g_p_video->address_counter_saved);
+}
+
+static void
 video_test_adjust_assert() {
   /* Test an elusive assert when starting a new frame, sometimes hit when
    * pressing Break as LinearTTX.ssd ran.
@@ -1523,6 +1588,10 @@ video_test() {
 
   video_test_init();
   video_test_inactive_R1_write();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_R12_R13_write();
   video_test_end();
 
   video_test_init();

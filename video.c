@@ -211,6 +211,12 @@ struct video_struct {
   void (*p_framestop_callback)(void*);
   void* p_framestop_object;
   uint64_t framestop_num_vsyncs;
+
+  /* R12/R13 as latched at a frame start that the timer's jumps skipped, if
+   * they've changed since.
+   */
+  uint32_t skipped_frame_start_address;
+  int has_skipped_frame_start_address;
 };
 
 static inline uint8_t
@@ -323,8 +329,14 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->is_first_frame_scanline = 1;
 
   p_video->display_enable_bits |= k_video_display_enable_vert;
-  address_counter = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
-  address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+  if (p_video->has_skipped_frame_start_address) {
+    /* Stepping over a frame start that went by while the timer was jumping. */
+    address_counter = p_video->skipped_frame_start_address;
+    p_video->has_skipped_frame_start_address = 0;
+  } else {
+    address_counter = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
+    address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+  }
   p_video->address_counter = address_counter;
   p_video->address_counter_saved = address_counter;
 
@@ -1171,8 +1183,15 @@ video_set_address_counter_at_vsync(struct video_struct* p_video) {
    * row before it latched R1 further (if R1 was hit), and then C0 along.
    */
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
-  uint32_t address = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
-  address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+  uint32_t address;
+
+  if (p_video->has_skipped_frame_start_address) {
+    address = p_video->skipped_frame_start_address;
+    p_video->has_skipped_frame_start_address = 0;
+  } else {
+    address = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
+    address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+  }
 
   if (r1 <= p_video->crtc_registers[k_crtc_reg_horiz_total]) {
     address += (p_video->crtc_registers[k_crtc_reg_vert_sync_position] * r1);
@@ -1246,7 +1265,11 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
     p_video->had_even_vsync_this_row = 1;
     p_video->is_even_vsync = 1;
   }
-  video_set_address_counter_at_vsync(p_video);
+  /* Still in the vsync row, so on from its start address. R12/R13 may have
+   * changed since vsync start, but for the next frame.
+   */
+  p_video->address_counter =
+      ((p_video->address_counter_saved + p_video->horiz_counter) & 0x3FFF);
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   crtc_ticks = p_video->frame_crtc_ticks;
@@ -1804,6 +1827,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->hsync_tick_counter = 0;
   p_video->address_counter = 0;
   p_video->address_counter_saved = 0;
+  p_video->has_skipped_frame_start_address = 0;
   p_video->is_vert_adjust_pending = 0;
   p_video->is_in_vert_adjust = 0;
   p_video->in_vsync = 0;
@@ -2250,6 +2274,27 @@ video_crtc_write_address(struct video_struct* p_video,
   p_video->crtc_address_register = val;
 }
 
+static int
+video_is_jumped_frame_start_skipped(struct video_struct* p_video) {
+  /* With the timer jumping and the CRTC at vsync end, whether the next frame
+   * start has gone by. It's R7 rows before the next vsync start, which is a
+   * half line in on interlace frames that start vsync mid-line.
+   */
+  uint64_t ticks = timing_get_scaled_total_timer_ticks(p_video->p_timing);
+  uint32_t r0_plus_1 = (p_video->crtc_registers[k_crtc_reg_horiz_total] + 1);
+  uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  uint32_t frame_crtc_ticks = p_video->frame_crtc_ticks;
+
+  frame_crtc_ticks -= (p_video->vsync_pulse_width * r0_plus_1);
+  frame_crtc_ticks -= (r7 * video_get_scanlines_per_row(p_video) * r0_plus_1);
+  if (p_video->is_interlace && !(p_video->crtc_frames & 1)) {
+    frame_crtc_ticks -= p_video->half_r0;
+  }
+  ticks -= p_video->prev_system_ticks;
+
+  return (ticks >= ((uint64_t) frame_crtc_ticks << p_video->clock_tick_shift));
+}
+
 static void
 video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
   uint8_t reg;
@@ -2395,6 +2440,27 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
       !does_not_change_framing ||
       (reg == k_crtc_reg_horiz_displayed)) {
     video_advance_crtc_timing(p_video);
+  } else if ((reg == k_crtc_reg_mem_addr_high) ||
+             (reg == k_crtc_reg_mem_addr_low)) {
+    /* R12/R13 are latched at frame start. Catching up would drop the timer out
+     * of jumping for the rest of the frame, and scrolling games write these
+     * every frame, so instead keep the latched value if a frame start has
+     * been skipped. From vsync start, the next frame start is still ahead.
+     */
+    int timer_fire_mode = p_video->timer_fire_mode;
+    if ((timer_fire_mode == k_video_timer_jump_to_vsync_raise) ||
+        (timer_fire_mode == k_video_timer_jump_full_frame)) {
+      if (!p_video->has_skipped_frame_start_address &&
+          video_is_jumped_frame_start_skipped(p_video)) {
+        uint32_t address =
+            (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
+        address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+        p_video->skipped_frame_start_address = address;
+        p_video->has_skipped_frame_start_address = 1;
+      }
+    } else if (timer_fire_mode < k_video_timer_jump_to_vsync_lower) {
+      video_advance_crtc_timing(p_video);
+    }
   }
 
   p_video->crtc_registers[reg] = val;
