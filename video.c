@@ -746,44 +746,50 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (OS_UNLIKELY(special_checks)) {
-      if (special_checks & 8) {
-        /* It's unclear what exactly goes on here. Currently it's just here to
-         * delay end of frame so that end of frame can only fire in a single
-         * scanline if R0>=3 (4 clocks). This matches testing against a real
-         * Hitachi 6845 in a beeb.
-         */
-        if (p_video->is_end_of_vert_adjust_latched) {
-          p_video->is_end_of_frame_latched = 1;
-        }
-        special_checks &= ~8;
-      }
-      if (special_checks & 4) {
-        /* One tick after the end-of-main check is the end-of-vert-adjust
-         * check.
-         */
-        if (p_video->is_end_of_main_latched) {
-          if (r5_hit) {
-            p_video->is_end_of_vert_adjust_latched = 1;
-          } else if (!p_video->is_in_vert_adjust && !p_video->in_dummy_raster) {
-            p_video->is_vert_adjust_pending = 1;
+      /* The checks in the ticks after a new line starts. Skip them as a group,
+       * as the other checks can be on for a whole line.
+       */
+      if (special_checks & 15) {
+        if (special_checks & 8) {
+          /* It's unclear what exactly goes on here. Currently it's just here to
+           * delay end of frame so that end of frame can only fire in a single
+           * scanline if R0>=3 (4 clocks). This matches testing against a real
+           * Hitachi 6845 in a beeb.
+           */
+          if (p_video->is_end_of_vert_adjust_latched) {
+            p_video->is_end_of_frame_latched = 1;
           }
+          special_checks &= ~8;
         }
-        special_checks &= ~4;
-        special_checks |= 8;
-      }
-      if (special_checks & 2) {
-        /* One tick after the new line (typically C0=1), end-of-main is
-         * checked and latched.
-         */
-        if (r4_hit && r9_hit) {
-          p_video->is_end_of_main_latched = 1;
+        if (special_checks & 4) {
+          /* One tick after the end-of-main check is the end-of-vert-adjust
+           * check.
+           */
+          if (p_video->is_end_of_main_latched) {
+            if (r5_hit) {
+              p_video->is_end_of_vert_adjust_latched = 1;
+            } else if (!p_video->is_in_vert_adjust &&
+                       !p_video->in_dummy_raster) {
+              p_video->is_vert_adjust_pending = 1;
+            }
+          }
+          special_checks &= ~4;
+          special_checks |= 8;
         }
-        special_checks &= ~2;
-        special_checks |= 4;
-      }
-      if (special_checks & 1) {
-        special_checks &= ~1;
-        special_checks |= 2;
+        if (special_checks & 2) {
+          /* One tick after the new line (typically C0=1), end-of-main is
+           * checked and latched.
+           */
+          if (r4_hit && r9_hit) {
+            p_video->is_end_of_main_latched = 1;
+          }
+          special_checks &= ~2;
+          special_checks |= 4;
+        }
+        if (special_checks & 1) {
+          special_checks &= ~1;
+          special_checks |= 2;
+        }
       }
       if ((special_checks & 16) && (horiz_counter == r1)) {
         p_video->address_counter_saved = address_counter;
