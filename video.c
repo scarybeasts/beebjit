@@ -1315,13 +1315,13 @@ video_CB2_changed_callback(void* p, int level, int output) {
   }
 
   p_video = (struct video_struct*) p;
-  address_counter = p_video->address_counter;
 
   /* If the system VIA configures CB2 to an output and flips it low -> high,
    * the CRTC thinks it sees a real light pen pulse.
    * Needed by Pharoah's Curse to start.
    */
   video_advance_crtc_timing(p_video);
+  address_counter = p_video->address_counter;
 
   p_video->crtc_registers[k_crtc_reg_light_pen_high] = (address_counter >> 8);
   p_video->crtc_registers[k_crtc_reg_light_pen_low] = (address_counter & 0xFF);
