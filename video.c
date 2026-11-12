@@ -183,7 +183,11 @@ struct video_struct {
   int is_end_of_main_latched;
   int is_end_of_vert_adjust_latched;
   int is_end_of_frame_latched;
-  uint32_t start_of_line_state_checks;
+  /* 1 -> 2 -> 4 -> 8: the checks in the ticks after a new line starts.
+   * 16: last scanline of a row, so R1 hit latches the address.
+   * 32: R7 hit or even vsync, so check C0 against half R0.
+   */
+  uint32_t special_checks;
   int is_first_frame_scanline;
   int64_t last_vsync_raise_ticks;
   int64_t last_vsync_lower_ticks;
@@ -296,7 +300,7 @@ video_start_new_frame(struct video_struct* p_video) {
    * line, so no need to redo that work.
    */
   assert(p_video->horiz_counter == 0);
-  assert(p_video->start_of_line_state_checks & 1);
+  assert(p_video->special_checks & 1);
   assert(p_video->display_enable_bits & k_video_display_enable_horiz);
 
   p_video->scanline_counter = 0;
@@ -659,7 +663,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t r1;
   uint8_t horiz_counter;
   uint32_t address_counter;
-  uint32_t start_of_line_state_checks;
+  uint32_t special_checks;
   int is_1MHz;
 
   int r4_hit;
@@ -700,7 +704,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   is_1MHz = !p_video->is_ula_clock_fast;
 
-  start_of_line_state_checks = p_video->start_of_line_state_checks;
+  special_checks = p_video->special_checks;
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
   horiz_counter = p_video->horiz_counter;
@@ -739,8 +743,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       continue;
     }
 
-    if (start_of_line_state_checks) {
-      if (start_of_line_state_checks & 8) {
+    if (special_checks) {
+      if (special_checks & 8) {
         /* It's unclear what exactly goes on here. Currently it's just here to
          * delay end of frame so that end of frame can only fire in a single
          * scanline if R0>=3 (4 clocks). This matches testing against a real
@@ -749,9 +753,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         if (p_video->is_end_of_vert_adjust_latched) {
           p_video->is_end_of_frame_latched = 1;
         }
-        start_of_line_state_checks &= ~8;
+        special_checks &= ~8;
       }
-      if (start_of_line_state_checks & 4) {
+      if (special_checks & 4) {
         /* One tick after the end-of-main check is the end-of-vert-adjust
          * check.
          */
@@ -762,38 +766,29 @@ video_advance_crtc_timing(struct video_struct* p_video) {
             p_video->is_vert_adjust_pending = 1;
           }
         }
-        start_of_line_state_checks &= ~4;
-        start_of_line_state_checks |= 8;
+        special_checks &= ~4;
+        special_checks |= 8;
       }
-      if (start_of_line_state_checks & 2) {
+      if (special_checks & 2) {
         /* One tick after the new line (typically C0=1), end-of-main is
          * checked and latched.
          */
         if (r4_hit && r9_hit) {
           p_video->is_end_of_main_latched = 1;
         }
-        start_of_line_state_checks &= ~2;
-        start_of_line_state_checks |= 4;
+        special_checks &= ~2;
+        special_checks |= 4;
       }
-      if (start_of_line_state_checks & 1) {
-        start_of_line_state_checks &= ~1;
-        start_of_line_state_checks |= 2;
+      if (special_checks & 1) {
+        special_checks &= ~1;
+        special_checks |= 2;
       }
-    }
-
-    if ((horiz_counter == r1) && r9_hit) {
-      p_video->address_counter_saved = address_counter;
-    }
-
-    /* Wraps 0xFF -> 0; uint8_t type. */
-    horiz_counter++;
-    /* Ticked whether rendering or not, so the light pen sees the same. Masked
-     * to 14 bits when read.
-     */
-    address_counter++;
-
-    if (r7_hit || p_video->is_even_vsync) {
-      if (horiz_counter == p_video->half_r0) {
+      if ((special_checks & 16) && (horiz_counter == r1)) {
+        p_video->address_counter_saved = address_counter;
+      }
+      /* Ahead of C0 incrementing, below. */
+      if ((special_checks & 32) &&
+          ((uint8_t) (horiz_counter + 1) == p_video->half_r0)) {
         if (!p_video->had_even_vsync_this_row) {
           p_video->had_even_vsync_this_row = 1;
           p_video->is_even_vsync = 1;
@@ -804,6 +799,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
+    /* Wraps 0xFF -> 0; uint8_t type. */
+    horiz_counter++;
+    /* Ticked whether rendering or not, so the light pen sees the same. Masked
+     * to 14 bits when read.
+     */
+    address_counter++;
+
     if (!r0_hit) {
       continue;
     }
@@ -812,7 +814,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     horiz_counter = 0;
     p_video->display_enable_bits |= k_video_display_enable_horiz;
     /* Start the new line state check chain. */
-    start_of_line_state_checks |= 1;
+    special_checks |= 1;
 
     p_video->is_first_frame_scanline = 0;
     if (p_video->scanline_counter ==
@@ -853,7 +855,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* End-of-line state transitions. */
     if (p_video->in_dummy_raster) {
       p_video->horiz_counter = horiz_counter;
-      p_video->start_of_line_state_checks = start_of_line_state_checks;
+      p_video->special_checks = special_checks;
       video_start_new_frame(p_video);
       address_counter = p_video->address_counter;
       goto check_r7;
@@ -865,7 +867,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->in_dummy_raster = 1;
       } else {
         p_video->horiz_counter = horiz_counter;
-        p_video->start_of_line_state_checks = start_of_line_state_checks;
+        p_video->special_checks = special_checks;
         video_start_new_frame(p_video);
         address_counter = p_video->address_counter;
         goto check_r7;
@@ -899,6 +901,10 @@ check_r7:
       }
       video_update_VSYNC(p_video, ticks);
     }
+    special_checks &= ~32;
+    if (r7_hit || p_video->is_even_vsync) {
+      special_checks |= 32;
+    }
 
     if (p_video->is_rendering_active) {
       /* NOTE: we don't quite model correctly here. We increment the scanline
@@ -930,11 +936,15 @@ check_r7:
     r5_hit = (p_video->vert_adjust_counter ==
               p_video->crtc_registers[k_crtc_reg_vert_adjust]);
     r9_hit = (p_video->scanline_counter == effective_r9);
+    special_checks &= ~16;
+    if (r9_hit) {
+      special_checks |= 16;
+    }
   }
 
   p_video->horiz_counter = horiz_counter;
   p_video->address_counter = address_counter;
-  p_video->start_of_line_state_checks = start_of_line_state_checks;
+  p_video->special_checks = special_checks;
   p_video->prev_system_ticks = curr_system_ticks;
   p_video->num_crtc_advances++;
 }
@@ -1781,7 +1791,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->start_of_line_state_checks = 1;
+  p_video->special_checks = 1;
   p_video->is_first_frame_scanline = 1;
   p_video->last_vsync_raise_ticks = -1;
   p_video->last_vsync_lower_ticks = -1;
