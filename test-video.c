@@ -1335,6 +1335,50 @@ video_test_inactive_non_interlace() {
 }
 
 static void
+video_test_inactive_R1_write() {
+  /* Tests that an R1 write when not rendering applies only from the write
+   * onwards, for the address counter that the light pen reads.
+   */
+  uint64_t num_crtc_advances;
+
+  g_test_fast_flag = 1;
+
+  video_test_setup_mode_4_non_interlaced();
+
+  /* To VSYNC lower, with the timer jumping. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode4ni_to_vsync +
+                                    (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(35, g_p_video->vert_counter);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  num_crtc_advances = g_p_video->num_crtc_advances;
+
+  /* Into the second scanline of row 10 of the next frame. */
+  (void) timing_advance_time_delta(
+      g_p_timing,
+      ((30 + 80 + 1) * k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 0, 1);
+  video_crtc_write(g_p_video, 1, 20);
+  test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(10, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->scanline_counter);
+
+  /* To VSYNC raise: rows 0-9 latched 40, rows 10-34 latched 20. The timer
+   * doesn't fire at VSYNC raise from here, so catch up, as a light pen strobe
+   * would.
+   */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (199 * k_ticks_mode7_per_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(35, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(900, g_p_video->address_counter_saved);
+  test_expect_u32(900, (g_p_video->address_counter & 0x3FFF));
+}
+
+static void
 video_test_adjust_assert() {
   /* Test an elusive assert when starting a new frame, sometimes hit when
    * pressing Break as LinearTTX.ssd ran.
@@ -1475,6 +1519,10 @@ video_test() {
 
   video_test_init();
   video_test_inactive_non_interlace();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_R1_write();
   video_test_end();
 
   video_test_init();

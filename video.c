@@ -2387,7 +2387,13 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
     return;
   }
 
-  if (p_video->is_rendering_active || !does_not_change_framing) {
+  /* R1 is latched at the end of each row for the next row's address, so catch
+   * up before it changes, even if not rendering: the light pen reads that
+   * address.
+   */
+  if (p_video->is_rendering_active ||
+      !does_not_change_framing ||
+      (reg == k_crtc_reg_horiz_displayed)) {
     video_advance_crtc_timing(p_video);
   }
 
