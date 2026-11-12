@@ -546,21 +546,19 @@ video_update_VSYNC(struct video_struct* p_video, uint64_t ticks) {
 static uint8_t
 video_do_rendering_tick(struct video_struct* p_video,
                         uint8_t horiz_counter,
+                        uint32_t address_counter,
                         int r0_hit,
-                        int r9_hit,
                         int is_odd_tick) {
-  uint16_t address_counter;
   int r1_hit;
   uint8_t data;
   int this_external_dispen;
   uint8_t external_RA;
 
+  /* The CRTC loop doesn't mask its count. */
+  address_counter &= 0x3FFF;
+
   r1_hit = (horiz_counter ==
             p_video->crtc_registers[k_crtc_reg_horiz_displayed]);
-
-  if (r1_hit && r9_hit) {
-    p_video->address_counter_saved = p_video->address_counter;
-  }
 
   if (r1_hit || r0_hit) {
     p_video->display_enable_bits &= ~k_video_display_enable_horiz;
@@ -601,7 +599,7 @@ video_do_rendering_tick(struct video_struct* p_video,
         (p_video->crtc_registers[k_crtc_reg_cursor_high] << 8);
     cursor_addr |= p_video->crtc_registers[k_crtc_reg_cursor_low];
 
-    if ((p_video->address_counter == cursor_addr) &&
+    if ((address_counter == cursor_addr) &&
         p_video->has_hit_cursor_line_start &&
         !p_video->has_hit_cursor_line_end &&
         (!p_video->cursor_flashing || (p_video->crtc_frames &
@@ -629,7 +627,6 @@ video_do_rendering_tick(struct video_struct* p_video,
     external_RA |= p_video->is_odd_frame;
   }
 
-  address_counter = p_video->address_counter;
   data = video_read_data_byte(p_video,
                               is_odd_tick,
                               address_counter,
@@ -651,10 +648,6 @@ video_do_rendering_tick(struct video_struct* p_video,
     teletext_data(p_video->p_teletext, data_teletext, dispen_teletext);
   }
 
-  address_counter++;
-  address_counter &= 0x3FFF;
-  p_video->address_counter = address_counter;
-
   return data;
 }
 
@@ -663,7 +656,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t ticks;
   uint64_t ticks_target;
   uint8_t r0;
+  uint8_t r1;
   uint8_t horiz_counter;
+  uint32_t address_counter;
   uint32_t start_of_line_state_checks;
   int is_1MHz;
 
@@ -707,7 +702,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
   start_of_line_state_checks = p_video->start_of_line_state_checks;
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
+  r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
   horiz_counter = p_video->horiz_counter;
+  address_counter = p_video->address_counter;
 
   goto check_r6;
 
@@ -726,8 +723,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       if (!is_1MHz || !is_odd_tick) {
         p_video->data_byte  = video_do_rendering_tick(p_video,
                                                       horiz_counter,
+                                                      address_counter,
                                                       r0_hit,
-                                                      r9_hit,
                                                       is_odd_tick);
       }
 
@@ -781,8 +778,16 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
+    if ((horiz_counter == r1) && r9_hit) {
+      p_video->address_counter_saved = address_counter;
+    }
+
     /* Wraps 0xFF -> 0; uint8_t type. */
     horiz_counter++;
+    /* Ticked whether rendering or not, so the light pen sees the same. Masked
+     * to 14 bits when read.
+     */
+    address_counter++;
 
     ticks++;
 
@@ -832,7 +837,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->scanline_counter &= p_video->scanline_mask;
     }
     /* The saved counter will have been advanced at r1 hit if r9 was hit. */
-    p_video->address_counter = p_video->address_counter_saved;
+    address_counter = p_video->address_counter_saved;
 
     if (r9_hit && !p_video->is_in_vert_adjust) {
       p_video->has_hit_cursor_line_start = 0;
@@ -849,6 +854,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->horiz_counter = horiz_counter;
       p_video->start_of_line_state_checks = start_of_line_state_checks;
       video_start_new_frame(p_video);
+      address_counter = p_video->address_counter;
       goto check_r7;
     } else if (p_video->is_vert_adjust_pending) {
       p_video->is_vert_adjust_pending = 0;
@@ -860,6 +866,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->horiz_counter = horiz_counter;
         p_video->start_of_line_state_checks = start_of_line_state_checks;
         video_start_new_frame(p_video);
+        address_counter = p_video->address_counter;
         goto check_r7;
       }
     }
@@ -925,6 +932,7 @@ check_r7:
   }
 
   p_video->horiz_counter = horiz_counter;
+  p_video->address_counter = address_counter;
   p_video->start_of_line_state_checks = start_of_line_state_checks;
   p_video->prev_system_ticks = curr_system_ticks;
   p_video->num_crtc_advances++;
@@ -1321,7 +1329,7 @@ video_CB2_changed_callback(void* p, int level, int output) {
    * Needed by Pharoah's Curse to start.
    */
   video_advance_crtc_timing(p_video);
-  address_counter = p_video->address_counter;
+  address_counter = (p_video->address_counter & 0x3FFF);
 
   p_video->crtc_registers[k_crtc_reg_light_pen_high] = (address_counter >> 8);
   p_video->crtc_registers[k_crtc_reg_light_pen_low] = (address_counter & 0xFF);
@@ -2504,7 +2512,7 @@ video_get_crtc_state(struct video_struct* p_video,
   *p_horiz_counter = p_video->horiz_counter;
   *p_scanline_counter = p_video->scanline_counter;
   *p_vert_counter = p_video->vert_counter;
-  *p_address_counter = (uint16_t) p_video->address_counter;
+  *p_address_counter = (uint16_t) (p_video->address_counter & 0x3FFF);
   *p_crtc_frames = p_video->crtc_frames;
   *p_is_in_vert_adjust = p_video->is_in_vert_adjust;
   *p_is_in_dummy_raster = p_video->in_dummy_raster;

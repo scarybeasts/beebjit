@@ -368,18 +368,23 @@ video_test_out_of_frame() {
   /* Tests situations where the counters are outside of the defined frame, or
    * other parameters are outside of frame norms.
    */
+  uint32_t address;
   int64_t countdown = timing_get_countdown(g_p_timing);
   countdown = timing_advance_time(g_p_timing, (countdown - 20));
   /* Horizontal total to 7, while horiz_counter == 10. */
   video_crtc_write(g_p_video, 0, 0);
   video_crtc_write(g_p_video, 1, 7);
   test_expect_u32(10, g_p_video->horiz_counter);
+  address = g_p_video->address_counter;
   /* Timer should restore sanity by bringing horiz_counter back to 0. */
   test_expect_u32((246 * 2), video_test_get_timer());
   countdown = timing_advance_time(g_p_timing, 0);
   video_advance_crtc_timing(g_p_video);
 
   test_expect_u32(0, g_p_video->horiz_counter);
+  /* MA carries on counting as horiz_counter wraps. */
+  test_expect_u32(((address + 246) & 0x3FFF),
+                  (g_p_video->address_counter & 0x3FFF));
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
   /* Timer should now be all the way to C4=R7. */
