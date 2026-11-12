@@ -8,6 +8,8 @@
 #include "util.h"
 #include "via.h"
 
+#include "os_compiler_hints.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -715,7 +717,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   while (ticks < ticks_target) {
     int r0_hit = (horiz_counter == r0);
 
-    if (p_video->is_rendering_active) {
+    if (OS_UNLIKELY(p_video->is_rendering_active)) {
       struct render_struct* p_render = p_video->p_render;
 
       if (!is_render_prepared) {
@@ -743,7 +745,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       continue;
     }
 
-    if (special_checks) {
+    if (OS_UNLIKELY(special_checks)) {
       if (special_checks & 8) {
         /* It's unclear what exactly goes on here. Currently it's just here to
          * delay end of frame so that end of frame can only fire in a single
@@ -806,7 +808,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
      */
     address_counter++;
 
-    if (!r0_hit) {
+    if (OS_LIKELY(!r0_hit)) {
       continue;
     }
 
