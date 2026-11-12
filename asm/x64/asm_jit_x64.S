@@ -986,7 +986,11 @@ ASM_SYM(asm_jit_set_param2_from_ID_F_END):
 .globl ASM_SYM(asm_jit_set_param3_from_value)
 .globl ASM_SYM(asm_jit_set_param3_from_value_END)
 ASM_SYM(asm_jit_set_param3_from_value):
-  mov REG_PARAM3_32, REG_SCRATCH2_32
+  # The value is a uint8_t parameter. The bits above it must be zero: clang
+  # relies on callers zero extending narrow parameters to 32 bits, and the
+  # value may have come from a register with junk above the 6502 byte (AH, set
+  # by lahf / sahf sequences, sits above A in eax).
+  movzx REG_PARAM3_32, REG_SCRATCH2_8
 
 ASM_SYM(asm_jit_set_param3_from_value_END):
   ret
