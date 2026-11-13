@@ -758,6 +758,31 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (OS_UNLIKELY(special_checks)) {
+      /* At the start of a scanline with nothing to check along it, and not
+       * rendering, only the counters move until the line's last tick. So jump
+       * to it, if this advance reaches it. The new line checks must be no-ops:
+       * not at the end of the frame.
+       */
+      if (((special_checks & ~16) == 1) &&
+          (horiz_counter == 0) &&
+          (r0 >= 4) &&
+          !p_video->is_rendering_active &&
+          !(r4_hit && r9_hit) &&
+          !p_video->is_end_of_main_latched &&
+          !p_video->is_end_of_vert_adjust_latched) {
+        /* This tick is C0=0; the jump covers C0=1 to R0-1. */
+        uint64_t skip_ticks = ((uint64_t) (r0 - 1) << is_1MHz);
+        if ((ticks + skip_ticks) <= ticks_target) {
+          if ((special_checks & 16) && (r1 < r0)) {
+            p_video->address_counter_saved = (address_counter + r1);
+          }
+          special_checks &= ~15;
+          horiz_counter = r0;
+          address_counter += r0;
+          ticks += skip_ticks;
+          continue;
+        }
+      }
       /* The checks in the ticks after a new line starts. Skip them as a group,
        * as the other checks can be on for a whole line.
        */
