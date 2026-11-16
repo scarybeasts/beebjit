@@ -556,10 +556,10 @@ jit_test_dynamic_operand_3(void) {
     jit_enter(s_p_cpu_driver);
     interp_testing_unexit(s_p_interp);
     if (i == 0) {
-      /* We expect the optimzied away opcode to flag as invalidated, if the
-       * opcode it was merged into is invalidated.
+      /* The optimized away opcode keeps a host NOP, so the self-modify only
+       * invalidates it, not the opcode before it.
        */
-      test_expect_u32(1,
+      test_expect_u32(0,
                       jit_metadata_has_invalidated_code(s_p_metadata, 0x1000));
       test_expect_u32(1,
                       jit_metadata_has_invalidated_code(s_p_metadata, 0x1003));
@@ -947,7 +947,9 @@ jit_test_compile_metadata(void) {
   test_expect_u32(-1, a);
   util_buffer_destroy(p_buf);
 
-  /* Test a forward elimination, one instruction after the block start. */
+  /* Test a forward elimination, one instruction after the block start. The
+   * eliminated CLC keeps a host NOP, and so its own jit_ptr.
+   */
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, (s_p_mem + 0x2000), 0x100);
   emit_CLD(p_buf);
@@ -957,7 +959,8 @@ jit_test_compile_metadata(void) {
   state_6502_set_pc(s_p_state_6502, 0x2000);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  test_expect_eq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2001]);
+  test_expect_neq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2001]);
+  test_expect_neq(s_p_jit->jit_ptrs[0x2001], s_p_jit->jit_ptrs[0x2002]);
   test_expect_neq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2002]);
   cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2000);
   test_expect_u32(12, cycles);
@@ -1051,20 +1054,23 @@ jit_test_compile_binary(void) {
   p_binary = jit_test_get_binary(s_p_metadata, 0x3100);
 #if defined(__x86_64__)
   /* btr    r13d, 0x3
+   * nop    (the eliminated CLC)
    * add    al,  0x1
    */
   /* Uses the longer-form countdown check, so fix up p_binary. */
   p_binary -= 6;
   p_binary += 11;
-  p_expect = "\x41\x0f\xba\xf5\x03" "\x04\x01";
-  expect_len = 2;
+  p_expect = "\x41\x0f\xba\xf5\x03" "\x90" "\x04\x01";
+  expect_len = 8;
 #elif defined(__aarch64__)
   /* and   x5, x5, #0xfffffffffffffff7
+   * nop   (the eliminated CLC)
    * mov   x20, #0x1
    * add   x4, x20, x0
    */
-  p_expect = "\xa5\xf8\x7c\x92" "\x34\x00\x80\xd2" "\x84\x02\x00\x8b";
-  expect_len = 12;
+  p_expect = "\xa5\xf8\x7c\x92" "\x1f\x20\x03\xd5" "\x34\x00\x80\xd2"
+             "\x84\x02\x00\x8b";
+  expect_len = 16;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
@@ -1188,6 +1194,7 @@ jit_test_compile_binary(void) {
    * mov    ch, BYTE PTR [rbp-0x34]
    * movzx  eax, BYTE PTR [rcx+rbp*1-0x7c]
    * mov    BYTE PTR [rbp-0x3f],al
+   * nop    (the eliminated DEY)
    * movzx  eax,BYTE PTR [rcx+rbp*1-0x7d]
    * mov    BYTE PTR [rbp-0x40],al
    */
@@ -1195,9 +1202,10 @@ jit_test_compile_binary(void) {
              "\x8a\x6d\xcc"
              "\x0f\xb6\x44\x29\x84"
              "\x88\x45\xc1"
+             "\x90"
              "\x0f\xb6\x44\x29\x83"
              "\x88\x45\xc0";
-  expect_len = 23;
+  expect_len = 24;
 #elif defined(__aarch64__)
   /* ldrb  w22, [x27, #75]
    * ldrb  w4, [x27, #76]
@@ -1207,6 +1215,7 @@ jit_test_compile_binary(void) {
    * tbnz  w4, #16, 0x3001a0068
    * ldrb  w0, [x27, x21]
    * strb  w0, [x28, #65]
+   * nop   (the eliminated DEY)
    * add   x21, x22, #0x3
    * add   x4, x21, #0x4000
    * tbnz  w4, #16, 0x3001a005c
@@ -1215,10 +1224,11 @@ jit_test_compile_binary(void) {
    */
   p_expect = "\x76\x2f\x41\x39" "\x64\x33\x41\x39" "\xd6\x22\x04\xaa"
              "\xd5\x12\x00\x91" "\xa4\x12\x40\x91" "\x64\x02\x80\x37"
-             "\x60\x6b\x75\x38" "\x80\x07\x01\x39" "\xd5\x0e\x00\x91"
-             "\xa4\x12\x40\x91" "\x64\x01\x80\x37" "\x60\x6b\x75\x38"
+             "\x60\x6b\x75\x38" "\x80\x07\x01\x39" "\x1f\x20\x03\xd5"
+             "\xd5\x0e\x00\x91"
+             "\xa4\x12\x40\x91" "\x44\x01\x80\x37" "\x60\x6b\x75\x38"
              "\x80\x03\x01\x39";
-  expect_len = 52;
+  expect_len = 56;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 

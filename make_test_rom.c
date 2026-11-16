@@ -2949,8 +2949,38 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE9C0);
 
-  /* End of test. */
+  /* Test a store that modifies the operand of the very next opcode, where that
+   * opcode is optimized away and its value propagated. Example: Advanced
+   * Folio. The routine is copied to RAM so it is freshly compiled.
+   */
   set_new_index(p_buf, 0x29C0);
+  emit_LDX(p_buf, k_imm, 9);
+  emit_LDA(p_buf, k_abx, 0xF200);
+  emit_STA(p_buf, k_abx, 0x4E00);
+  emit_DEX(p_buf);
+  emit_BPL(p_buf, -9);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x4E00);
+  emit_LDA(p_buf, k_zpg, 0x70);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_JMP(p_buf, k_abs, 0xEA00);
+
+  /* Test a store that changes the very next opcode, where that opcode is
+   * optimized away: CLC into SEC, where the CLC was merged into an ADD.
+   */
+  set_new_index(p_buf, 0x2A00);
+  emit_LDX(p_buf, k_imm, 10);
+  emit_LDA(p_buf, k_abx, 0xF210);
+  emit_STA(p_buf, k_abx, 0x4E00);
+  emit_DEX(p_buf);
+  emit_BPL(p_buf, -9);
+  emit_JSR(p_buf, 0x4E00);
+  emit_LDA(p_buf, k_zpg, 0x70);
+  emit_REQUIRE_EQ(p_buf, 0x3A);
+  emit_JMP(p_buf, k_abs, 0xEA40);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2A40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -3163,6 +3193,27 @@ main(int argc, const char* argv[]) {
   emit_BNE(p_buf, -7);
   emit_RTS(p_buf);
   util_buffer_add_1b(p_buf, 0x32);
+
+  /* For testing a store to the operand of an optimized away opcode. Copied to
+   * $4E00. The LDX #$63 is dead, and its value goes into the STX $70.
+   */
+  set_new_index(p_buf, 0x3200);
+  emit_STX(p_buf, k_abs, 0x4E04);
+  emit_LDX(p_buf, k_imm, 0x63);
+  emit_STX(p_buf, k_zpg, 0x70);
+  emit_LDX(p_buf, k_imm, 0x4F);
+  emit_RTS(p_buf);
+
+  /* For testing a store that turns an optimized away CLC into SEC. Copied to
+   * $4E00.
+   */
+  set_new_index(p_buf, 0x3210);
+  emit_LDA(p_buf, k_imm, 0x38);   /* SEC */
+  emit_STA(p_buf, k_abs, 0x4E05);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0x70);
+  emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
   set_new_index(p_buf, 0x3BFF);

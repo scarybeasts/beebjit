@@ -1395,6 +1395,45 @@ jit_optimizer_merge_countdowns(struct jit_opcode_details* p_opcodes) {
   }
 }
 
+static void
+jit_optimizer_keep_code_for_all_opcodes(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t i_uops;
+    uint32_t num_uops = p_opcode->num_uops;
+    int32_t nop_index = -1;
+    int has_code = 0;
+
+    /* Merged into the previous opcode, which does its work. */
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      if (!p_opcode->uops[i_uops].is_eliminated) {
+        has_code = 1;
+      } else if ((nop_index == -1) &&
+                 !((i_uops == 0) && p_opcode->has_prefix_uop) &&
+                 !((i_uops == (num_uops - 1)) && p_opcode->has_postfix_uop)) {
+        nop_index = i_uops;
+      }
+    }
+
+    /* An opcode with no host code would share its self-modify invalidation
+     * pointer with the previous opcode that has code. If that previous opcode
+     * is a store that modifies this opcode, the invalidation would land in
+     * host code that has already run. Give the opcode a host NOP so that a
+     * write to it invalidates ahead of its execution.
+     */
+    if (!has_code && (nop_index != -1)) {
+      asm_make_uop0(&p_opcode->uops[nop_index], k_opcode_NOP);
+    }
+  }
+}
+
 void
 jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes,
                                    struct jit_metadata* p_metadata,
@@ -1449,4 +1488,9 @@ jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
 
   /* Pass 5: eliminate repeated mode loads, e.g EOR ($70),Y STA ($70),Y. */
   jit_optimizer_eliminate_mode_loads(p_opcodes);
+
+  /* Pass 6: make sure every opcode has some host code, so that self-modifying
+   * writes to it invalidate ahead of its execution.
+   */
+  jit_optimizer_keep_code_for_all_opcodes(p_opcodes);
 }
