@@ -726,6 +726,16 @@ debug_dump_sn76489(struct bbc_struct* p_bbc) {
                 volumes[1],
                 volumes[2],
                 volumes[3]);
+  (void) printf("counters %d %d %d %d\n",
+                counters[0],
+                counters[1],
+                counters[2],
+                counters[3]);
+  (void) printf("outputs %d %d %d %d\n",
+                outputs[0],
+                outputs[1],
+                outputs[2],
+                outputs[3]);
 }
 
 static struct debug_breakpoint*
