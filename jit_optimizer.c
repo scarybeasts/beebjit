@@ -475,6 +475,11 @@ jit_optimizer_collapse_indefinite_loops(struct jit_opcode_details* p_opcodes,
     uint16_t target_addr;
     uint8_t opmode;
     uint8_t optype = p_opcode->optype_6502;
+    /* E.g. a dynamic opcode, now an inturbo bail. */
+    if (p_opcode->is_rewritten) {
+      is_collapsible = 0;
+      break;
+    }
     switch (optype) {
     case k_lda:
     case k_cmp:
@@ -628,6 +633,11 @@ jit_optimizer_collapse_delay_loops(struct jit_opcode_details* p_opcodes,
     uint16_t target_addr;
     int32_t index;
     uint8_t optype = p_opcode->optype_6502;
+    /* E.g. a dynamic opcode, now an inturbo bail. */
+    if (p_opcode->is_rewritten) {
+      is_collapsible = 0;
+      break;
+    }
     switch (optype) {
     case k_nop:
       break;

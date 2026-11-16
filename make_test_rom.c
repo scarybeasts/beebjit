@@ -2932,8 +2932,25 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x5A);
   emit_JMP(p_buf, k_abs, 0xE94D);
 
-  /* End of test. */
+  /* Test an indefinite loop, of the kind the optimizer collapses, whose branch
+   * is a dynamic opcode. The collapse used to crash looking for the branch.
+   * Example: Sherston loaders, reloaded over BASIC's string buffer.
+   */
   set_new_index(p_buf, 0x2980);
+  emit_LDX(p_buf, k_imm, 8);
+  emit_LDA(p_buf, k_imm, 0xD0);   /* Rewrite the BNE to make it dynamic. */
+  emit_STA(p_buf, k_abs, 0x31F5);
+  emit_JSR(p_buf, 0x31F0);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -11);
+  emit_LDA(p_buf, k_imm, 0xAD);   /* Recompile the whole loop. */
+  emit_STA(p_buf, k_abs, 0x31F0);
+  emit_JSR(p_buf, 0x31F0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE9C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x29C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -3138,6 +3155,14 @@ main(int argc, const char* argv[]) {
   emit_ORA(p_buf, k_imm, 0x08);   /* Intel can't recover C / V across or. */
   emit_ADC(p_buf, k_imm, 0x01);   /* Sets C and V again. */
   emit_RTS(p_buf);
+
+  /* For testing collapse of a loop with a dynamic opcode. */
+  set_new_index(p_buf, 0x31F0);
+  emit_LDA(p_buf, k_abs, 0x31F8);
+  emit_CMP(p_buf, k_imm, 0x32);
+  emit_BNE(p_buf, -7);
+  emit_RTS(p_buf);
+  util_buffer_add_1b(p_buf, 0x32);
 
   /* Need this byte here for a specific test. */
   set_new_index(p_buf, 0x3BFF);
