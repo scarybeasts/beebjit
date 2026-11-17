@@ -91,6 +91,8 @@ struct sound_struct {
   int bus_value_taken;
   uint64_t snlog_records;
   uint64_t snlog_dropped;
+  uint64_t snlog_torn;
+  int snlog_torn_this_cycle;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -502,9 +504,11 @@ sound_destroy(struct sound_struct* p_sound) {
     (void) fclose(p_sound->p_snlog_file);
     log_do_log(k_log_audio,
                k_log_info,
-               "snlog: %"PRIu64" records, %"PRIu64" bus values dropped",
+               "snlog: %"PRIu64" records, %"PRIu64" bus values dropped, "
+               "%"PRIu64" torn writes",
                p_sound->snlog_records,
-               p_sound->snlog_dropped);
+               p_sound->snlog_dropped,
+               p_sound->snlog_torn);
   }
   os_time_free_sleeper(p_sound->p_sleeper);
   util_free(p_sound);
@@ -803,12 +807,32 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
         position++;
       } else if (position < 4) {
         /* 8us cycle, second: transparent register latches open for 2us. */
+        if ((position == 2) || (position == 3)) {
+          uint8_t v = p_sound->curr_bus_value;
+          if ((v & 0x80) &&
+              ((v & 0x70) != p_sound->latched_address) &&
+              !p_sound->snlog_torn_this_cycle) {
+            /* Address latched from one byte, data from another. */
+            p_sound->snlog_torn_this_cycle = 1;
+            p_sound->snlog_torn++;
+            if ((p_sound->p_snlog_file != NULL) && (p_sound->snlog_torn <= 10)) {
+              log_do_log(k_log_audio,
+                         k_log_warning,
+                         "snlog: torn write, address $%"PRIx8" data $%"PRIx8
+                         " at 2MHz cycle %"PRIu64,
+                         p_sound->latched_address,
+                         v,
+                         timing_get_scaled_total_timer_ticks(p_sound->p_timing));
+            }
+          }
+        }
         sound_sn_do_register_write(p_sound, p_sound->curr_bus_value);
         sound_snlog_taken(p_sound, ticks);
         p_sound->write_gate_open_bytes_accepted++;
         position++;
       } else {
         /* 8us cycle, third: nothing interesting for 4us. */
+        p_sound->snlog_torn_this_cycle = 0;
         position++;
         position &= 7;
       }
