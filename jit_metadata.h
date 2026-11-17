@@ -45,5 +45,8 @@ void jit_metadata_invalidate_code(struct jit_metadata* p_metadata,
                                   uint16_t addr);
 void jit_metadata_clear_block(struct jit_metadata* p_metadata,
                               uint16_t block_addr_6502);
+void jit_metadata_invalidate_range(struct jit_metadata* p_metadata,
+                                   uint16_t addr_6502,
+                                   uint32_t len);
 
 #endif /* BEEBJIT_JIT_METADATA_H */

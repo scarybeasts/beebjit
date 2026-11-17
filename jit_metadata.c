@@ -221,3 +221,54 @@ jit_metadata_clear_block(struct jit_metadata* p_metadata, uint16_t addr_6502) {
                                                             i_addr_6502);
   } while (next_code_block_addr_6502 == code_block_addr_6502);
 }
+
+void
+jit_metadata_invalidate_range(struct jit_metadata* p_metadata,
+                              uint16_t addr_6502,
+                              uint32_t len) {
+  uint32_t i;
+  uint32_t addr_end_6502 = (addr_6502 + len);
+  int32_t* p_code_blocks = &p_metadata->code_blocks[0];
+  uint32_t* p_jit_ptrs = p_metadata->p_jit_ptrs;
+  uint32_t jit_ptr_no_code =
+      (uint32_t) (uintptr_t) p_metadata->p_jit_ptr_no_code;
+
+  assert(addr_end_6502 <= k_6502_addr_space_size);
+
+  /* Work in chunks, so that chunks with no code in them, common when a ROM
+   * bank is paged out, are a quick (vectorizable) scan.
+   */
+  for (i = addr_6502; i < addr_end_6502; i += 64) {
+    uint32_t j;
+    uint32_t chunk_end = (i + 64);
+    int32_t all_code_blocks = -1;
+    if (chunk_end > addr_end_6502) {
+      chunk_end = addr_end_6502;
+    }
+    for (j = i; j < chunk_end; ++j) {
+      all_code_blocks &= p_code_blocks[j];
+    }
+    if (all_code_blocks == -1) {
+#ifndef NDEBUG
+      /* No code blocks implies no JIT pointers to clear. */
+      for (j = i; j < chunk_end; ++j) {
+        assert(p_jit_ptrs[j] == jit_ptr_no_code);
+      }
+#endif
+      continue;
+    }
+    for (j = i; j < chunk_end; ++j) {
+      int32_t code_block = p_code_blocks[j];
+      /* We assume we're not executing in the middle of a JIT block. Therefore,
+       * we can invalidate the entire range simply by making sure the very
+       * start of every code block is invalidated. This is possible now that
+       * the invalidation pointer is inclusive of any block countdown prefix.
+       */
+      if (code_block == (int32_t) j) {
+        jit_metadata_invalidate_code(p_metadata, j);
+      }
+      p_code_blocks[j] = -1;
+      p_jit_ptrs[j] = jit_ptr_no_code;
+    }
+  }
+}

@@ -280,7 +280,6 @@ static void
 jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                             uint16_t addr_6502,
                             uint32_t len) {
-  uint32_t i;
   void* p_block_ptr;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -305,22 +304,7 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                              p_block_ptr,
                              (len * K_JIT_BYTES_PER_BYTE));
 
-  for (i = addr_6502; i < addr_end_6502; ++i) {
-    int32_t code_block = jit_metadata_get_code_block(p_metadata, i);
-    /* We assume we're not executing in the middle of a JIT block. Therefore,
-     * we can invalidate the entire range simply by making sure the very
-     * start of every code block is invalidated. This is possible now that
-     * the invalidation pointer is inclusive of any block countdown prefix.
-     */
-    if (code_block == (int32_t) i) {
-      void* p_jit_ptr = jit_metadata_get_host_jit_ptr(p_metadata, i);
-      asm_jit_invalidate_code_at(p_jit_ptr);
-    }
-    if (code_block != -1) {
-      jit_metadata_set_code_block(p_metadata, i, -1);
-    }
-    jit_metadata_make_jit_ptr_no_code(p_metadata, i);
-  }
+  jit_metadata_invalidate_range(p_metadata, addr_6502, len);
 
   asm_jit_finish_code_updates(p_jit->p_asm);
 
