@@ -92,6 +92,7 @@ struct sound_struct {
   uint64_t snlog_records;
   uint64_t snlog_dropped;
   uint64_t snlog_torn;
+  uint64_t snlog_change_position[8];
   int snlog_torn_this_cycle;
 
   /* Timing. */
@@ -509,6 +510,19 @@ sound_destroy(struct sound_struct* p_sound) {
                p_sound->snlog_records,
                p_sound->snlog_dropped,
                p_sound->snlog_torn);
+    log_do_log(k_log_audio,
+               k_log_info,
+               "snlog: bus changes by write cycle position 0-7: "
+               "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" "
+               "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64,
+               p_sound->snlog_change_position[0],
+               p_sound->snlog_change_position[1],
+               p_sound->snlog_change_position[2],
+               p_sound->snlog_change_position[3],
+               p_sound->snlog_change_position[4],
+               p_sound->snlog_change_position[5],
+               p_sound->snlog_change_position[6],
+               p_sound->snlog_change_position[7]);
   }
   os_time_free_sleeper(p_sound->p_sleeper);
   util_free(p_sound);
@@ -993,6 +1007,10 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
                          (uint32_t) p_sound->write_cycle_position,
                          p_sound->curr_bus_value,
                          value);
+  }
+
+  if (p_sound->is_write_enabled && (value != p_sound->curr_bus_value)) {
+    p_sound->snlog_change_position[p_sound->write_cycle_position & 7]++;
   }
 
   if (p_sound->is_write_enabled &&
