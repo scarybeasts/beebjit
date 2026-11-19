@@ -2385,18 +2385,12 @@ video_crtc_write_value(struct video_struct* p_video, uint8_t val) {
     break;
   /* R6 */
   case k_crtc_reg_vert_displayed:
-    mask = 0x7F;
-    /* Vertical displayed doesn't affect timing or framing as long as it stays
-     * below the vsync position.
-     * If it's changed to be below the vsync position, various interlaced frame
-     * checks change.
+    /* R6 changes framing: the Hitachi 6845 counts frames on the R6 hit, which
+     * selects the odd / even interlace frame. Moving R6 across the current
+     * vertical position mid-frame adds or drops a frame count, so the CRTC
+     * must be caught up before the change lands.
      */
-    {
-      uint8_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
-      if (((val & mask) < r7) && (p_video->crtc_registers[reg] < r7)) {
-        does_not_change_framing = 1;
-      }
-    }
+    mask = 0x7F;
     break;
   /* R7 */
   case k_crtc_reg_vert_sync_position:
