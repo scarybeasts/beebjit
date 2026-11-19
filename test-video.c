@@ -1444,6 +1444,65 @@ video_test_inactive_R12_R13_write() {
 }
 
 static void
+video_test_inactive_R6_write() {
+  /* Tests that an R6 write when not rendering applies only from the write
+   * onwards. The 6845 counts frames on the R6 hit, which selects the
+   * interlace field, so moving R6 above the current row mid-frame means no
+   * frame is counted, and the following VSYNCs stay on the correct field.
+   */
+  uint64_t num_crtc_advances;
+
+  g_test_fast_flag = 1;
+
+  /* MODE 4 timing, interlaced. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 38);
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 32);
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 35);
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 1);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 7);
+
+  /* To VSYNC lower, with the timer jumping full frames. */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (k_ticks_mode4ni_to_vsync +
+                                    k_ticks_mode7_per_half_scanline +
+                                    (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(k_video_timer_jump_full_frame, g_p_video->timer_fire_mode);
+  test_expect_u32(1, g_p_video->crtc_frames);
+  test_expect_u32(36160, g_p_video->last_vsync_lower_ticks);
+  num_crtc_advances = g_p_video->num_crtc_advances;
+
+  /* Into row 23 of the next frame, past the new R6 but short of the old. */
+  (void) timing_advance_time_delta(
+      g_p_timing,
+      ((30 + (23 * 8) + 1) * k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 12);
+  test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(23, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->crtc_frames);
+
+  /* Through this frame's VSYNC and two more frames, to VSYNC raise. This
+   * frame had no R6 hit, so it isn't counted.
+   */
+  (void) timing_advance_time_delta(g_p_timing,
+                                   (721 * k_ticks_mode7_per_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(3, g_p_video->crtc_frames);
+  test_expect_u32(0, g_p_video->is_odd_frame);
+  test_expect_u32(155968, g_p_video->last_vsync_raise_ticks);
+  test_expect_u32(116224, g_p_video->last_vsync_lower_ticks);
+}
+
+static void
 video_test_adjust_assert() {
   /* Test an elusive assert when starting a new frame, sometimes hit when
    * pressing Break as LinearTTX.ssd ran.
@@ -1588,6 +1647,10 @@ video_test() {
 
   video_test_init();
   video_test_inactive_R1_write();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_R6_write();
   video_test_end();
 
   video_test_init();
