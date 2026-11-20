@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 static const uint32_t k_sound_clock_rate = 250000;
@@ -85,6 +86,21 @@ struct sound_struct {
   int pending_write_enable;
   uint64_t write_cycle_position;
   uint64_t write_gate_open_bytes_accepted;
+
+  /* Write log (-opt sound:snlog=FILE): every byte the SN takes off the bus,
+   * once per change, as 5-byte records (2MHz cycle uint32 LE, byte). With it,
+   * accurate sound timing runs without a driver, e.g. -headless -fast
+   * -accurate.
+   */
+  FILE* p_snlog_file;
+  int snlog_have_last;
+  uint8_t snlog_last;
+  int bus_value_taken;
+  uint64_t snlog_records;
+  uint64_t snlog_dropped;
+  uint64_t snlog_torn;
+  uint64_t snlog_change_position[8];
+  int snlog_torn_this_cycle;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -480,6 +496,20 @@ sound_create(int synchronous,
 
   p_sound->volume_silence = p_sound->volume_outputs[0xf];
 
+  p_sound->p_snlog_file = NULL;
+  {
+    char* p_snlog_name = NULL;
+    if (util_get_str_option(&p_snlog_name,
+                            p_options->p_opt_flags,
+                            "sound:snlog=")) {
+      p_sound->p_snlog_file = fopen(p_snlog_name, "wb");
+      if (p_sound->p_snlog_file == NULL) {
+        util_bail("cannot open sound:snlog file");
+      }
+      util_free(p_snlog_name);
+    }
+  }
+
   return p_sound;
 }
 
@@ -496,6 +526,29 @@ sound_destroy(struct sound_struct* p_sound) {
   }
   if (p_sound->p_sn_frames) {
     util_free(p_sound->p_sn_frames);
+  }
+  if (p_sound->p_snlog_file != NULL) {
+    (void) fclose(p_sound->p_snlog_file);
+    log_do_log(k_log_audio,
+               k_log_info,
+               "snlog: %"PRIu64" records, %"PRIu64" bus values dropped, "
+               "%"PRIu64" torn writes",
+               p_sound->snlog_records,
+               p_sound->snlog_dropped,
+               p_sound->snlog_torn);
+    log_do_log(k_log_audio,
+               k_log_info,
+               "snlog: bus changes by write cycle position 0-7: "
+               "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" "
+               "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64,
+               p_sound->snlog_change_position[0],
+               p_sound->snlog_change_position[1],
+               p_sound->snlog_change_position[2],
+               p_sound->snlog_change_position[3],
+               p_sound->snlog_change_position[4],
+               p_sound->snlog_change_position[5],
+               p_sound->snlog_change_position[6],
+               p_sound->snlog_change_position[7]);
   }
   os_time_free_sleeper(p_sound->p_sleeper);
   util_free(p_sound);
@@ -637,7 +690,33 @@ sound_is_active(struct sound_struct* p_sound) {
 
 int
 sound_is_synchronous(struct sound_struct* p_sound) {
-  return sound_is_active(p_sound) && p_sound->synchronous;
+  int active = (sound_is_active(p_sound) || (p_sound->p_snlog_file != NULL));
+  return active && p_sound->synchronous;
+}
+
+static void
+sound_snlog_taken(struct sound_struct* p_sound, uint64_t ticks_1us) {
+  uint8_t value = p_sound->curr_bus_value;
+  uint8_t record[5];
+  uint32_t cycles;
+
+  p_sound->bus_value_taken = 1;
+  if (p_sound->p_snlog_file == NULL) {
+    return;
+  }
+  if (p_sound->snlog_have_last && (value == p_sound->snlog_last)) {
+    return;
+  }
+  p_sound->snlog_have_last = 1;
+  p_sound->snlog_last = value;
+  cycles = (uint32_t) (ticks_1us * 2);
+  record[0] = (cycles & 0xFF);
+  record[1] = ((cycles >> 8) & 0xFF);
+  record[2] = ((cycles >> 16) & 0xFF);
+  record[3] = (cycles >> 24);
+  record[4] = value;
+  (void) fwrite(record, 1, 5, p_sound->p_snlog_file);
+  p_sound->snlog_records++;
 }
 
 static void
@@ -768,11 +847,32 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
         position++;
       } else if (position < 4) {
         /* 8us cycle, second: transparent register latches open for 2us. */
+        if ((position == 2) || (position == 3)) {
+          uint8_t v = p_sound->curr_bus_value;
+          if ((v & 0x80) &&
+              ((v & 0x70) != p_sound->latched_address) &&
+              !p_sound->snlog_torn_this_cycle) {
+            /* Address latched from one byte, data from another. */
+            p_sound->snlog_torn_this_cycle = 1;
+            p_sound->snlog_torn++;
+            if ((p_sound->p_snlog_file != NULL) && (p_sound->snlog_torn <= 10)) {
+              log_do_log(k_log_audio,
+                         k_log_warning,
+                         "snlog: torn write, address $%"PRIx8" data $%"PRIx8
+                         " at 2MHz cycle %"PRIu64,
+                         p_sound->latched_address,
+                         v,
+                         timing_get_scaled_total_timer_ticks(p_sound->p_timing));
+            }
+          }
+        }
         sound_sn_do_register_write(p_sound, p_sound->curr_bus_value);
+        sound_snlog_taken(p_sound, ticks);
         p_sound->write_gate_open_bytes_accepted++;
         position++;
       } else {
         /* 8us cycle, third: nothing interesting for 4us. */
+        p_sound->snlog_torn_this_cycle = 0;
         position++;
         position &= 7;
       }
@@ -822,6 +922,11 @@ sound_tick(struct sound_struct* p_sound, uint64_t curr_time_us) {
   uint32_t sub_period_size = p_sound->sub_period_size;
 
   assert(sound_is_synchronous(p_sound));
+  if (!sound_is_active(p_sound)) {
+    /* Write log only: nothing to play. */
+    sound_advance_sn_timing(p_sound);
+    return;
+  }
 
   sound_advance_sn_timing(p_sound);
   (void) sound_resample_to_driver_buffer(p_sound);
@@ -930,6 +1035,25 @@ sound_sn_set_bus_value(struct sound_struct* p_sound, uint8_t value) {
                          value);
   }
 
+  if (p_sound->is_write_enabled && (value != p_sound->curr_bus_value)) {
+    p_sound->snlog_change_position[p_sound->write_cycle_position & 7]++;
+  }
+
+  if (p_sound->is_write_enabled &&
+      !p_sound->bus_value_taken &&
+      (value != p_sound->curr_bus_value)) {
+    p_sound->snlog_dropped++;
+    if (p_sound->p_snlog_file != NULL) {
+      log_do_log(k_log_audio,
+                 k_log_warning,
+                 "snlog: bus value $%"PRIx8" dropped at 2MHz cycle %"PRIu64,
+                 p_sound->curr_bus_value,
+                 timing_get_scaled_total_timer_ticks(p_sound->p_timing));
+    }
+  }
+  if (value != p_sound->curr_bus_value) {
+    p_sound->bus_value_taken = 0;
+  }
   p_sound->curr_bus_value = value;
 }
 

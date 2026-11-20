@@ -79,7 +79,10 @@ os_alloc_get_mapping_from_handle(intptr_t h,
                          (MEM_RESERVE | MEM_COMMIT),
                          PAGE_READWRITE);
     if (p_map == NULL) {
-      util_bail("VirtualAlloc failed");
+      util_bail("VirtualAlloc failed at %p size %zu error %lu",
+                p_addr,
+                size,
+                (unsigned long) GetLastError());
     }
   }
 

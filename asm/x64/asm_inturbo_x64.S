@@ -492,7 +492,6 @@ ASM_SYM(asm_inturbo_mode_ind_END):
 
 .globl ASM_SYM(asm_instruction_Bxx_interp_accurate)
 .globl ASM_SYM(asm_instruction_Bxx_interp_accurate_END)
-.globl ASM_SYM(asm_instruction_Bxx_interp_accurate_jb_patch)
 .globl ASM_SYM(asm_instruction_Bxx_interp_accurate_not_taken_target)
 ASM_SYM(asm_instruction_Bxx_interp_accurate):
 
