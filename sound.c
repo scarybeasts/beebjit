@@ -16,6 +16,8 @@
 static const uint32_t k_sound_clock_rate = 250000;
 /* BBC master clock 2MHz, 8x divider for 250kHz sn76489 chip. */
 static const uint32_t k_sound_clock_divider = 8;
+/* Anti-aliasing low pass ahead of the downsample to the host rate. */
+static const uint32_t k_sound_aa_cutoff = 16000;
 
 enum {
   /* 0-2 square wave tone channels, 3 noise channel. */
@@ -56,10 +58,15 @@ struct sound_struct {
   uint32_t filter_cutoff;
   double iir_input_coefficients[3];
   double iir_output_coefficients[3];
+  /* 4th-order Butterworth anti-aliasing, as two biquads. */
+  double aa_input_coefficients[2][3];
+  double aa_output_coefficients[2][3];
   double iir_first_pass_input_history[2];
   double iir_first_pass_output_history[2];
   double iir_second_pass_input_history[2];
   double iir_second_pass_output_history[2];
+  double iir_third_pass_input_history[2];
+  double iir_third_pass_output_history[2];
 
   /* sn76489 state. */
   int is_write_enabled;
@@ -230,8 +237,14 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
           output_sample,
           &p_sound->iir_second_pass_input_history[0],
           &p_sound->iir_second_pass_output_history[0],
-          &p_sound->iir_input_coefficients[0],
-          &p_sound->iir_output_coefficients[0]);
+          &p_sound->aa_input_coefficients[0][0],
+          &p_sound->aa_output_coefficients[0][0]);
+      output_sample = iir_lowpass_apply(
+          output_sample,
+          &p_sound->iir_third_pass_input_history[0],
+          &p_sound->iir_third_pass_output_history[0],
+          &p_sound->aa_input_coefficients[1][0],
+          &p_sound->aa_output_coefficients[1][0]);
       sample = (int32_t) output_sample;
       if (sample > INT16_MAX) {
         sample = INT16_MAX;
@@ -404,6 +417,10 @@ sound_create(int synchronous,
   p_sound->iir_second_pass_input_history[1] = 0.0;
   p_sound->iir_second_pass_output_history[0] = 0.0;
   p_sound->iir_second_pass_output_history[1] = 0.0;
+  p_sound->iir_third_pass_input_history[0] = 0.0;
+  p_sound->iir_third_pass_input_history[1] = 0.0;
+  p_sound->iir_third_pass_output_history[0] = 0.0;
+  p_sound->iir_third_pass_output_history[1] = 0.0;
 
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
@@ -429,6 +446,15 @@ sound_create(int synchronous,
                                        k_sound_clock_rate,
                                        p_sound->filter_cutoff,
                                        q);
+    /* The two section Qs of a 4th-order Butterworth. */
+    for (i = 0; i < 2; ++i) {
+      q = (1.0 / (2.0 * cos(M_PI * ((2 * i) + 1) / 8.0)));
+      iir_lowpass_calculate_coefficients(&p_sound->aa_input_coefficients[i][0],
+                                         &p_sound->aa_output_coefficients[i][0],
+                                         k_sound_clock_rate,
+                                         k_sound_aa_cutoff,
+                                         q);
+    }
   }
 
   for (i = 0; i < 15; ++i) {
