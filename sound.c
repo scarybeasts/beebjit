@@ -95,6 +95,13 @@ struct sound_struct {
   uint64_t snlog_change_position[8];
   int snlog_torn_this_cycle;
 
+  /* Audio out (-opt sound:wav=FILE, without a sound driver): the SN's output
+   * as beebjit renders it (its volume table, its low-pass filter), one frame
+   * per 250kHz SN clock, 16-bit mono WAV.
+   */
+  FILE* p_wav_file;
+  uint64_t wav_frames;
+
   /* Timing. */
   struct timing_struct* p_timing;
   struct os_time_sleeper* p_sleeper;
@@ -161,6 +168,17 @@ iir_lowpass_apply(double new_sample,
 
   return new_output;
 }
+
+static void
+sound_wav_le32(uint8_t* p_buf, uint32_t val) {
+  p_buf[0] = (uint8_t) val;
+  p_buf[1] = (uint8_t) (val >> 8);
+  p_buf[2] = (uint8_t) (val >> 16);
+  p_buf[3] = (uint8_t) (val >> 24);
+}
+
+struct sound_struct;
+static void sound_wav_flush(struct sound_struct* p_sound);
 
 static void
 sound_fill_sn76489_buffer(struct sound_struct* p_sound,
@@ -484,6 +502,27 @@ sound_create(int synchronous,
     }
   }
 
+  p_sound->p_wav_file = NULL;
+  p_sound->wav_frames = 0;
+  {
+    char* p_wav_name = NULL;
+    if (util_get_str_option(&p_wav_name,
+                            p_options->p_opt_flags,
+                            "sound:wav=")) {
+      uint8_t header[44];
+      p_sound->p_wav_file = fopen(p_wav_name, "wb");
+      if (p_sound->p_wav_file == NULL) {
+        util_bail("cannot open sound:wav file");
+      }
+      util_free(p_wav_name);
+      /* Placeholder; sound_destroy writes the real header. */
+      (void) memset(header, 0, sizeof(header));
+      (void) fwrite(header, sizeof(header), 1, p_sound->p_wav_file);
+      p_sound->sn_frames_per_driver_buffer_size = 65536;
+      p_sound->p_sn_frames = util_mallocz(65536 * sizeof(int16_t));
+    }
+  }
+
   return p_sound;
 }
 
@@ -500,6 +539,35 @@ sound_destroy(struct sound_struct* p_sound) {
   }
   if (p_sound->p_sn_frames) {
     util_free(p_sound->p_sn_frames);
+  }
+  if (p_sound->p_wav_file != NULL) {
+    FILE* p_file = p_sound->p_wav_file;
+    uint32_t data_bytes = (uint32_t) (p_sound->wav_frames * 2);
+    uint8_t header[44];
+    (void) memcpy(&header[0], "RIFF", 4);
+    sound_wav_le32(&header[4], (36 + data_bytes));
+    (void) memcpy(&header[8], "WAVEfmt ", 8);
+    sound_wav_le32(&header[16], 16);
+    header[20] = 1;
+    header[21] = 0;
+    header[22] = 1;
+    header[23] = 0;
+    sound_wav_le32(&header[24], k_sound_clock_rate);
+    sound_wav_le32(&header[28], (k_sound_clock_rate * 2));
+    header[32] = 2;
+    header[33] = 0;
+    header[34] = 16;
+    header[35] = 0;
+    (void) memcpy(&header[36], "data", 4);
+    sound_wav_le32(&header[40], data_bytes);
+    (void) fseek(p_file, 0, SEEK_SET);
+    (void) fwrite(header, sizeof(header), 1, p_file);
+    (void) fclose(p_file);
+    log_do_log(k_log_audio,
+               k_log_info,
+               "wav: %"PRIu64" frames at %"PRIu32"Hz",
+               p_sound->wav_frames,
+               k_sound_clock_rate);
   }
   if (p_sound->p_snlog_file != NULL) {
     (void) fclose(p_sound->p_snlog_file);
@@ -539,6 +607,9 @@ sound_set_driver(struct sound_struct* p_sound,
 
   assert(p_sound->p_driver == NULL);
   assert(!p_sound->thread_running);
+  if (p_sound->p_wav_file != NULL) {
+    util_bail("sound:wav needs no sound driver (-headless)");
+  }
 
   p_sound->p_driver = p_driver;
 
@@ -664,7 +735,9 @@ sound_is_active(struct sound_struct* p_sound) {
 
 int
 sound_is_synchronous(struct sound_struct* p_sound) {
-  int active = (sound_is_active(p_sound) || (p_sound->p_snlog_file != NULL));
+  int active = (sound_is_active(p_sound) ||
+                (p_sound->p_snlog_file != NULL) ||
+                (p_sound->p_wav_file != NULL));
   return active && p_sound->synchronous;
 }
 
@@ -749,6 +822,16 @@ sound_sn_do_register_write(struct sound_struct* p_sound, uint8_t value) {
 }
 
 static void
+sound_wav_flush(struct sound_struct* p_sound) {
+  (void) fwrite(p_sound->p_sn_frames,
+                sizeof(int16_t),
+                p_sound->sn_frames_filled,
+                p_sound->p_wav_file);
+  p_sound->wav_frames += p_sound->sn_frames_filled;
+  p_sound->sn_frames_filled = 0;
+}
+
+static void
 sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint64_t prev_sn_ticks;
   uint64_t curr_sn_ticks;
@@ -768,6 +851,22 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
    * - It being full.
    * - A huge delta that would overfill it in one go.
    */
+  if (p_sound->p_wav_file != NULL) {
+    /* Audio out: render every tick, in buffer-sized pieces. */
+    while ((sn_frames_filled + render_sn_ticks) >
+           sn_frames_per_driver_buffer_size) {
+      uint32_t num = (sn_frames_per_driver_buffer_size - sn_frames_filled);
+      sound_fill_sn76489_buffer(p_sound,
+                                num,
+                                &p_sound->volume[0],
+                                &p_sound->period[0],
+                                p_sound->noise_rng,
+                                p_sound->noise_type);
+      render_sn_ticks -= num;
+      sound_wav_flush(p_sound);
+      sn_frames_filled = 0;
+    }
+  }
   if ((sn_frames_filled + render_sn_ticks) > sn_frames_per_driver_buffer_size) {
     render_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
@@ -878,6 +977,10 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
                             &p_sound->period[0],
                             p_sound->noise_rng,
                             p_sound->noise_type);
+
+  if (p_sound->p_wav_file != NULL) {
+    sound_wav_flush(p_sound);
+  }
 
   p_sound->prev_system_ticks = curr_system_ticks;
 }
