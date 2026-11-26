@@ -3,6 +3,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <windows.h>
 
 struct os_alloc_mapping {
@@ -79,7 +80,10 @@ os_alloc_get_mapping_from_handle(intptr_t h,
                          (MEM_RESERVE | MEM_COMMIT),
                          PAGE_READWRITE);
     if (p_map == NULL) {
-      util_bail("VirtualAlloc failed");
+      util_bail("VirtualAlloc failed at %p size %"PRIu64" error %lu",
+                p_addr,
+                (uint64_t) size,
+                (unsigned long) GetLastError());
     }
   }
 
