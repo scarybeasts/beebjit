@@ -1,5 +1,6 @@
 #include "os_time.h"
 
+#include "log.h"
 #include "util.h"
 
 #include <inttypes.h>
